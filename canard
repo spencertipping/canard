@@ -242,6 +242,8 @@ meta::meta('type::waul', <<'__');
 meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => 'edit';
 
 __
+meta::alias('er', 'edit sdoc::readme');
+meta::alias('erf', 'edit function::render');
 meta::alias('erwf', 'edit function::render-waul');
 meta::bootstrap('html', <<'__');
 <html>
@@ -646,7 +648,7 @@ render_waul() unless $$options{-W};
 __
 meta::function('render-waul', <<'__');
 # Renders a waul compiler with all dependencies
-my @deps = map "-e deps/$_.js", qw/bloom bit-vector bitwise struct asm-x64/;
+my @deps = map "-e deps/$_.js", qw/bloom bit-vector bitwise struct elf asm-x64/;
 terminal::info('rendering waul');
 sh("waul -r @deps > ./waul && chmod +x ./waul");
 
