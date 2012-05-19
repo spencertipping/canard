@@ -22,10 +22,9 @@ immutable, so bracket-notation is folded into constant-time push operations at c
 
 The following syntactic elements are recognized:
 
-    1. SDoc-style paragraph comments.
-    2. Hash line comments.
-    3. Atoms, which include any character except [, ], and whitespace. Atoms beginning with ' are quoted symbols.
-    4. Lists, which begin with [ and end with ]. The empty list is legal and refers to nil. Lists are quoted until executed.
+    1. Hash line comments.
+    2. Atoms, which include any character except [, ], and whitespace. Atoms beginning with ' are quoted symbols.
+    3. Lists, which begin with [ and end with ]. The empty list is legal and refers to nil. Lists are quoted until executed.
 
 Files are parsed from left to right, but execution happens in the opposite order.
 

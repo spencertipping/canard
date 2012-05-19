@@ -238,13 +238,20 @@ meta::define_form 'template', sub {
   meta::externalize "template::$name", "template::$name", meta::eval_in("sub {\n$value\n}", "template::$name");
 };
 __
+meta::meta('type::vim_highlighter', <<'__');
+meta::configure 'vim_highlighter', extension => '.vim', inherit => 1;
+meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
+
+__
 meta::meta('type::waul', <<'__');
 meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => 'edit';
 
 __
+meta::alias('eb', 'edit sdoc::waul::boot');
 meta::alias('er', 'edit sdoc::readme');
 meta::alias('erf', 'edit function::render');
 meta::alias('erwf', 'edit function::render-waul');
+meta::alias('ev', 'edit vim_highlighter::canard');
 meta::bootstrap('html', <<'__');
 <html>
   <head>
@@ -337,6 +344,7 @@ meta::cache('parent-identification', <<'__');
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
+vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
 __
 meta::data('author', 'Spencer Tipping');
 meta::data('default-action', 'shell');
@@ -988,6 +996,10 @@ unlink $other if my $result = $observed eq (my $state = state());
 terminal::error("Verification failed; expected $state but got $observed from $other") unless $result;
 hook('after-verify', $result, observed => $observed, expected => $state);
 $result;
+__
+meta::function('vim', <<'__');
+# Installs VIM highlighters.
+file::write("$ENV{'HOME'}/.vim/syntax/$_.vim", retrieve("vim_highlighter::$_")) for grep s/^vim_highlighter:://o, keys %data;
 __
 meta::function('waul', <<'__');
 my ($name, %options) = @_;
@@ -1705,6 +1717,12 @@ template::include              47b5552d609d97fe7f2522d5c1027014
 template::pinclude             c07ff79bf8d642cceaa9ef844bfcb189
 
 __
+meta::parent('vim-highlighters', <<'__');
+function::vim                cf9e37026f6cd1499a6dd258fbbcd060
+meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
+parent::object               95fa6ef5120e9a213ad9781a31d69584
+
+__
 meta::retriever('code-sdoc', <<'__');
 # Lets you specify the SDoc extension manually. For instance:
 # code.js::sdoc::foo causes sdoc::foo to be SDoc-rendered using Javascript comments.
@@ -1754,6 +1772,21 @@ meta::retriever('sdocp', <<'__');
 my $attribute = attribute($_[0]);
 exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
 __
+meta::sdoc('js::boot-image', <<'__');
+#!/usr/bin/env node
+
+Canard bootstrap interpreter image | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+- include deps/caterwaul.min.js
+- include deps/caterwaul.std.min.js
+- include deps/regexp.js
+- include deps/parser.js
+- include src/canard.js
+
+caterwaul.canard(require('fs').readFileSync(process.argv[2], 'utf8'));
+
+__
 meta::sdoc('readme', <<'__');
 Canard programming language.
 Canard is a concatenative language that is executed from right to left. It provides modular memory management, thread-local heaps, and supports IPC through message passing. The language is
@@ -1775,10 +1808,9 @@ implemented in x86-64 assembly language and contains subsets that can be compile
   Syntax.
   The following syntactic elements are recognized:
 
-  | 1. SDoc-style paragraph comments.
-    2. Hash line comments.
-    3. Atoms, which include any character except [, ], and whitespace. Atoms beginning with ' are quoted symbols.
-    4. Lists, which begin with [ and end with ]. The empty list is legal and refers to nil. Lists are quoted until executed.
+  | 1. Hash line comments.
+    2. Atoms, which include any character except [, ], and whitespace. Atoms beginning with ' are quoted symbols.
+    3. Lists, which begin with [ and end with ]. The empty list is legal and refers to nil. Lists are quoted until executed.
 
   Files are parsed from left to right, but execution happens in the opposite order.
 
@@ -1828,6 +1860,17 @@ low-level variant provides enough functionality to execute commands in the high-
   The current interpreter is stored in %rbp. Other registers can be used and/or clobbered, including %rsp.
 
 __
+meta::sdoc('waul::boot', <<'__');
+Bootstrap interpreter | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This interpreter parses and interprets Canard programs. It provides a set of primitives sufficient to generate the file that will contain the reference Canard compiler. To do this, it emits
+the list on the top of the stack to stdout when the program exits, interpreting it as a linked list of bytes.
+
+caterwaul.module('canard', ':all', function ($) {});
+
+__
 meta::template('comment', '\'\';     # A mechanism for line or block comments.');
 meta::template('eval', <<'__');
 my $result = eval $_[0];
@@ -1853,6 +1896,33 @@ my ($commands) = @_;
 return '' if template::failing_conditional($commands);
 my $text = join "\n\n", map retrieve($_), split /\s+/, $commands;
 "\n\n$text\n\n";
+__
+meta::vim_highlighter('canard', <<'__');
+" Canard language highlighter | Spencer Tipping
+" Licensed under the terms of the MIT source code license
+
+if !exists("main_syntax")
+  if version < 600
+    syntax clear
+  elseif exists("b:current_syntax")
+    finish
+  endif
+  let main_syntax = "canard"
+endif
+
+syn case match
+setlocal iskeyword=33-90,92,94-127
+
+syn match canard_line_comment   /\<#[ !].*/
+syn match canard_quoted_symbol  /\<'[\S\[\]]\+/
+syn match canard_bracket        /[\[[\]]/
+syn match canard_number         /\d\+/
+
+hi link canard_line_comment     Comment
+hi link canard_quoted_symbol    Type
+hi link canard_bracket          Special
+hi link canard_number           Number
+
 __
 internal::main();
 
