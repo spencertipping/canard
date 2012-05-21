@@ -372,23 +372,25 @@ def 'say [log]
 
 __
 meta::canard('examples/lists', <<'__');
-log map [+ 1] [1 2 3 4 5]
-log [each item + 1]
-
-log map [* 2] [1 2 3 4 5]
-log [each item * 2]
-
-nb [Cons case:
-    map [f] (cons x y) -> cons map [f] x f y
-    stash [tail dup]    [f] (cons x y)       = [f] y (cons x y)
-    dup                 [f] y (cons x y)     = [f] [f] y (cons x y)
-    stash [head swap i] [f] [f] y (cons x y) = [f] x (f y)
-    cons map            [f] x (f y)          = cons map [f] x f y
-
-    Nil case:
-    map [f] [] -> []]
+log map [+ 1] filter [=== 0 % swap 3] [1 2 3 4 5 6 7 8 9 10]
 
 def 'map [q [cons map stash [head swap i] dup stash [tail dup]] [nb] is_cons nip]
+      nb [map [f] (cons x y) -> cons map [f] x f y
+          stash [tail dup]    [f] (cons x y)       = [f] y (cons x y)
+          dup                 [f] y (cons x y)     = [f] [f] y (cons x y)
+          stash [head swap i] [f] [f] y (cons x y) = [f] x (f y)
+          cons map            [f] x (f y)          = cons map [f] x f y
+
+          map [f] [] -> []]
+
+def 'filter [q [q [cons swap] [nb] stash [stash [filter] swap] swap stash [i] dup stash [dup swap uncons]] [nb] is_cons nip]
+         nb [filter [f] (cons x y) -> (q [cons swap] [nb] (f y)) y filter [f] x
+             dup stash [dup swap uncons] [f] (cons x y)       = [f] [f] y y x
+             swap stash [i]              [f] [f] y y x        = (f y) [f] y x
+             stash [stash [filter] swap] (f y) [f] y x        = (f y) y filter [f] x
+             q [cons swap] [nb]          (f y) y filter [f] x = q [cons swap] [nb] (f y) y filter [f] x
+
+             filter [f] [] -> []]
 
 def 'tail [stash [nb] uncons]
 def 'head [nb uncons]
@@ -2035,7 +2037,7 @@ The true branch is run if the number is non-zero; the false-branch is run otherw
                                   /-$.merge/ arithmetic_bindings(),
 
           arithmetic_bindings() = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
-                                  *[[x, {interpret: "function (stack) {return {h: caterwaul.canard.syntax.atom(+stack.t.h.data #{x} +stack.h.data), t: stack.t.t}}" /!$.parse /!$.compile}]]
+                                  *[[x, {interpret: "function (stack) {return {h: caterwaul.canard.syntax.atom(+(+stack.t.h.data #{x} +stack.h.data)), t: stack.t.t}}" /!$.parse /!$.compile}]]
                                   -object -seq]
 
   -using- caterwaul.parser});
