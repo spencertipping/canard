@@ -248,6 +248,7 @@ meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => '
 
 __
 meta::alias('eb', 'edit sdoc::waul::boot');
+meta::alias('ebi', 'edit sdoc::js::boot-image');
 meta::alias('er', 'edit sdoc::readme');
 meta::alias('erf', 'edit function::render');
 meta::alias('erwf', 'edit function::render-waul');
@@ -651,6 +652,16 @@ meta::function('render', <<'__');
 my ($options, @stuff) = separate_options(@_);
 
 file::write('README.md', retrieve('markdown::readme'));
+
+my @modules = qw/boot/;
+file::write("src/$_.waul.sdoc", retrieve("sdoc::waul::$_"),     mkpath => 1) for @modules;
+file::write("src/$_.md",        retrieve("markdown::waul::$_"), mkpath => 1) for @modules;
+
+my @deps = map "-e deps/$_.js", qw/regexp parser/;
+sh("waul @deps src/boot.waul.sdoc");
+
+file::write('boot', retrieve('pp::js::boot-image'), mkpath => 1);
+chmod 0700, 'boot';
 
 __
 meta::function('rm', <<'__');
@@ -1774,7 +1785,7 @@ Licensed under the terms of the MIT source code license
 - include deps/caterwaul.std.min.js
 - include deps/regexp.js
 - include deps/parser.js
-- include src/canard.js
+- include src/boot.js
 
 caterwaul.canard(require('fs').readFileSync(process.argv[2], 'utf8'));
 

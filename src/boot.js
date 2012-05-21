@@ -1,0 +1,1 @@
+caterwaul.module( 'canard' ,function($) {} ) ;
