@@ -651,14 +651,6 @@ meta::function('render', <<'__');
 my ($options, @stuff) = separate_options(@_);
 
 file::write('README.md', retrieve('markdown::readme'));
-render_waul() unless $$options{-W};
-
-__
-meta::function('render-waul', <<'__');
-# Renders a waul compiler with all dependencies
-my @deps = map "-e deps/$_.js", qw/bloom bit-vector bitwise struct elf asm-x64/;
-terminal::info('rendering waul');
-sh("waul -r @deps > ./waul && chmod +x ./waul");
 
 __
 meta::function('rm', <<'__');

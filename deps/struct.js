@@ -1,1 +1,0 @@
-../../caterwaul-struct/struct.js
