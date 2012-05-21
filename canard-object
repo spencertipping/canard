@@ -355,6 +355,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 __
+meta::data('permanent-identity', '3d87f1a4b0694cfebcbfd589fa5ed5dd');
 meta::function('ad', <<'__');
 my ($options, @paths) = separate_options(@_);
 @{$transient{path}} = () if $$options{-c};

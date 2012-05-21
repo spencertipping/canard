@@ -1,0 +1,20 @@
+log map [+ 1] [1 2 3 4 5]
+log [each item + 1]
+
+log map [* 2] [1 2 3 4 5]
+log [each item * 2]
+
+nb [Cons case:
+    map [f] (cons x y) -> cons map [f] x f y
+    stash [tail dup]    [f] (cons x y)       = [f] y (cons x y)
+    dup                 [f] y (cons x y)     = [f] [f] y (cons x y)
+    stash [head swap i] [f] [f] y (cons x y) = [f] x (f y)
+    cons map            [f] x (f y)          = cons map [f] x f y
+
+    Nil case:
+    map [f] [] -> []]
+
+def 'map [q [cons map stash [head swap i] dup stash [tail dup]] [nb] is_cons nip]
+
+def 'tail [stash [nb] uncons]
+def 'head [nb uncons]

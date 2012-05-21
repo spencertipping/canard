@@ -65,30 +65,39 @@ exception of 'q', which implements a decisional. The syntax is:
 
 The true branch is run if the number is non-zero; the false-branch is run otherwise. Either branch can be nil.
 
-          default_bindings()    = capture [def(stack, bindings) = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
-                                           log(stack)           = console.log(stack.h.toString()) -then- stack.t,
-                                           trace(stack)         = console.log(stack.h.toString()) -then- stack,
+          up(stack, n)          = n ? up(stack.t, n - 1) : stack.h,
 
-                                           chr(stack)           = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)), t: stack.t},
-                                           ord(stack)           = {h: $.canard.syntax.atom(stack.h.data.charCodeAt(0)),         t: stack.t},
+          default_bindings()    = capture [def(stack, bindings)   = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
+                                           log(stack)             = console.log(stack.h.toString())              -then- stack.t,
+                                           trace(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m') -then- stack,
 
-                                           q(stack, bindings)   = +stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
-                                                                                    : stack.t.h.interpret(stack.t.t.t, bindings),
+                                           chr(stack)             = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)), t: stack.t},
+                                           ord(stack)             = {h: $.canard.syntax.atom(stack.h.data.charCodeAt(0)),         t: stack.t},
 
-                                           not(stack)           = {h: +!stack.h.data /!$.canard.syntax.atom, t: stack.t},
-                                           dup(stack)           = {h: stack.h, t: stack},
-                                           drop(stack)          = stack.t,
-                                           nb(stack)            = stack.t,
-                                           cons(stack)          = {h: $.canard.syntax.cons(stack.t.h, stack.h), t: stack.t.t},
-                                           uncons(stack)        = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
-                                                                  -then- {h: stack.h.t(), t: {h: stack.h.h(), t: stack.t}},
+                                           q(stack, bindings)     = +stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
+                                                                                      : stack.t.h.interpret(stack.t.t.t, bindings),
 
-                                           id(stack)            = stack,
-                                           i(stack, bindings)   = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq /se [it['[]'] = it.id]
+                                           is_nil(stack)          = {h: +stack.h.is_nil() /!$.canard.syntax.atom,  t: stack.t},
+                                           is_cons(stack)         = {h: +stack.h.is_cons() /!$.canard.syntax.atom, t: stack.t},
+
+                                           nip(stack)             = {h: stack.t.h, t: stack},
+                                           get(stack)             = {h: up(stack.t, +stack.h.data), t: stack},
+
+                                           not(stack)             = {h: +!stack.h.data /!$.canard.syntax.atom, t: stack.t},
+                                           swap(stack)            = {h: stack.t.h, t: {h: stack.h, t: stack.t.t}},
+                                           dup(stack)             = {h: stack.h, t: stack},
+                                           nb(stack)              = stack.t,
+                                           stash(stack, bindings) = {h: stack.t.h, t: stack.h.interpret(stack.t.t, bindings)},
+                                           cons(stack)            = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
+                                           uncons(stack)          = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
+                                                                    -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
+
+                                           id(stack)              = stack,
+                                           i(stack, bindings)     = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq /se [it['[]'] = it.id]
 
                                   /-$.merge/ arithmetic_bindings(),
 
-          arithmetic_bindings() = '+ - * / % >> << >>> | & ^'.qw
+          arithmetic_bindings() = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
                                   *[[x, {interpret: "function (stack) {return {h: caterwaul.canard.syntax.atom(+stack.t.h.data #{x} +stack.h.data), t: stack.t.t}}" /!$.parse /!$.compile}]]
                                   -object -seq]
 

@@ -1,0 +1,3 @@
+log fact 5
+def 'fact [q [* fact - 1 dup] [1 drop] dup]
+def 'drop [nb]
