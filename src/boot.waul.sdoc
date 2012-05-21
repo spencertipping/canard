@@ -5,4 +5,63 @@ Introduction.
 This interpreter parses and interprets Canard programs. It provides a set of primitives sufficient to generate the file that will contain the reference Canard compiler. To do this, it emits
 the list on the top of the stack to stdout when the program exits, interpreting it as a linked list of bytes.
 
-caterwaul.module('canard', ':all', function ($) {});
+This interpreter provides no comment syntax; comments can be written as 'nb [stuff]'.
+
+caterwaul.module('canard', ':all', function ($) {
+  ($.canard(source, stack, bindings) = $.canard.parse(source).interpret(stack || null, {} / default_bindings() /-$.merge/ bindings)) /-$.merge/ statics()
+
+  -where [statics()              = capture [syntax = tree_ctor() /-$.syntax_subclass/ tree_methods() /-$.merge/ tree_statics(),
+                                            parse  = parser()],
+
+          parser()               = toplevel -where [toplevel(xs) = toplevel(xs), toplevel = annotate(toplevel, 'toplevel', []),
+                                                    atom         = linear_regexp(/\s+/) /!optional /-bfs/ linear_regexp(/[^ \n\r\t\[\]]+/) /-map/ $.canard.syntax.atom,
+                                                    cons         = manyc(toplevel) /-map/ "_ /[$.canard.syntax.nil()][$.canard.syntax.cons(x0, x)] -seq".qf,
+                                                    list         = linear_regexp(/\s*\[/) / cons /-bfc/ linear_regexp(/\s*\]/) /-map/ "_[1]".qf,
+                                                    toplevel     = cons],
+
+          tree_ctor()(d, c1, c2) = d instanceof this.constructor ? this -se [it.data = d.data, it.length = 0]
+                                                                 : this -se [it.data = d, it.length = !!c1 + !!c2, it[0] /eq.c1 /when.c1, it[1] /eq.c2 /when.c2],
+
+          tree_statics()         = capture [nil()      = $.canard.syntax.the_nil -ocq- new $.canard.syntax('nil'),
+                                            atom(data) = new $.canard.syntax(data),
+                                            cons(t, h) = new $.canard.syntax('cons', t, h)],
+
+          tree_methods()         = capture [is_cons()  = this.length === 2 && this.data === 'cons',      h()        = this[1],
+                                            is_atom()  = !this.length,                                   t()        = this[0],
+                                            is_quote() = this.is_atom() && this.data.charAt(0) === '\'',
+                                            is_nil()   = this.is_atom() && this.data === 'nil',          name()     = this.data.replace(/^'/, ''),
+
+                                            toString() = this.is_nil()                                              ? '[]'
+                                                       : this.is_cons() && !this.t().is_nil() && this.h().is_cons() ? '#{this.t()} [#{this.h()}]'
+                                                       : this.is_cons() &&  this.t().is_nil()                       ? this.h().toString()
+                                                       : this.is_cons()                                             ? '#{this[0]} #{this[1]}'
+                                                                                                                    : this.data]
+                                   /-$.merge/ interpreter_methods(),
+
+          default_bindings()     = capture [def(stack, bindings) = bindings[stack.h.name()] -eq- bindings[stack.t.h] -then- stack.t.t,
+                                            log(stack)           = console.log(stack.h.toString()) -then- stack.t,
+                                            trace(stack)         = console.log(stack.h.toString()) -then- stack,
+
+                                            chr(stack)           = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)), t: stack.t},
+                                            ord(stack)           = {h: $.canard.syntax.atom(stack.h.data.charCodeAt(0)),         t: stack.t},
+
+                                            dup(stack)           = {h: stack.h, t: stack},
+                                            drop(stack)          = stack.t,
+                                            nb(stack)            = stack.t,
+                                            cons(stack)          = {h: $.canard.syntax.cons(stack.t.h, stack.h), t: stack.t.t},
+                                            uncons(stack)        = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
+                                                                   -then- {h: stack.h.t(), t: {h: stack.h.h(), t: stack.t}},
+
+                                            id(stack)            = stack,
+                                            i(stack, bindings)   = stack.h.interpret(stack.t, bindings)]
+
+                                   /-$.merge/ arithmetic_bindings(),
+
+          arithmetic_bindings()  = '+ - * / % >> << >>> | & ^'.qw *[[x, "function (stack) {return {h: stack.t.h #{x} stack.h, t: stack.t.t}}" /!$.compile]] -object -seq,
+
+          interpreter_methods()  = capture [should_run()               = this.is_atom() && !this.is_quoted(),
+                                            interpret(stack, bindings) = this.is_cons()    ? this.t.interpret(this.h().interpret(stack, bindings), bindings)
+                                                                       : this.should_run() ? bindings[this.name()].interpret(stack, bindings)
+                                                                                           : {h: this, t: stack}]]
+
+  -using- caterwaul.parser});
