@@ -339,9 +339,11 @@ return(function(it) {return it?it.v[0]
 return $.regexp=function(r,options) {;
 return $.regexp.parse.apply(this,arguments) } ,$.regexp.syntax=$.syntax_subclass(regexp_ctor,regexp_methods) ,$.regexp.parse=regexp_parse,$.regexp.compile=regexp_compile} ) .call(this) } ) ;
 
-caterwaul.module( 'parser' ,function($) { (function( ) {var memoization_key=$.gensym( 'memo' ) ,memo_id=0,memo_single=function(f,state) {;
-return(function( ) {var f_key= ! !f[memoization_key] || (f[memoization_key] = ++memo_id) ,s_key=state.id() ,table=state.memo_table() ,key= ( '@' + (s_key) + '_' + (f_key) + '' ) ,value=f_key&&s_key&&table.hasOwnProperty(key) ?table[key] : (table[key] =f( [state] ) ) ;
-return(value) } ) .call(this) } ,memo=function(f,states) {;
+caterwaul.module( 'parser' ,function($) { (function() {var memoization_key=$.gensym( 'memo' ) ,memo_id=0,memo_single=function(f,state) {;
+return(function() {var f_key=f[memoization_key] ?f[memoization_key] 
+:f[memoization_key] = ++memo_id,s_key=state.id() ,table=state.memo_table() ,key= ( '@' + (s_key) + '_' + (f_key) + '' ) ,value=f_key&&s_key&&table.hasOwnProperty(key) ?table[key] 
+: (table[key] =f( [state] ) ) ;
+return value} ) .call(this) } ,memo=function(f,states) {;
 return(function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
@@ -350,23 +352,24 @@ return xr} ) .call(this,states) } ,parsers=function(name,xs) {;
 return(function(xs) {var x,x0,xi,xl,xr;
 for(var xi=0,xl=xs.length;
 xi<xl;
- ++xi)x=xs[xi] , (x.caterwaul_parser|| (function( ) {throw new Error( ( '' + (name) + ': ' + (x) + ' is not marked with the .caterwaul_parser attribute' ) ) } ) .call(this) ) ;
+ ++xi)x=xs[xi] , (x.caterwaul_parser|| (function() {throw new Error( ( '' + (name) + ': ' + (x) + ' is not marked with the .caterwaul_parser attribute' ) ) } ) .call(this) ) ;
 return xs} ) .call(this, (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
- ++xi)x=xs[xi] ,xr.push.apply(xr,Array.prototype.slice.call( (x instanceof Array?x: [x] ) ) ) ;
+ ++xi)x=xs[xi] ,xr.push.apply(xr,Array.prototype.slice.call( (x instanceof Array?x
+: [x] ) ) ) ;
 return xr} ) .call(this, (function(xs) {var x,x0,xi,xl,xr;
 for(var xi=0,xl=xs.length;
 xi<xl;
- ++xi)x=xs[xi] , (x|| (function( ) {throw new Error( ( '' + (name) + ': undefined parser given as parameter ' + (xi) + '' ) ) } ) .call(this) ) ;
+ ++xi)x=xs[xi] , (x|| (function() {throw new Error( ( '' + (name) + ': undefined parser given as parameter ' + (xi) + '' ) ) } ) .call(this) ) ;
 return xs} ) .call(this,Array.prototype.slice.call( (xs) ) ) ) ) } ,annotate=function(f,name,xs) {;
-return(function(it) {return(xs=xs|| [ ] ,it.toString=function() {;
-return( '' + (name) + '(' + ( (function(it) {return(it.join( ", " ) ) } ) .call(this, ( (function(xs) {var x,x0,xi,xl,xr;
+return(function(it) {return xs=xs|| [] ,it.toString=function() {;
+return( '' + (name) + '(' + ( (function(it) {return it.join( ", " ) } ) .call(this, ( (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,xr.push( (x.toString() ) ) ;
-return xr} ) .call(this,xs) ) ) ) + ')' ) } ,it.caterwaul_parser=true) ,it} ) .call(this, (f) ) } ;
-return($.parser= {annotate:annotate,parsers:parsers} ,$.merge($.parser, (function( ) {var bfs=function() {var ps=parsers( 'bfs' ,arguments) ;
+return xr} ) .call(this,xs) ) ) ) + ')' ) } ,it.caterwaul_parser=true,it} ) .call(this, (f) ) } ;
+return $.parser= {annotate:annotate,parsers:parsers} ,$.merge($.parser, (function() {var bfs=function() {var ps=parsers( 'bfs' ,arguments) ;
 var result=function(states) {;
 return(function(xs) {var x,x0,xi,xl,xr;
 for(var x0= (states) ,xi=0,xl=xs.length;
@@ -392,12 +395,13 @@ return function(m) {;
 return(function(rs) {var r,r0,ri,rl,rr;
 for(var rr=new rs.constructor() ,ri=0,rl=rs.length;
 ri<rl;
- ++ri)r=rs[ri] ,rr.push.apply(rr,Array.prototype.slice.call( ( (function( ) {var xs=memo_single(p,r[r.length-1] ) ;
-return(xs.length===1?r.push(xs[0] ) && [r] : (function(xs) {var x,x0,xi,xl,xr;
+ ++ri)r=rs[ri] ,rr.push.apply(rr,Array.prototype.slice.call( ( (function() {var xs=memo_single(p,r[r.length-1] ) ;
+return xs.length===1?r.push(xs[0] ) && [r] 
+: (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,xr.push( ( (r) .concat( ( [x] ) ) ) ) ;
-return xr} ) .call(this,xs) ) } ) .call(this) ) ) ) ;
+return xr} ) .call(this,xs) } ) .call(this) ) ) ) ;
 return rr} ) .call(this,m) } } ,step_matrix_immutable=function(p) {;
 return function(m) {;
 return(function(rs) {var r,r0,ri,rl,rr;
@@ -426,7 +430,7 @@ statei<statel;
 for(var p=ps[0] ,pi=0,pl=ps.length,x1;
 pi<pl;
  ++pi) {p=ps[pi] ;
-if(x1= ( (function(it) {return(it.length&&it) } ) .call(this, (memo_single(p,state) ) ) ) )return x1}return false} ) .call(this,ps) || [ ] ) ) ) ;
+if(x1= ( (function(it) {return it.length&&it} ) .call(this, (memo_single(p,state) ) ) ) )return x1}return false} ) .call(this,ps) || [] ) ) ) ;
 return stater} ) .call(this,states) } ;
  (annotate(result, 'alt' ,ps) ) ;
 return result} ,all=function() {var ps=parsers( 'all' ,arguments) ;
@@ -443,19 +447,20 @@ return stater} ) .call(this,states) } ;
  (annotate(result, 'all' ,ps) ) ;
 return result} ,manyc=function(p) {;
 var result=function(states) {;
-return(function( ) {var iterate=step_matrix_mutable_null(p) ,step=function(m) {;
-return has_non_null_states(m) ?iterate(m) :null} ;
-return(row_null_states_from( (function(xs1) {var x2,x01,xi1,xl1,xr1;
-for(var xr1= [ ] ,x2=xs1,xi1=0;
+return(function() {var iterate=step_matrix_mutable_null(p) ,step=function(m) {;
+return has_non_null_states(m) ?iterate(m) 
+:null} ;
+return row_null_states_from( (function(xs1) {var x2,x01,xi1,xl1,xr1;
+for(var xr1= [] ,x2=xs1,xi1=0;
 x2!==null;
  ++xi1)xr1.push(x2) ,x2= (step(x2) ) ;
-return xr1} ) .call(this,state_matrix(states) ) ) ) } ) .call(this) } ;
+return xr1} ) .call(this,state_matrix(states) ) ) } ) .call(this) } ;
  (annotate(result, 'manyc' , [p] ) ) ;
 return result} ,manyc_one=function(p) {;
 return map(bfc(p,manyc(p) ) ,function(_) {return( [_[0] ] ) .concat( (_[1] ) ) } ) } ,many=function(p,join) {;
-var result= (function( ) {var j=join||bfs,f=function(states) {;
-return f(states) } ,f=alt(j(p,annotate(f, 'recursive' , [ ] ) ) ,p) ;
-return(f) } ) .call(this) ;
+var result= (function() {var j=join||bfs,f=function(states) {;
+return f(states) } ,f=alt(j(p,annotate(f, 'recursive' , [] ) ) ,p) ;
+return f} ) .call(this) ;
  (annotate(result, 'many' , [p,join] ) ) ;
 return result} ,optional=function(p) {;
 var result=alt(p,zero() ) ;
@@ -465,23 +470,28 @@ return function(m) {;
 return(function(rs) {var r,r0,ri,rl,rr;
 for(var rr=new rs.constructor() ,ri=0,rl=rs.length;
 ri<rl;
- ++ri)r=rs[ri] ,rr.push.apply(rr,Array.prototype.slice.call( ( (function( ) {var xs= (function(it) {return(it&&memo_single(p,it) ) } ) .call(this, (r[r.length-1] ) ) ;
-return(xs?xs.length? (function(xs) {var x,x0,xi,xl,xr;
+ ++ri)r=rs[ri] ,rr.push.apply(rr,Array.prototype.slice.call( ( (function() {var xs= (function(it) {return it&&memo_single(p,it) } ) .call(this, (r[r.length-1] ) ) ;
+return xs?xs.length? (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,xr.push( ( (r) .concat( ( [x] ) ) ) ) ;
-return xr} ) .call(this,xs) : [ (r) .concat( ( [null] ) ) ] : [r] ) } ) .call(this) ) ) ) ;
+return xr} ) .call(this,xs) 
+: [ (r) .concat( ( [null] ) ) ] 
+: [r] } ) .call(this) ) ) ) ;
 return rr} ) .call(this,m) } } ,step_matrix_mutable_null=function(p) {;
 return function(m) {;
 return(function(rs) {var r,r0,ri,rl,rr;
 for(var rr=new rs.constructor() ,ri=0,rl=rs.length;
 ri<rl;
- ++ri)r=rs[ri] ,rr.push.apply(rr,Array.prototype.slice.call( ( (function( ) {var xs= (function(it) {return(it&&memo_single(p,it) ) } ) .call(this, (r[r.length-1] ) ) ,l=xs&&xs.length;
-return(xs?l?l===1?r.push(xs[0] ) && [r] : (function(xs) {var x,x0,xi,xl,xr;
+ ++ri)r=rs[ri] ,rr.push.apply(rr,Array.prototype.slice.call( ( (function() {var xs= (function(it) {return it&&memo_single(p,it) } ) .call(this, (r[r.length-1] ) ) ,l=xs&&xs.length;
+return xs?l?l===1?r.push(xs[0] ) && [r] 
+: (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,xr.push( ( (r) .concat( ( [x] ) ) ) ) ;
-return xr} ) .call(this,xs) :r.push(null) && [r] : [r] ) } ) .call(this) ) ) ) ;
+return xr} ) .call(this,xs) 
+:r.push(null) && [r] 
+: [r] } ) .call(this) ) ) ) ;
 return rr} ) .call(this,m) } } ,has_non_null_states=function(m) {;
 return(function(rs) {var r,r0,ri,rl,rr;
 for(var r=rs[0] ,ri=0,rl=rs.length,x1;
@@ -499,11 +509,11 @@ return xr} ) .call(this,r.slice(1,r.length-1) ) } ) ) ) ;
 return rr} ) .call(this,ms[ms.length-1] ) } ,zero=function() {;
 var result=function(states) {;
 return states} ;
- (annotate(result, 'zero' , [ ] ) ) ;
+ (annotate(result, 'zero' , [] ) ) ;
 return result} ,fail=function() {;
 var result=function(states) {;
-return[ ] } ;
- (annotate(result, 'fail' , [ ] ) ) ;
+return[] } ;
+ (annotate(result, 'fail' , [] ) ) ;
 return result} ,match=function(p) {;
 var result=function(states) {;
 return(function(xs) {var x,x0,xi,xl,xr;
@@ -573,13 +583,16 @@ xi<xl;
 return xr} ) .call(this,p(states) ) } ;
  (annotate(result, 'flat_map_state' , [p,f] ) ) ;
 return result} ;
-return( {bfs:bfs,bfc:bfc,state_matrix:state_matrix,step_matrix_mutable:step_matrix_mutable,step_matrix_immutable:step_matrix_immutable,row_composite_states_from:row_composite_states_from,alt:alt,all:all,manyc:manyc,manyc_one:manyc_one,many:many,optional:optional,step_matrix_immutable_null:step_matrix_immutable_null,step_matrix_mutable_null:step_matrix_mutable_null,has_non_null_states:has_non_null_states,row_null_states_from:row_null_states_from,zero:zero,fail:fail,match:match,reject:reject,pluralize:pluralize,iv:iv,map:map,flat_map:flat_map,map_state:map_state,flat_map_state:flat_map_state} ) } ) .call(this) ) ,$.parser.logical_state=function(options) {;
-return(function( ) {var defaults=options.defaults|| { } ,default_position=defaults.position,default_value=defaults.value,id_function=defaults.id||function(_) {return++memo_id} ,ctor=function(i,p,v,memo_table) {;
-return arguments.length>1? (function(it) {return(it.i=i,it.p=p,it.v=v,it.table=memo_table) ,it} ) .call(this, (this) ) : (function(it) {return(it.i=i,it.p=default_position,it.v=default_value,it.table= { } ) ,it} ) .call(this, (this) ) } ,methods_for=function(step) {;
+return{bfs:bfs,bfc:bfc,state_matrix:state_matrix,step_matrix_mutable:step_matrix_mutable,step_matrix_immutable:step_matrix_immutable,row_composite_states_from:row_composite_states_from,alt:alt,all:all,manyc:manyc,manyc_one:manyc_one,many:many,optional:optional,step_matrix_immutable_null:step_matrix_immutable_null,step_matrix_mutable_null:step_matrix_mutable_null,has_non_null_states:has_non_null_states,row_null_states_from:row_null_states_from,zero:zero,fail:fail,match:match,reject:reject,pluralize:pluralize,iv:iv,map:map,flat_map:flat_map,map_state:map_state,flat_map_state:flat_map_state} } ) .call(this) ) ,$.parser.logical_state=function(options) {;
+return(function() {var defaults=options.defaults|| {} ,default_position=defaults.position,default_value=defaults.value,id_function=defaults.id||function(_) {return++memo_id} ,ctor=function(i,p,v,memo_table) {;
+return arguments.length>1? (function(it) {return it.i=i,it.p=p,it.v=v,it.table=memo_table,it} ) .call(this, (this) ) 
+: (function(it) {return it.i=i,it.p=default_position,it.v=default_value,it.table= {} ,it} ) .call(this, (this) ) } ,methods_for=function(step) {;
 return{id:function() {;
-return! !this.cached_id|| (this.cached_id=id_function.call(this) ) } ,input:function() {;
+return this.cached_id?this.cached_id
+:this.cached_id=id_function.call(this) } ,input:function() {;
 return this.i} ,next:function(n,v) {;
-return n===1?step.call(this,this.p,v) : (function(xs) {var x,x0,xi,xl,xr;
+return n===1?step.call(this,this.p,v) 
+: (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,xr.push.apply(xr,Array.prototype.slice.call( (x.next(1,v) ) ) ) ;
@@ -589,8 +602,11 @@ return new this.constructor(this.i,this.p,f(this.v) ,this.table) } ,value:functi
 return this.v} ,memo_table:function() {;
 return this.table} ,toString:function() {;
 return( '' + (this.i) + ' @ ' + (this.p) + ' : ' + (this.v) + '' ) } ,change:function(values) {;
-return new this.constructor( 'input'in values?values.input:this.i, 'position'in values?values.position:this.p, 'value'in values?values.value:this.v,this.table) } } } ;
-return( (function(it) {return($.merge(it.prototype,methods_for(options.step) ) ) ,it} ) .call(this, (ctor) ) ) } ) .call(this) } ,$.parser.linear_string_state=$.merge($.parser.logical_state( {step:function(p,v) {;
+return new this.constructor( 'input'in values?values.input
+:this.i, 'position'in values?values.position
+:this.p, 'value'in values?values.value
+:this.v,this.table) } } } ;
+return(function(it) {return $.merge(it.prototype,methods_for(options.step) ) ,it} ) .call(this, (ctor) ) } ) .call(this) } ,$.parser.linear_string_state=$.merge($.parser.logical_state( {step:function(p,v) {;
 return[ (this) .change( {position:p+1,value:v} ) ] } ,id:function() {;
 return this.position() } ,defaults: {position:0} } ) , {end:function() {;
 var result=function(states) {;
@@ -599,38 +615,43 @@ for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] , (x.position() ===x.input() .length) &&xr.push(x) ;
 return xr} ) .call(this,states) } ;
- (annotate(result, 'end' , [ ] ) ) ;
+ (annotate(result, 'end' , [] ) ) ;
 return result} } ) ,$.merge($.parser, {anchor_regexp:function(r) {;
-return(function( ) {var pieces= /^\/(.*)\/(\w*)$/ .exec(r.toString() ) ,body=pieces[1] ,flags=pieces[2] ;
-return(new RegExp( ( '^' + (body) + '$' ) ,flags) ) } ) .call(this) } ,linear_string:function(s) {;
+return(function() {var pieces= /^\/(.*)\/(\w*)$/ .exec(r.toString() ) ,body=pieces[1] ,flags=pieces[2] ;
+return new RegExp( ( '^' + (body) + '$' ) ,flags) } ) .call(this) } ,linear_string:function(s) {;
 var result=function(states) {;
 return(function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
- ++xi)x=xs[xi] ,xr.push.apply(xr,Array.prototype.slice.call( (x.input() .substr(x.position() ,s.length) ===s?x.next(s.length,s) : [ ] ) ) ) ;
+ ++xi)x=xs[xi] ,xr.push.apply(xr,Array.prototype.slice.call( (x.input() .substr(x.position() ,s.length) ===s?x.next(s.length,s) 
+: [] ) ) ) ;
 return xr} ) .call(this,states) } ;
  (annotate(result, 'linear_string' , [s] ) ) ;
 return result} ,linear_regexp:function(r) {;
-var result= (function( ) {var minimum_length=$.regexp(r) .minimum_length() || (function( ) {throw new Error( ( "regexp must require at least one character: " + (r) + "" ) ) } ) .call(this) ,anchored=$.parser.anchor_regexp(r) ,matcher=function(states) {;
+var result= (function() {var minimum_length=$.regexp(r) .minimum_length() || (function() {throw new Error( ( "regexp must require at least one character: " + (r) + "" ) ) } ) .call(this) ,anchored=$.parser.anchor_regexp(r) ,matcher=function(states) {;
 return(function(xs1) {var x2,x01,xi1,xl1,xr1;
 for(var xr1=new xs1.constructor() ,xi1=0,xl1=xs1.length;
 xi1<xl1;
  ++xi1)x2=xs1[xi1] ,xr1.push.apply(xr1,Array.prototype.slice.call( (match_one(x2) ) ) ) ;
 return xr1} ) .call(this,states) } ,match_one=function(state) {;
-return(function( ) {var s=state.input() ,offset=state.position() ,maximum_length=s.length-offset,match=function(l) {;
+return(function() {var s=state.input() ,offset=state.position() ,maximum_length=s.length-offset,match=function(l) {;
 return l<=maximum_length&&anchored.test(s.substr(offset,l) ) } ,longest=function(l) {;
-return match(l) ?longest(l<<1) :l} ,valid=function(l,m,u) {;
-return l<u-1?match(m) ?valid(m,m+u>>1,u) :valid(l,l+m>>1,m) :m} ,new_states=match(minimum_length) ? (function( ) {var max=longest(minimum_length) ,match_length=valid(minimum_length,minimum_length+max>>1,max) ;
-return(state.next(match_length,anchored.exec(s.substr(offset,match_length) ) ) ) } ) .call(this) : [ ] ;
-return(new_states) } ) .call(this) } ;
-return(matcher) } ) .call(this) ;
+return match(l) ?longest(l<<1) 
+:l} ,valid=function(l,m,u) {;
+return l<u-1?match(m) ?valid(m,m+u>>1,u) 
+:valid(l,l+m>>1,m) 
+:m} ,new_states=match(minimum_length) ? (function() {var max=longest(minimum_length) ,match_length=valid(minimum_length,minimum_length+max>>1,max) ;
+return state.next(match_length,anchored.exec(s.substr(offset,match_length) ) ) } ) .call(this) 
+: [] ;
+return new_states} ) .call(this) } ;
+return matcher} ) .call(this) ;
  (annotate(result, 'linear_regexp' , [r] ) ) ;
 return result} } ) ,$.parser.structure_state=$.parser.logical_state( {step:function(p,v) {;
 return(function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,xr.push( (this.change( {value:v,input:x[1] ,position:x[0] } ) ) ) ;
-return xr} ) .call(this, (function(o) {var ps= [ ] ;
+return xr} ) .call(this, (function(o) {var ps= [] ;
 for(var k in o)Object.prototype.hasOwnProperty.call(o,k) &&ps.push( [k,o[k] ] ) ;
 return ps} ) .call(this, (this.input() ) ) ) } } ) ,$.parser.array_state=$.parser.logical_state( {step:function(p,v) {;
 return(function(xs) {var x,x0,xi,xl,xr;
@@ -638,7 +659,7 @@ for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,xr.push( (this.change( {value:v,input:x,position:xi} ) ) ) ;
 return xr} ) .call(this,Array.prototype.slice.call( (this.input() ) ) ) } } ) ,$.merge( ($.parser.proxy_state=function(s,value_function) {;
-return(function(it) {return(it.state=s,it.value_function=value_function) ,it} ) .call(this, (this) ) } ) .prototype, {id:function() {;
+return(function(it) {return it.state=s,it.value_function=value_function,it} ) .call(this, (this) ) } ) .prototype, {id:function() {;
 return! !this.cached_id|| (this.cached_id= ++memo_id) } ,input:function() {;
 return this.value_function.call(this) } ,next:function(n,v) {;
 return this.state.next(n,v) } ,position:function() {;
@@ -652,24 +673,26 @@ return p( (function(xs1) {var x2,x01,xi1,xl1,xr1;
 for(var xr1=new xs1.constructor() ,xi1=0,xl1=xs1.length;
 xi1<xl1;
  ++xi1)x2=xs1[xi1] ,xr1.push( ($.parser.position_state(x2) ) ) ;
-return xr1} ) .call(this,states) ) } } } ) ) } ) .call(this) } ) ;
+return xr1} ) .call(this,states) ) } } } ) } ) .call(this) } ) ;
 
 caterwaul.module( 'canard' , (function(e) {var result= (function($) { (function() {var annotate=e.annotate,parsers=e.parsers,bfs=e.bfs,bfc=e.bfc,state_matrix=e.state_matrix,step_matrix_mutable=e.step_matrix_mutable,step_matrix_immutable=e.step_matrix_immutable,row_composite_states_from=e.row_composite_states_from,alt=e.alt,all=e.all,manyc=e.manyc,manyc_one=e.manyc_one,many=e.many,optional=e.optional,step_matrix_immutable_null=e.step_matrix_immutable_null,step_matrix_mutable_null=e.step_matrix_mutable_null,has_non_null_states=e.has_non_null_states,row_null_states_from=e.row_null_states_from,zero=e.zero,fail=e.fail,match=e.match,reject=e.reject,pluralize=e.pluralize,iv=e.iv,map=e.map,flat_map=e.flat_map,map_state=e.map_state,flat_map_state=e.flat_map_state,logical_state=e.logical_state,linear_string_state=e.linear_string_state,anchor_regexp=e.anchor_regexp,linear_string=e.linear_string,linear_regexp=e.linear_regexp,structure_state=e.structure_state,array_state=e.array_state,proxy_state=e.proxy_state,position_state=e.position_state,position=e.position;
 return(function() {var statics=function() {;
 return{syntax:$.merge($.syntax_subclass(tree_ctor() ,tree_methods() ) ,tree_statics() ) ,parse:parser() } } ,parser=function() {;
 return(function() {var toplevel=function(xs) {;
-return toplevel(xs) } ,toplevel=annotate(toplevel, 'toplevel' , [] ) ,atom=map(bfs(optional(linear_regexp( /\s+/ ) ) ,linear_regexp( /[^ \n\r\t\[\]]+/ ) ) ,$.canard.syntax.atom) ,cons=map(manyc(toplevel) ,function(_) {return(function(xs) {var x,x0,xi,xl,xr;
+return toplevel(xs) } ,toplevel=annotate(toplevel, 'toplevel' , [] ) ,term=function(xs) {;
+return term(xs) } ,term=annotate(term, 'term' , [] ) ,maybe_ws=function(p) {;
+return map(bfc(alt(bfs(linear_regexp( /\s+/ ) ,p) ,p) ,optional(linear_regexp( /\s+/ ) ) ) ,function(_) {return _[0] } ) } ,cons=map(manyc(maybe_ws(term) ) ,function(_) {return(function(xs) {var x,x0,xi,xl,xr;
 for(var x0= ($.canard.syntax.nil() ) ,xi=0,xl=xs.length;
 xi<xl;
  ++xi)x=xs[xi] ,x0= ($.canard.syntax.cons(x0,x) ) ;
-return x0} ) .call(this,_) } ) ,list=map(bfc(linear_regexp( /\s*\[/ ) ,cons,linear_regexp( /\s*\]/ ) ) ,function(_) {return _[1] } ) ,toplevel=cons;
-return toplevel} ) .call(this) } ,tree_ctor=function() {;
+return x0} ) .call(this,_) } ) ,atom=map(linear_regexp( /([^ \n\r\t\[\]]+)/ ) ,function(_) {return $.canard.syntax.atom(_[1] ) } ) ,list=map(bfc(linear_regexp( /\[/ ) ,cons,linear_regexp( /\]/ ) ) ,function(_) {return _[1] } ) ,term=alt(atom,list) ,toplevel=cons;
+return function(_) {return toplevel( [new linear_string_state(_) ] ) [0] .value() } } ) .call(this) } ,tree_ctor=function() {;
 return function(d,c1,c2) {;
 return d instanceof this.constructor? (function(it) {return it.data=d.data,it.length=0,it} ) .call(this, (this) ) 
-: (function(it) {return it.data=d,it.length= ! !c1+ ! !c2,c1&& (it[0] =c1) ,c2&& (it[1] =c2) ,it} ) .call(this, (this) ) } } ,tree_statics=function() {;
+: (function(it) {return it.data=d,it.length=c1&&c2?2
+:0,c1&& (it[0] =c1) ,c2&& (it[1] =c2) ,it} ) .call(this, (this) ) } } ,tree_statics=function() {;
 return{nil:function() {;
-return $.canard.syntax.the_nil?$.canard.syntax.the_nil
-:$.canard.syntax.the_nil=new $.canard.syntax( 'nil' ) } ,atom:function(data) {;
+return new $.canard.syntax( '[]' ) } ,atom:function(data) {;
 return new $.canard.syntax(data) } ,cons:function(t,h) {;
 return new $.canard.syntax( 'cons' ,t,h) } } } ,tree_methods=function() {;
 return $.merge( {is_cons:function() {;
@@ -677,40 +700,49 @@ return this.length===2&&this.data=== 'cons' } ,h:function() {;
 return this[1] } ,is_atom:function() {;
 return!this.length} ,t:function() {;
 return this[0] } ,is_quote:function() {;
-return this.is_atom() &&this.data.charAt(0) === '\'' } ,is_nil:function() {;
-return this.is_atom() &&this.data=== 'nil' } ,name:function() {;
-return this.data.replace( /^'/ , '' ) } ,toString:function() {;
+return this.is_atom() && /^'/ .test(this.data) } ,name:function() {;
+return this.data.replace( /^'/ , '' ) } ,is_nil:function() {;
+return this.is_atom() &&this.data=== '[]' } ,is_n:function() {;
+return this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/ .test(this.data) } ,toString:function() {;
 return this.is_nil() ? '[]' 
 :this.is_cons() && !this.t() .is_nil() &&this.h() .is_cons() ? ( '' + (this.t() ) + ' [' + (this.h() ) + ']' ) 
 :this.is_cons() &&this.t() .is_nil() ?this.h() .toString() 
-:this.is_cons() ? ( '' + (this[0] ) + ' ' + (this[1] ) + '' ) 
-:this.data} } ,interpreter_methods() ) } ,default_bindings=function() {;
-return $.merge( {def:function(stack,bindings) {;
-return(bindings[stack.h.name() ] =bindings[stack.t.h] ,stack.t.t) } ,log:function(stack) {;
+:this.is_cons() ? ( '' + (this.t() ) + ' ' + (this.h() ) + '' ) 
+:this.data} } ,interpreter_methods() ) } ,interpreter_methods=function() {;
+return{should_run:function() {;
+return this.is_atom() && !this.is_quote() && !this.is_n() } ,execute:function(stack,bindings) {;
+return this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
+: {h:this,t:stack} } ,interpret:function(stack,bindings) {;
+return this.is_cons() ?this.t() .interpret(this.h() .execute(stack,bindings) ,bindings) 
+:this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
+: {h:this,t:stack} } } } ,default_bindings=function() {;
+return $.merge( (function(it) {return it[ '[]' ] =it.id,it} ) .call(this, ( (function(xs) {var x,x0,xi,xl,xr;
+var xr=new xs.constructor() ;
+for(var k in xs)if(Object.prototype.hasOwnProperty.call(xs,k) )x=xs[k] ,xr[k] = ( {interpret:x} ) ;
+return xr} ) .call(this, {def:function(stack,bindings) {;
+return(bindings[stack.h.name() ] =stack.t.h,stack.t.t) } ,log:function(stack) {;
 return(console.log(stack.h.toString() ) ,stack.t) } ,trace:function(stack) {;
 return(console.log(stack.h.toString() ) ,stack) } ,chr:function(stack) {;
 return{h:$.canard.syntax.atom(String.fromCharCode( +stack.h.data) ) ,t:stack.t} } ,ord:function(stack) {;
-return{h:$.canard.syntax.atom(stack.h.data.charCodeAt(0) ) ,t:stack.t} } ,dup:function(stack) {;
+return{h:$.canard.syntax.atom(stack.h.data.charCodeAt(0) ) ,t:stack.t} } ,q:function(stack,bindings) {;
+return+stack.t.t.h.data?stack.h.interpret(stack.t.t.t,bindings) 
+:stack.t.h.interpret(stack.t.t.t,bindings) } ,not:function(stack) {;
+return{h:$.canard.syntax.atom( + !stack.h.data) ,t:stack.t} } ,dup:function(stack) {;
 return{h:stack.h,t:stack} } ,drop:function(stack) {;
 return stack.t} ,nb:function(stack) {;
 return stack.t} ,cons:function(stack) {;
 return{h:$.canard.syntax.cons(stack.t.h,stack.h) ,t:stack.t.t} } ,uncons:function(stack) {;
 return( !stack.h.is_cons() && (function() {throw new Error( ( '' + (stack.h) + ' is not a cons cell' ) ) } ) .call(this) , {h:stack.h.t() ,t: {h:stack.h.h() ,t:stack.t} } ) } ,id:function(stack) {;
 return stack} ,i:function(stack,bindings) {;
-return stack.h.interpret(stack.t,bindings) } } ,arithmetic_bindings() ) } ,arithmetic_bindings=function() {;
+return stack.h.interpret(stack.t,bindings) } } ) ) ) ,arithmetic_bindings() ) } ,arithmetic_bindings=function() {;
 return(function(o) {for(var r= {} ,i=0,l=o.length,x;
 i<l;
  ++i)x=o[i] ,r[x[0] ] =x[1] ;
 return r} ) .call(this, ( (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
- ++xi)x=xs[xi] ,xr.push( ( [x,$.compile( ( "function (stack) {return {h: stack.t.h " + (x) + " stack.h, t: stack.t.t}}" ) ) ] ) ) ;
-return xr} ) .call(this, [ '+' , '-' , '*' , '/' , '%' , '>>' , '<<' , '>>>' , '|' , '&' , '^' ] ) ) ) } ,interpreter_methods=function() {;
-return{should_run:function() {;
-return this.is_atom() && !this.is_quoted() } ,interpret:function(stack,bindings) {;
-return this.is_cons() ?this.t.interpret(this.h() .interpret(stack,bindings) ,bindings) 
-:this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
-: {h:this,t:stack} } } } ;
+ ++xi)x=xs[xi] ,xr.push( ( [x, {interpret:$.compile($.parse( ( "function (stack) {return {h: caterwaul.canard.syntax.atom(+stack.t.h.data " + (x) + " +stack.h.data), t: stack.t.t}}" ) ) ) } ] ) ) ;
+return xr} ) .call(this, [ '+' , '-' , '*' , '/' , '%' , '>>' , '<<' , '>>>' , '|' , '&' , '^' ] ) ) ) } ;
 return $.merge( ($.canard=function(source,stack,bindings) {;
 return $.canard.parse(source) .interpret(stack||null,$.merge( {} ,default_bindings() ,bindings) ) } ) ,statics() ) } ) .call(this) } ) .call(this) } ) ;
 result.caterwaul_expression_ref_table= {e: ( "caterwaul.parser" ) } ;
