@@ -197,6 +197,7 @@ meta::meta('type::meta', <<'__');
 
 meta::configure 'meta', extension => '.pl', inherit => 1;
 __
+meta::meta('type::note', 'meta::functor::editable \'note\', extension => \'.sdoc\', inherit => 0, default => \'edit\';');
 meta::meta('type::parent', <<'__');
 meta::define_form 'parent', \&meta::bootstrap::implementation;
 meta::configure 'parent', extension => '', inherit => 1;
@@ -353,6 +354,7 @@ meta::cache('parent-identification', <<'__');
 /home/spencertipping/conjectures/perl-objects/js 246bc56c88e8e8daae3737dbb16a2a2c
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
 canard-object 3d87f1a4b0694cfebcbfd589fa5ed5dd
+notes a9e5975593ed5d90d943ad98405c71e5
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
 vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
@@ -634,6 +636,13 @@ my $name = $0;
 $name =~ s/^.*\///;
 $name;
 __
+meta::function('note', <<'__');
+# Creates a note with a given name, useful for jotting things down.
+my $name = join('-', @_);
+create("note::$name");
+
+__
+meta::function('notes', 'ls(\'-a\', \'^note::\');');
 meta::function('parents', 'join "\\n", grep s/^parent:://o, sort keys %data;');
 meta::function('perl', <<'__');
 my @result = eval(join ' ', @_);
@@ -706,17 +715,17 @@ my ($options, @stuff) = separate_options(@_);
 
 file::write('README.md', retrieve('markdown::readme'));
 
-my @modules = qw/boot/;
-file::write("src/$_.waul.sdoc", retrieve("sdoc::waul::$_"),     mkpath => 1) for @modules;
-file::write("src/$_.md",        retrieve("markdown::waul::$_"), mkpath => 1) for @modules;
+file::write("src/$_.waul.sdoc", retrieve("sdoc::waul::$_"),     mkpath => 1),
+file::write("src/$_.md",        retrieve("markdown::waul::$_"), mkpath => 1) for qw/boot/;
 
 my @deps = map "-e deps/$_.js", qw/regexp parser/;
-sh("waul @deps src/boot.waul.sdoc");
+sh("waul @deps src/boot.waul.sdoc") unless $$options{-W};
 
-file::write('boot/interpreter', retrieve('pp::js::boot-image'), mkpath => 1);
+file::write('boot/interpreter', retrieve('pp::js::boot-image'), mkpath => 1),
 chmod 0700, 'boot/interpreter';
 
 file::write("$_.canard", retrieve("canard::$_"), mkpath => 1) for grep s/^canard::examples\//examples\//, sort keys %data;
+file::write("doc/$_.md", retrieve("note::$_"),   mkpath => 1) for grep s/^note:://,                       sort keys %data;
 
 __
 meta::function('rm', <<'__');
@@ -1078,7 +1087,7 @@ with_exported("waul::$name", sub {
 
 __
 meta::hook('before-shell::ad', <<'__');
-ad('canard::|sdoc::');
+ad('canard::|sdoc::|note::');
 
 __
 meta::indicator('cc', 'length ::retrieve(\'data::current-continuation\') ? "\\033[1;36mcc\\033[0;0m" : \'\';');
@@ -1492,6 +1501,15 @@ __
 meta::message_color('cc', '36');
 meta::message_color('state', 'purple');
 meta::message_color('states', 'yellow');
+meta::note('parameter-space', <<'__');
+Unary continuations.
+One-to-one mapping of values to values; functions are guaranteed to be unary. No ability to delete values or return multiples directly. (Especially with currying.)
+
+Stack-based concatenative.
+Tacit programming focuses on stack top. The stack can be virtualized. Continuations have explicit arity and can be implemented using immutable conses for stack cells. Values that are not
+literals are anonymous. Many-to-many mapping of values to values, but locality is constrained by stack variability.
+
+__
 meta::parent('/home/spencertipping/bin/object', <<'__');
 bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
 bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
@@ -1648,6 +1666,13 @@ meta::parent('canard-object', <<'__');
 meta::type::canard                                          ee0b958db0f8b728c95edf7a27132ef2
 parent::/home/spencertipping/conjectures/perl-objects/sdoc  23fe6ae582697a9456521c4572ebc201
 parent::preprocessor                                        03278e21c3e08874a6f70024f3166a36
+
+__
+meta::parent('notes', <<'__');
+function::note    c6d52ffe73cd48cd95fdc561c59d9f63
+function::notes   7229b326ac8686b2db6de98496bc7527
+meta::type::note  f81bea58841a438e4ee34608ab4f54c0
+parent::object    95fa6ef5120e9a213ad9781a31d69584
 
 __
 meta::parent('object', <<'__');
