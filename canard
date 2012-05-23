@@ -362,7 +362,7 @@ __
 meta::canard('examples/factorial', <<'__');
 log fact 5
 def 'fact [cond [* fact - 1 dup] [1 drop] dup]
-def 'drop [permute 1 []]
+def 'drop [permute 1 nil]
 def 'dup  [permute 0 [0]]
 
 __
@@ -373,11 +373,11 @@ nb [Hello world example
 say [hello world]
 def 'say [log]
 
-def 'nb [permute 1 []]
+def 'nb [permute 1 nil]
 
 __
 meta::canard('examples/lists', <<'__');
-log map [+ 1] filter [=== 0 % swap 3] [1 2 3 4 5 6 7 8 9 10]
+log map [+ 1] filter [not % swap 3] [1 2 3 4 5 6 7 8 9 10]
 
 def 'map [cond [cons map stash 1 [head swap i] dup stash 1 [tail dup]] [nb] is_cons nip]
       nb [map [f] (cons x y) -> cons map [f] x f y
@@ -388,19 +388,19 @@ def 'map [cond [cons map stash 1 [head swap i] dup stash 1 [tail dup]] [nb] is_c
 
           map [f] [] -> []]
 
-def 'filter [cond [cond [cons swap] [nb] stash 1 [stash 1 [filter] swap] swap stash 1 [i] dup stash 1 [dup swap uncons]] [nb] is_cons nip]
-         nb [filter [f] (cons x y) -> (cond [cons swap] [nb] (f y)) y filter [f] x
-             dup stash 1 [dup swap uncons]   [f] (cons x y)       = [f] [f] y y x
-             swap stash 1 [i]                [f] [f] y y x        = (f y) [f] y x
-             stash 1 [stash 1 [filter] swap] (f y) [f] y x        = (f y) y filter [f] x
-             cond [cons swap] [nb]           (f y) y filter [f] x = cond [cons swap] [nb] (f y) y filter [f] x
+def 'filter [cond [cond [cons swap] [nb] i stash 3 [filter] permute 3 [2 1 1 2 0] uncons swap] [nb] is_cons nip]
+         nb [filter [f] (cons x y) -> cond [cons swap] [nb] f y y filter [f] x
+             uncons swap             [f] (cons x y)       = x y [f]
+             permute 3 [2 1 1 2 0]   x y [f]              = [f] y y [f] x
+             stash 3 [filter]        [f] y y [f] x        = [f] y y filter [f] x
+             cond [cons swap] [nb] i [f] y y filter [f] x = cond [cons swap] [nb] f y y filter [f] x
 
              filter [f] [] -> []]
 
 def 'tail [stash 1 [nb] uncons]
 def 'head [nb uncons]
 
-def 'nb   [permute 1 []]
+def 'nb   [permute 1 nil]
 def 'swap [permute 2 [1 0]]
 def 'nip  [permute 0 [1]]
 def 'dup  [permute 0 [0]]
@@ -2058,9 +2058,11 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
           interpreter_methods()  = capture [should_run()               = this.is_atom() && !this.is_quote() && !this.is_n(),
 
                                             execute(stack, bindings)   = this.should_run() ? bindings[this.name()].interpret(stack, bindings)
+                                                                       : this.is_nil()     ? stack
                                                                                            : {h: this, t: stack},
 
                                             interpret(stack, bindings) = this.is_cons()    ? this.t().interpret(this.h().execute(stack, bindings), bindings)
+                                                                       : this.is_nil()     ? stack
                                                                        : this.should_run() ? bindings[this.name()].interpret(stack, bindings)
                                                                                            : {h: this, t: stack}],
 
@@ -2068,7 +2070,7 @@ Default bindings.
 These provide a very simple base language that should be sufficient to write the abstractions necessary to generate the reference compiler.
 
           up(stack, n)              = n ? up(stack.t, n - 1) : stack,
-          append_items_to(s, o, l)  = l.is_cons() ? append_items_to(s, o, l.t()) /-$.canard.syntax.cons/ (o /-up/ +l.h().data).h : s,
+          append_items_to(s, o, l)  = l.is_cons() ? {t: append_items_to(s, o, l.t()), h: up(o, +l.h().data).h} : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
 
           default_bindings() = capture [def(stack, bindings)   = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
@@ -2091,6 +2093,9 @@ These provide a very simple base language that should be sufficient to write the
                                         cons(stack)            = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
                                         uncons(stack)          = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
                                                                  -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
+
+                                        nil(stack)             = {h: $.canard.syntax.nil(), t: stack},
+                                        get(stack)             = {h: bindings[stack.h.name()], t: stack.t},
 
                                         id(stack)              = stack,
                                         i(stack, bindings)     = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
@@ -2153,6 +2158,7 @@ syn match   canard_bracket              /[\[[\]]/
 syn match   canard_number               /\d\+/
 
 syn keyword canard_def                  def
+syn keyword canard_primitive            permute stash nil cond is_cons is_nil cons uncons id i
 
 hi link canard_comment                  Comment
 hi link canard_comment_delimiter        Special
@@ -2160,6 +2166,7 @@ hi link canard_quoted_symbol            Identifier
 hi link canard_def                      Keyword
 hi link canard_bracket                  Special
 hi link canard_number                   Number
+hi link canard_primitive                Type
 
 __
 internal::main();

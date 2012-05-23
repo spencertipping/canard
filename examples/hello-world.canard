@@ -4,4 +4,4 @@ nb [Hello world example
 say [hello world]
 def 'say [log]
 
-def 'nb [permute 1 []]
+def 'nb [permute 1 nil]

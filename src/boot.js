@@ -35,13 +35,15 @@ return this.is_nil() ? '[]'
 return{should_run:function() {;
 return this.is_atom() && !this.is_quote() && !this.is_n() } ,execute:function(stack,bindings) {;
 return this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
+:this.is_nil() ?stack
 : {h:this,t:stack} } ,interpret:function(stack,bindings) {;
 return this.is_cons() ?this.t() .interpret(this.h() .execute(stack,bindings) ,bindings) 
+:this.is_nil() ?stack
 :this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
 : {h:this,t:stack} } } } ,up=function(stack,n) {;
 return n?up(stack.t,n-1) 
 :stack} ,append_items_to=function(s,o,l) {;
-return l.is_cons() ?$.canard.syntax.cons(append_items_to(s,o,l.t() ) , (up(o, +l.h() .data) ) .h) 
+return l.is_cons() ? {t:append_items_to(s,o,l.t() ) ,h:up(o, +l.h() .data) .h} 
 :s} ,stash_helper=function(n,b,s,bs) {;
 return n? {h:s.h,t:stash_helper(n-1,b,s.t,bs) } 
 :b.interpret(s,bs) } ,default_bindings=function() {;
@@ -62,7 +64,9 @@ return{h:$.canard.syntax.atom( +stack.h.is_nil() ) ,t:stack.t} } ,is_cons:functi
 return{h:$.canard.syntax.atom( +stack.h.is_cons() ) ,t:stack.t} } ,not:function(stack) {;
 return{h:$.canard.syntax.atom( + !stack.h.data) ,t:stack.t} } ,cons:function(stack) {;
 return{h:$.canard.syntax.cons(stack.h,stack.t.h) ,t:stack.t.t} } ,uncons:function(stack) {;
-return( !stack.h.is_cons() && (function() {throw new Error( ( '' + (stack.h) + ' is not a cons cell' ) ) } ) .call(this) , {h:stack.h.h() ,t: {h:stack.h.t() ,t:stack.t} } ) } ,id:function(stack) {;
+return( !stack.h.is_cons() && (function() {throw new Error( ( '' + (stack.h) + ' is not a cons cell' ) ) } ) .call(this) , {h:stack.h.h() ,t: {h:stack.h.t() ,t:stack.t} } ) } ,nil:function(stack) {;
+return{h:$.canard.syntax.nil() ,t:stack} } ,get:function(stack) {;
+return{h:bindings[stack.h.name() ] ,t:stack.t} } ,id:function(stack) {;
 return stack} ,i:function(stack,bindings) {;
 return stack.h.interpret(stack.t,bindings) } } ) ,arithmetic_bindings() ) } ,arithmetic_bindings=function() {;
 return(function(o) {for(var r= {} ,i=0,l=o.length,x;

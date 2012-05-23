@@ -51,9 +51,11 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
           interpreter_methods()  = capture [should_run()               = this.is_atom() && !this.is_quote() && !this.is_n(),
 
                                             execute(stack, bindings)   = this.should_run() ? bindings[this.name()].interpret(stack, bindings)
+                                                                       : this.is_nil()     ? stack
                                                                                            : {h: this, t: stack},
 
                                             interpret(stack, bindings) = this.is_cons()    ? this.t().interpret(this.h().execute(stack, bindings), bindings)
+                                                                       : this.is_nil()     ? stack
                                                                        : this.should_run() ? bindings[this.name()].interpret(stack, bindings)
                                                                                            : {h: this, t: stack}],
 
@@ -61,7 +63,7 @@ Default bindings.
 These provide a very simple base language that should be sufficient to write the abstractions necessary to generate the reference compiler.
 
           up(stack, n)              = n ? up(stack.t, n - 1) : stack,
-          append_items_to(s, o, l)  = l.is_cons() ? append_items_to(s, o, l.t()) /-$.canard.syntax.cons/ (o /-up/ +l.h().data).h : s,
+          append_items_to(s, o, l)  = l.is_cons() ? {t: append_items_to(s, o, l.t()), h: up(o, +l.h().data).h} : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
 
           default_bindings() = capture [def(stack, bindings)   = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
@@ -84,6 +86,9 @@ These provide a very simple base language that should be sufficient to write the
                                         cons(stack)            = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
                                         uncons(stack)          = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
                                                                  -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
+
+                                        nil(stack)             = {h: $.canard.syntax.nil(), t: stack},
+                                        get(stack)             = {h: bindings[stack.h.name()], t: stack.t},
 
                                         id(stack)              = stack,
                                         i(stack, bindings)     = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
