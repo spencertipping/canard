@@ -1961,8 +1961,8 @@ caterwaul(':all')(function ($) {
 
          stack             = null,
          bindings          = $.canard.default_bindings(),
-         start_from_repl() = require('repl').start('canard> ', void 0, repl_function)
-                             -where [repl_function(x, _1, _2, cc) = cc(stack = $.canard.parse(filter(x)).interpret(stack, bindings), rescue.e)
+         start_from_repl() = require('repl').start('canard> ', undefined, repl_function, undefined, true)
+                             -where [repl_function(x, _1, _2, cc) = cc(stack -eq- $.canard.parse(filter(x)).interpret(stack, bindings) <then> undefined, rescue.e)
                                                                     -then- process.stderr.write('\033[s\033[80G\033[1;32m#{print_stack(stack)}\033[u\033[0;0m'),
                                      filter(code)                 = code.replace(/^\s*\(\s*|\s*\)\s*$/g, '')],
 
