@@ -3,3 +3,5 @@ nb [Hello world example
 
 say [hello world]
 def 'say [log]
+
+def 'nb [permute 1 []]
