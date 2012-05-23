@@ -6,10 +6,11 @@ This interpreter parses and interprets Canard programs. It provides a set of pri
 provides no comment syntax; comments can be written as 'nb [stuff]'.
 
 caterwaul.module('canard', ':all', function ($) {
-  ($.canard(source, stack, bindings) = $.canard.parse(source).interpret(stack || null, {} / default_bindings() /-$.merge/ bindings)) /-$.merge/ statics()
+  ($.canard(source, stack, bindings) = $.canard.parse(source).interpret(stack || null, {} / $.canard.default_bindings() /-$.merge/ bindings)) /-$.merge/ statics()
 
-  -where [statics() = capture [syntax = tree_ctor() /-$.syntax_subclass/ tree_methods() /-$.merge/ tree_statics(),
-                               parse  = parser()],
+  -where [statics() = capture [syntax             = tree_ctor() /-$.syntax_subclass/ tree_methods() /-$.merge/ tree_statics(),
+                               default_bindings() = default_bindings(),
+                               parse              = parser()],
 
 Parsing logic.
 The parser is really simple; it just handles juxtaposition (treated as cons), list encapsulation, and atom parsing.

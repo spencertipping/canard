@@ -262,6 +262,7 @@ meta::alias('r', <<'__');
 sh waul -e deps/regexp.js -e deps/parser.js -e src/boot.js -c :all
 
 __
+meta::alias('repl', 'sh boot/interpreter');
 meta::alias('x', 'run_example');
 meta::bootstrap('html', <<'__');
 <html>
@@ -400,10 +401,11 @@ def 'filter [cond [cond [cons swap] [nb] i stash 3 [filter] permute 3 [2 1 1 2 0
 def 'tail [stash 1 [nb] uncons]
 def 'head [nb uncons]
 
+def 'pull [permute 0 cons nil]
 def 'nb   [permute 1 nil]
 def 'swap [permute 2 [1 0]]
-def 'nip  [permute 0 [1]]
-def 'dup  [permute 0 [0]]
+def 'nip  [pull 1]
+def 'dup  [pull 0]
 
 __
 meta::data('author', 'Spencer Tipping');
@@ -1947,15 +1949,25 @@ Licensed under the terms of the MIT source code license
 - include deps/parser.js
 - include src/boot.js
 
-caterwaul.module('canard-runtime', ':all', function ($) {
+caterwaul(':all')(function ($) {
   $.canard.syntax.prototype -se [it.execute(stack, bindings) = process.stderr.write('\033[1;30m#{this.is_cons() ? "[" + this + "]" : this} \033[40G\033[1;32m#{print_stack(stack)}\033[0;0m\n')
                                                                -then- original.apply(this, arguments),
-                                 where [original       = it.execute,
-                                        print_stack(s) = s !== null ? s.h.is_cons() ? '[#{s.h}] #{print_stack(s.t)}'
-                                                                                    : '#{s.h} #{print_stack(s.t)}'
-                                                                    : '']]});
+                                 where [original = it.execute]],
+  when.false,
 
-caterwaul.canard(require('fs').readFileSync(process.argv[2], 'utf8'));
+  process.argv.length > 2 ? start_from_file() : start_from_repl(),
+
+  where [start_from_file() = $.canard(require('fs').readFileSync(process.argv[2], 'utf8')),
+
+         stack             = null,
+         bindings          = $.canard.default_bindings(),
+         start_from_repl() = require('repl').start('canard> ', void 0, repl_function)
+                             -where [repl_function(x, _1, _2, cc) = cc(stack = $.canard.parse(filter(x)).interpret(stack, bindings), rescue.e)
+                                                                    -then- process.stderr.write('\033[s\033[80G\033[1;32m#{print_stack(stack)}\033[u\033[0;0m'),
+                                     filter(code)                 = code.replace(/^\s*\(\s*|\s*\)\s*$/g, '')],
+
+         print_stack(s)    = s !== null ? s.h.is_cons() ? '[#{s.h}] #{print_stack(s.t)}'
+                                                        : '#{s.h} #{print_stack(s.t)}' : '']}, {require: require})(caterwaul);
 
 __
 meta::sdoc('readme', <<'__');
@@ -2039,10 +2051,11 @@ This interpreter parses and interprets Canard programs. It provides a set of pri
 provides no comment syntax; comments can be written as 'nb [stuff]'.
 
 caterwaul.module('canard', ':all', function ($) {
-  ($.canard(source, stack, bindings) = $.canard.parse(source).interpret(stack || null, {} / default_bindings() /-$.merge/ bindings)) /-$.merge/ statics()
+  ($.canard(source, stack, bindings) = $.canard.parse(source).interpret(stack || null, {} / $.canard.default_bindings() /-$.merge/ bindings)) /-$.merge/ statics()
 
-  -where [statics() = capture [syntax = tree_ctor() /-$.syntax_subclass/ tree_methods() /-$.merge/ tree_statics(),
-                               parse  = parser()],
+  -where [statics() = capture [syntax             = tree_ctor() /-$.syntax_subclass/ tree_methods() /-$.merge/ tree_statics(),
+                               default_bindings() = default_bindings(),
+                               parse              = parser()],
 
 Parsing logic.
 The parser is really simple; it just handles juxtaposition (treated as cons), list encapsulation, and atom parsing.
