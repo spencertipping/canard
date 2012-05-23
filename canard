@@ -733,8 +733,8 @@ sh("waul @deps src/boot.waul.sdoc") unless $$options{-W};
 file::write('boot/interpreter', retrieve('pp::js::boot-image'), mkpath => 1),
 chmod 0700, 'boot/interpreter';
 
-file::write("$_.canard", retrieve("canard::$_"), mkpath => 1) for grep s/^canard::examples\//examples\//, sort keys %data;
-file::write("doc/$_.md", retrieve("note::$_"),   mkpath => 1) for grep s/^note:://,                       sort keys %data;
+file::write("$_.canard", retrieve("canard::$_"),         mkpath => 1) for grep s/^canard::examples\//examples\//, sort keys %data;
+file::write("doc/$_.md", retrieve("markdown::note::$_"), mkpath => 1) for grep s/^note:://,                       sort keys %data;
 
 __
 meta::function('rm', <<'__');
