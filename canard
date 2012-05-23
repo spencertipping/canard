@@ -1501,6 +1501,20 @@ __
 meta::message_color('cc', '36');
 meta::message_color('state', 'purple');
 meta::message_color('states', 'yellow');
+meta::note('continuations', <<'__');
+Continuations.
+In Canard, expressions (lists) are executed from right to left following the cons tree. So E[x :: y] = E[x] I[y], making cons homomorphic to composition. Because of this, a continuation can be
+represented as a tuple (list, return-stack-head, data-stack-head), where the list is code and the two stack heads are pointers to immutable cons cells.
+
+The return stack is required because blocks have return continuations, but it might not be required if CPS-conversion were performed up front. I'm not sure about this.
+
+__
+meta::note('locals', <<'__');
+Local variables.
+There is a lot to be said for the option of using local variables in a concatenative context. Though perhaps the right execution combinators reduce the need to specify them explicitly. Also,
+better stack permutation primitives would help with this.
+
+__
 meta::note('parameter-space', <<'__');
 Unary continuations.
 One-to-one mapping of values to values; functions are guaranteed to be unary. No ability to delete values or return multiples directly. (Especially with currying.)
@@ -1508,6 +1522,27 @@ One-to-one mapping of values to values; functions are guaranteed to be unary. No
 Stack-based concatenative.
 Tacit programming focuses on stack top. The stack can be virtualized. Continuations have explicit arity and can be implemented using immutable conses for stack cells. Values that are not
 literals are anonymous. Many-to-many mapping of values to values, but locality is constrained by stack variability.
+
+The stack has a single focus point, and consuming a value yields an additional unique focus point. So tacit programming is possible at the expense of some shuffling. The linguistic tradeoff is
+stack swapping to avoid explicit value specification. (Why not just use local variables to solve this problem?)
+
+__
+meta::note('permutation', <<'__');
+Stack permutation.
+What is the most concise, systematic way to permute the stack? Having a series of operators dedicated for the purpose seems like a reasonable solution if a solid basis exists, but I get the
+sense that no such basis exists at the moment. Maybe I'm wrong about this. But it probably varies widely across implementations; Forth and Joy wouldn't use the same primitives.
+
+  Stashing.
+  It needs to be possible to grab values from the data stack, ignore them, and restore them later on. The initial Canard implementation uses 'stash' to do this; 'stash [f]' executes 'f' on the
+  tail of the stack, restoring the head afterwards. This concept could be generalized to stash multiple stack entries rather than just one.
+
+  Shuffling.
+  All forms of shuffling, dropping, and duplication can be generalized into a permutation vector. Permutation could be implemented like this:
+
+  | permute n [i1 i2 ... ik]
+
+  The idea is that the top n items would be dropped, then replaced by items at i1, i2, ..., ik in the original stack. For instance, swap would be defined as 'permute 2 [1 0]'. Drop is 'permute
+  1 []'. Dup is 'permute 1 [0 0]'. Get is 'permute 0 cons []'.
 
 __
 meta::parent('/home/spencertipping/bin/object', <<'__');
