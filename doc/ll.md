@@ -24,14 +24,18 @@ Canard gives you two functions that deal with definitions:
     = name value          (define)
     @ name                (get-value)
 
+Low-level interpreters are allowed to impose an O(n) time overhead to resolve symbol definitions.
+
 # Memory
 
 There are four memory-related operators:
 
     * address = value     (dereference)
     ! value address       (assignment)
-    ( size = address      (allocate)
-    ) address             (free)
+    ( size = address      (mmap; generally requires multiples of 4096 bytes)
+    ) address             (munmap)
+    { address             (mprotect +x; make page executable but not writable)
+    } address             (mprotect +w; make page writable but not executable)
 
 # Arithmetic
 
