@@ -64,7 +64,7 @@ Default bindings.
 These provide a very simple base language that should be sufficient to write the abstractions necessary to generate the reference compiler.
 
           up(stack, n)              = n ? up(stack.t, n - 1) : stack,
-          append_items_to(s, o, l)  = l.is_cons() ? {t: append_items_to(s, o, l.t()), h: up(o, +l.h().data).h} : s,
+          append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
 
           default_bindings() = capture [def(stack, bindings)   = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
@@ -74,8 +74,8 @@ These provide a very simple base language that should be sufficient to write the
                                         chr(stack)             = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)), t: stack.t},
                                         ord(stack)             = {h: $.canard.syntax.atom(stack.h.data.charCodeAt(0)),         t: stack.t},
 
-                                        cond(stack, bindings)  = +stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
-                                                                                   : stack.t.h.interpret(stack.t.t.t, bindings),
+                                        cond(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
+                                                                                     : stack.t.h.interpret(stack.t.t.t, bindings),
 
                                         permute(stack)         = append_items_to(stack.t.t /-up/ +stack.h.data, stack.t.t, stack.t.h),
                                         stash(stack, bindings) = stash_helper(+stack.h.data, stack.t.h, stack.t.t, bindings),
@@ -89,7 +89,7 @@ These provide a very simple base language that should be sufficient to write the
                                                                  -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
 
                                         nil(stack)             = {h: $.canard.syntax.nil(), t: stack},
-                                        get(stack)             = {h: bindings[stack.h.name()], t: stack.t},
+                                        get(stack, bindings)   = {h: bindings[stack.h.name()], t: stack.t},
 
                                         id(stack)              = stack,
                                         i(stack, bindings)     = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq

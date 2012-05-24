@@ -44,7 +44,7 @@ return this.is_cons() ?this.t() .interpret(this.h() .execute(stack,bindings) ,bi
 : {h:this,t:stack} } } } ,up=function(stack,n) {;
 return n?up(stack.t,n-1) 
 :stack} ,append_items_to=function(s,o,l) {;
-return l.is_cons() ? {t:append_items_to(s,o,l.t() ) ,h:up(o, +l.h() .data) .h} 
+return l.is_cons() ?append_items_to( {t:s,h:up(o, +l.h() .data) .h} ,o,l.t() ) 
 :s} ,stash_helper=function(n,b,s,bs) {;
 return n? {h:s.h,t:stash_helper(n-1,b,s.t,bs) } 
 :b.interpret(s,bs) } ,default_bindings=function() {;
@@ -57,7 +57,7 @@ return(console.log(stack.h.toString() ) ,stack.t) } ,trace:function(stack) {;
 return(console.log( ( '\033[1;32m' + (stack.h) + '\033[0;0m' ) ) ,stack) } ,chr:function(stack) {;
 return{h:$.canard.syntax.atom(String.fromCharCode( +stack.h.data) ) ,t:stack.t} } ,ord:function(stack) {;
 return{h:$.canard.syntax.atom(stack.h.data.charCodeAt(0) ) ,t:stack.t} } ,cond:function(stack,bindings) {;
-return+stack.t.t.h.data?stack.h.interpret(stack.t.t.t,bindings) 
+return! ! +stack.t.t.h.data?stack.h.interpret(stack.t.t.t,bindings) 
 :stack.t.h.interpret(stack.t.t.t,bindings) } ,permute:function(stack) {;
 return append_items_to(up(stack.t.t, +stack.h.data) ,stack.t.t,stack.t.h) } ,stash:function(stack,bindings) {;
 return stash_helper( +stack.h.data,stack.t.h,stack.t.t,bindings) } ,is_nil:function(stack) {;
@@ -66,7 +66,7 @@ return{h:$.canard.syntax.atom( +stack.h.is_cons() ) ,t:stack.t} } ,not:function(
 return{h:$.canard.syntax.atom( + !stack.h.data) ,t:stack.t} } ,cons:function(stack) {;
 return{h:$.canard.syntax.cons(stack.h,stack.t.h) ,t:stack.t.t} } ,uncons:function(stack) {;
 return( !stack.h.is_cons() && (function() {throw new Error( ( '' + (stack.h) + ' is not a cons cell' ) ) } ) .call(this) , {h:stack.h.h() ,t: {h:stack.h.t() ,t:stack.t} } ) } ,nil:function(stack) {;
-return{h:$.canard.syntax.nil() ,t:stack} } ,get:function(stack) {;
+return{h:$.canard.syntax.nil() ,t:stack} } ,get:function(stack,bindings) {;
 return{h:bindings[stack.h.name() ] ,t:stack.t} } ,id:function(stack) {;
 return stack} ,i:function(stack,bindings) {;
 return stack.h.interpret(stack.t,bindings) } } ) ,arithmetic_bindings() ) } ,arithmetic_bindings=function() {;

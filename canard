@@ -1545,6 +1545,43 @@ optimizations that can be emitted later on. The basic operation categories are:
   4. Integer and floating-point arithmetic, but basic instructions only. Instruction fusion should be compiler-specific.
   5. Cons and uncons, as well as symbol inspection and ordering. This can form the basis for things like sets.
 
+Stack manipulation.
+Every literal pushes a value onto the stack. Canard provides three functions that manipulate stack values:
+
+| ^ k [f] x0 x1 x2 ... xk-1 xk ... = x0 x1 x2 ... xk-1 f xk ...         (stash)
+  < k x0 x1 x2 ... xk-1 xk ...     = xk ...                             (drop)
+  > k x0 x1 x2 ... xk ...          = xk x0 x1 x2 ... xk ...             (get)
+
+Definition.
+Canard gives you two functions that deal with definitions:
+
+| = name value          (define)
+  @ name                (get-value)
+
+Memory.
+There are four memory-related operators:
+
+| * address = value     (dereference)
+  ! value address       (assignment)
+  ( size = address      (allocate)
+  ) address             (free)
+
+Arithmetic.
+These mirror processor intrinsics:
+
+| + x y   = x+y
+  - x y   = x-y
+  / x y   = x/y x%y
+  % x y   = x*y
+  & x y   = x&y
+  | x y   = x|y
+  ~ x     = ~x
+  xor x y = x^y
+  << n x  = x<<n
+  >> n x  = x>>n
+  >>> n x = x>>>n
+  (the rest are TBD)
+
 __
 meta::note('locals', <<'__');
 Local variables.
@@ -1957,7 +1994,7 @@ caterwaul(':all')(function ($) {
 
   process.argv.length > 2 ? start_from_file() : start_from_repl(),
 
-  where [start_from_file() = $.canard(require('fs').readFileSync(process.argv[2], 'utf8')),
+  where [start_from_file() = $.canard(process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] -seq -re- it.join('\n\n')),
 
          stack             = null,
          bindings          = $.canard.default_bindings(),
@@ -2109,7 +2146,7 @@ Default bindings.
 These provide a very simple base language that should be sufficient to write the abstractions necessary to generate the reference compiler.
 
           up(stack, n)              = n ? up(stack.t, n - 1) : stack,
-          append_items_to(s, o, l)  = l.is_cons() ? {t: append_items_to(s, o, l.t()), h: up(o, +l.h().data).h} : s,
+          append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
 
           default_bindings() = capture [def(stack, bindings)   = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
@@ -2119,8 +2156,8 @@ These provide a very simple base language that should be sufficient to write the
                                         chr(stack)             = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)), t: stack.t},
                                         ord(stack)             = {h: $.canard.syntax.atom(stack.h.data.charCodeAt(0)),         t: stack.t},
 
-                                        cond(stack, bindings)  = +stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
-                                                                                   : stack.t.h.interpret(stack.t.t.t, bindings),
+                                        cond(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
+                                                                                     : stack.t.h.interpret(stack.t.t.t, bindings),
 
                                         permute(stack)         = append_items_to(stack.t.t /-up/ +stack.h.data, stack.t.t, stack.t.h),
                                         stash(stack, bindings) = stash_helper(+stack.h.data, stack.t.h, stack.t.t, bindings),
@@ -2134,7 +2171,7 @@ These provide a very simple base language that should be sufficient to write the
                                                                  -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
 
                                         nil(stack)             = {h: $.canard.syntax.nil(), t: stack},
-                                        get(stack)             = {h: bindings[stack.h.name()], t: stack.t},
+                                        get(stack, bindings)   = {h: bindings[stack.h.name()], t: stack.t},
 
                                         id(stack)              = stack,
                                         i(stack, bindings)     = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
