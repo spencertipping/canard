@@ -2009,6 +2009,8 @@ caterwaul(':all')(function ($) {
 __
 meta::sdoc('readme', <<'__');
 Canard programming language.
+PLEASE IGNORE EVERYTHING HERE; IT IS NOT TRUE. AT ALL.
+
 Canard is a concatenative language that is executed from right to left. It provides modular memory management, thread-local heaps, and supports IPC through message passing. The language is
 implemented in x86-64 assembly language and contains subsets that can be compiled to Javascript and Java source.
 
