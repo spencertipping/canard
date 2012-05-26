@@ -45,6 +45,9 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
                                                 is_nil()   = this.is_atom() && this.data === '[]',
                                                 is_n()     = this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/.test(this.data),
 
+                                                unquote()  = this.is_atom() && /^'/.test(this.data) ? $.canard.syntax.atom(this.data /~substr/ 1) : this,
+                                                quote()    = this.is_atom()                         ? $.canard.syntax.atom("'#{this.data}")       : this,
+
                                                 toString() = this.is_nil()                                              ? '[]'
                                                            : this.is_cons() && !this.t().is_nil() && this.h().is_cons() ? '#{this.t()} [#{this.h()}]'
                                                            : this.is_cons() &&  this.t().is_nil()                       ? this.h().toString()
@@ -56,13 +59,13 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
 
                                                 execute(stack, bindings)   = rescue ['#{this}:[e]\n#{e}' /raise]
                                                                            [ this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                                               : {h: this, t: stack}],
+                                                                                               : {h: this.unquote(), t: stack}],
 
                                                 interpret(stack, bindings) = rescue ['#{this}:[i]\n#{e}' /raise]
                                                                            [ this.is_cons()    ? this.t().interpret(this.h().execute(stack, bindings), bindings)
                                                                            : this.is_nil()     ? stack
                                                                            : this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                                               : {h: this, t: stack}]],
+                                                                                               : {h: this.unquote(), t: stack}]],
 
 # Default bindings
 
@@ -84,6 +87,8 @@ These provide a very simple base language that should be sufficient to write the
                                             '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)),       t: stack.t},
                                             '$^'(stack)           = {h: $.canard.syntax.atom(stack.t.h.data.charCodeAt(+stack.h.data)), t: stack.t.t},
                                             '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),            t: stack.t.t},
+                                            '$:'(stack)           = {h: stack.h.quote(),                                                t: stack.t},
+                                            '$.'(stack)           = {h: stack.h.unquote(),                                              t: stack.t},
 
                           /* conditional */ '?'(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
                                                                                         : stack.t.h.interpret(stack.t.t.t, bindings),

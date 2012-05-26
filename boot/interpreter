@@ -704,7 +704,11 @@ return this[0] } ,is_quote:function() {;
 return this.is_atom() && /^'/ .test(this.data) } ,name:function() {;
 return this.data.replace( /^'/ , '' ) } ,is_nil:function() {;
 return this.is_atom() &&this.data=== '[]' } ,is_n:function() {;
-return this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/ .test(this.data) } ,toString:function() {;
+return this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/ .test(this.data) } ,unquote:function() {;
+return this.is_atom() && /^'/ .test(this.data) ?$.canard.syntax.atom( (this.data) .substr(1) ) 
+:this} ,quote:function() {;
+return this.is_atom() ?$.canard.syntax.atom( ( "'" + (this.data) + "" ) ) 
+:this} ,toString:function() {;
 return this.is_nil() ? '[]' 
 :this.is_cons() && !this.t() .is_nil() &&this.h() .is_cons() ? ( '' + (this.t() ) + ' [' + (this.h() ) + ']' ) 
 :this.is_cons() &&this.t() .is_nil() ?this.h() .toString() 
@@ -713,11 +717,11 @@ return this.is_nil() ? '[]'
 return{should_run:function() {;
 return!this.is_nil() &&this.is_atom() && !this.is_quote() && !this.is_n() } ,execute:function(stack,bindings) {;
 return(function() {try{return this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
-: {h:this,t:stack} }catch(e) {return(function() {throw( '' + (this) + ':[e]\n' + (e) + '' ) } ) .call(this) } } ) .call(this) } ,interpret:function(stack,bindings) {;
+: {h:this.unquote() ,t:stack} }catch(e) {return(function() {throw( '' + (this) + ':[e]\n' + (e) + '' ) } ) .call(this) } } ) .call(this) } ,interpret:function(stack,bindings) {;
 return(function() {try{return this.is_cons() ?this.t() .interpret(this.h() .execute(stack,bindings) ,bindings) 
 :this.is_nil() ?stack
 :this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
-: {h:this,t:stack} }catch(e) {return(function() {throw( '' + (this) + ':[i]\n' + (e) + '' ) } ) .call(this) } } ) .call(this) } } } ,up=function(stack,n) {;
+: {h:this.unquote() ,t:stack} }catch(e) {return(function() {throw( '' + (this) + ':[i]\n' + (e) + '' ) } ) .call(this) } } ) .call(this) } } } ,up=function(stack,n) {;
 return n?up(stack.t,n-1) 
 :stack} ,append_items_to=function(s,o,l) {;
 return l.is_cons() ?append_items_to( {t:s,h:up(o, +l.h() .data) .h} ,o,l.t() ) 
@@ -735,7 +739,9 @@ return(console.log( ( '\033[1;32m' + (stack.h) + '\033[0;0m' ) ) ,stack) } , '$#
 return{h:$.canard.syntax.atom(stack.h.data.length) ,t:stack.t} } , '$' :function(stack) {;
 return{h:$.canard.syntax.atom(String.fromCharCode( +stack.h.data) ) ,t:stack.t} } , '$^' :function(stack) {;
 return{h:$.canard.syntax.atom(stack.t.h.data.charCodeAt( +stack.h.data) ) ,t:stack.t.t} } , '$+' :function(stack) {;
-return{h:$.canard.syntax.atom(stack.h.data+stack.t.h.data) ,t:stack.t.t} } , '?' :function(stack,bindings) {;
+return{h:$.canard.syntax.atom(stack.h.data+stack.t.h.data) ,t:stack.t.t} } , '$:' :function(stack) {;
+return{h:stack.h.quote() ,t:stack.t} } , '$.' :function(stack) {;
+return{h:stack.h.unquote() ,t:stack.t} } , '?' :function(stack,bindings) {;
 return! ! +stack.t.t.h.data?stack.h.interpret(stack.t.t.t,bindings) 
 :stack.t.h.interpret(stack.t.t.t,bindings) } , '%%' :function(stack) {;
 return append_items_to(up(stack.t.t, +stack.h.data) ,stack.t.t,stack.t.h) } , '%^' :function(stack,bindings) {;

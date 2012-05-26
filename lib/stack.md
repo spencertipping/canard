@@ -1,0 +1,16 @@
+Canard standard library: stack functions | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+# Introduction
+
+This library provides a bunch of stack functions that prevent you from having to use the long forms of %% and %^ for common situations.
+
+    = '%0  [%% 0 [0]]               nb [dup x                         = x x]
+    = '%1  [%% 0 [1]]               nb [nip x y                       = y x y]
+    = '%#  [%% 0 :: []]             nb [nth n x1 x2 ... xn            = xn x1 x2 ... xn]
+    = '%v  [%% 1 []]                nb [drop x                        = ]
+    = '%v# [%% %s []]               nb [dropn n x1 x2 ... xn xn+1 ... = xn+1 ...]
+    = '%s  [%% 2 [1 0]]             nb [swap x y                      = y x]
+
+    = '%r3 [%% 3 [1 2 0]]           nb [rot3 x y z = y z x]
+    = '%R3 [%% 3 [2 0 1]]           nb [Rot3 x y z = z x y]

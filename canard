@@ -575,6 +575,10 @@ my ($options, @stuff) = separate_options(@criteria);
 exists $data{$attribute} and attribute_is($attribute, %$options);
 
 __
+meta::function('lib', <<'__');
+create("sdoc::canard::lib/$_[0]");
+
+__
 meta::function('load-state', <<'__');
 around_hook('load-state', @_, sub {
   my ($state_name) = @_;
@@ -1987,6 +1991,16 @@ meta::retriever('sdocp', <<'__');
 my $attribute = attribute($_[0]);
 exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
 __
+meta::sdoc('canard::lib/comments', <<'__');
+Canard standard library: comments | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This library allows you to use nb[] to write comments. You should include it before including anything else.
+
+= 'nb [%% 1 []]
+
+__
 meta::sdoc('canard::lib/lexical', <<'__');
 Canard standard library: lexical scope | Spencer Tipping
 Licensed under the terms of the MIT source code license
@@ -2010,6 +2024,94 @@ fn[] first, yielding concatenative code that invokes the 'x' function:
 | = 'k fn [x] fn [y] [x]
 
 This will force fn [y] [x] to be compiled ahead of time, yielding [x %% 1 []].
+
+__
+meta::sdoc('canard::lib/lists', <<'__');
+Canard standard library: list functions | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This library defines useful list functions, including map, flatmap, filter, append, etc. All traversal goes from right to left, as per the natural cons cell ordering.
+
+Flatmap and map definitions.
+We use the initial definition of :* below as the template, replacing the :: invocation with other functions as appropriate. As a test case, we self-apply :* to its own definition.
+
+
+
+List append.
+Appends each element from the second list to the first. The head of :+ x y is the head of y. Here are the cases:
+
+| :+ _ :: t h -> :: :+ _ t h
+  :+ x []     -> x
+
+= ':+ [? [:: :+ %^ 1 [:^]] [%v %s] :? %1]
+
+Recursive combinator.
+Recursively descends throughout a list; useful for doing search/replace on chunks of code. This is also templated to support flat-mapping recursively; as such, it is a transformation of the
+block given to a map or flat-map function. Here are the cases:
+
+| :** [map] [f] :: x y -> map :** [map] [f] :: x y
+  :** [map] [f] _      -> f _
+
+You can use it like this: :* :** [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6].
+
+= ':** [? [. %^ 1 [:**] %0] [. %v] :? %2]
+
+Map-function template.
+Here is the derivation for flatmap:
+
+| :~ [f] :: x y -> :+ :~ [f] x f y
+  %^ 1 [:^]    [f] :: x y  = [f] x y
+  %% 2 [0 1 0] [f] x y     = [f] x [f] y
+  %^ 2 [.]     [f] x [f] y = [f] x f y
+  :+ :~        [f] x f y   = :+ :~ [f] x f y
+
+Notice, however, that a number of functions here can be replaced to do other things. For instance, the :+ invocation in flatmap can be replaced with ::, at which point the function will be a
+regular map. What we really have is a 'map template' that can be specialized in different ways. To leverage this, we first define the map function, then we write the map template, then we
+rewrite the map function in terms of that.
+
+= ':* [? [:: :* %^ 2 [.] %% 2 [0 1 0] %^ 1 [:^]] [%v] :? %1]
+
+__
+meta::sdoc('canard::lib/stack', <<'__');
+Canard standard library: stack functions | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This library provides a bunch of stack functions that prevent you from having to use the long forms of %% and %^ for common situations.
+
+= '%0  [%% 0 [0]]               nb [dup x                         = x x]
+= '%1  [%% 0 [1]]               nb [nip x y                       = y x y]
+= '%#  [%% 0 :: []]             nb [nth n x1 x2 ... xn            = xn x1 x2 ... xn]
+= '%v  [%% 1 []]                nb [drop x                        = ]
+= '%v# [%% %s []]               nb [dropn n x1 x2 ... xn xn+1 ... = xn+1 ...]
+= '%s  [%% 2 [1 0]]             nb [swap x y                      = y x]
+
+= '%r3 [%% 3 [1 2 0]]           nb [rot3 x y z = y z x]
+= '%R3 [%% 3 [2 0 1]]           nb [Rot3 x y z = z x y]
+
+__
+meta::sdoc('canard::lib/symbols', <<'__');
+Canard standard library: symbol manipulation | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This library provides a bunch of functions designed to help you rewrite lists of symbols. It depends on the list library.
+
+Search/replace.
+This is a simple piecewise function that preserves all symbols except for the one being sought. If that one is encountered, an alternative is returned:
+
+| . s/ 'a 'b 'a -> 'b
+  . s/ 'a 'b 'c -> 'c
+
+This function builds a closure by consing up a list with wildcards. Here's the derivation:
+
+| s/ 'a 'b -> [? ['b %v] [] === 'a]
+  %s                            'a 'b          = 'b 'a
+  :+ [?] :: [] :+ %s [%v] :: [] 'b 'a          = [? ['b %v]] 'a
+  :+ %^ 1 [:+ [[] ===] :: []]   [? ['b %v]] 'a = [? ['b %v] [] === 'a]
+
+= 's/ [:+ %^ 1 [:+ [[] ===] :: []] :+ [?] :: [] :+ %s [%v] :: [] %s]
 
 __
 meta::sdoc('js::boot-image', <<'__');
@@ -2090,6 +2192,9 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
                                             is_nil()   = this.is_atom() && this.data === '[]',
                                             is_n()     = this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/.test(this.data),
 
+                                            unquote()  = this.is_atom() && /^'/.test(this.data) ? $.canard.syntax.atom(this.data /~substr/ 1) : this,
+                                            quote()    = this.is_atom()                         ? $.canard.syntax.atom("'#{this.data}")       : this,
+
                                             toString() = this.is_nil()                                              ? '[]'
                                                        : this.is_cons() && !this.t().is_nil() && this.h().is_cons() ? '#{this.t()} [#{this.h()}]'
                                                        : this.is_cons() &&  this.t().is_nil()                       ? this.h().toString()
@@ -2101,13 +2206,13 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
 
                                             execute(stack, bindings)   = rescue ['#{this}:[e]\n#{e}' /raise]
                                                                        [ this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                                           : {h: this, t: stack}],
+                                                                                           : {h: this.unquote(), t: stack}],
 
                                             interpret(stack, bindings) = rescue ['#{this}:[i]\n#{e}' /raise]
                                                                        [ this.is_cons()    ? this.t().interpret(this.h().execute(stack, bindings), bindings)
                                                                        : this.is_nil()     ? stack
                                                                        : this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                                           : {h: this, t: stack}]],
+                                                                                           : {h: this.unquote(), t: stack}]],
 
 Default bindings.
 These provide a very simple base language that should be sufficient to write the abstractions necessary to generate the reference compiler.
@@ -2128,6 +2233,8 @@ These provide a very simple base language that should be sufficient to write the
                                         '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)),       t: stack.t},
                                         '$^'(stack)           = {h: $.canard.syntax.atom(stack.t.h.data.charCodeAt(+stack.h.data)), t: stack.t.t},
                                         '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),            t: stack.t.t},
+                                        '$:'(stack)           = {h: stack.h.quote(),                                                t: stack.t},
+                                        '$.'(stack)           = {h: stack.h.unquote(),                                              t: stack.t},
 
                       /* conditional */ '?'(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
                                                                                     : stack.t.h.interpret(stack.t.t.t, bindings),
