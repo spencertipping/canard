@@ -68,31 +68,34 @@ These provide a very simple base language that should be sufficient to write the
           append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
 
-          default_bindings() = capture [def(stack, bindings)   = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
-                                        log(stack)             = console.log(stack.h.toString())              -then- stack.t,
-                                        trace(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m') -then- stack,
+          default_bindings() = capture [
 
-                                        chr(stack)             = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)), t: stack.t},
-                                        ord(stack)             = {h: $.canard.syntax.atom(stack.h.data.charCodeAt(0)),         t: stack.t},
+                     /* symbol table */ '='(stack, bindings)  = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
+                                        '@'(stack, bindings)  = {h: bindings[stack.h.name()], t: stack.t},
 
-                                        cond(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
-                                                                                     : stack.t.h.interpret(stack.t.t.t, bindings),
+                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())              -then- stack.t,
+                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m') -then- stack,
 
-                                        permute(stack)         = append_items_to(stack.t.t /-up/ +stack.h.data, stack.t.t, stack.t.h),
-                                        stash(stack, bindings) = stash_helper(+stack.h.data, stack.t.h, stack.t.t, bindings),
+              /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                      t: stack.t},
+                                        '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)),       t: stack.t},
+                                        '$^'(stack)           = {h: $.canard.syntax.atom(stack.t.h.data.charCodeAt(+stack.h.data)), t: stack.t.t},
+                                        '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),            t: stack.t.t},
 
-                                        is_nil(stack)          = {h: +stack.h.is_nil() /!$.canard.syntax.atom,  t: stack.t},
-                                        is_cons(stack)         = {h: +stack.h.is_cons() /!$.canard.syntax.atom, t: stack.t},
+                      /* conditional */ '?'(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
+                                                                                    : stack.t.h.interpret(stack.t.t.t, bindings),
 
-                                        not(stack)             = {h: +!stack.h.data /!$.canard.syntax.atom, t: stack.t},
-                                        cons(stack)            = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
-                                        uncons(stack)          = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
-                                                                 -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
+                      /* permutation */ '%%'(stack)           = append_items_to(stack.t.t /-up/ +stack.h.data, stack.t.t, stack.t.h),
+                                        '%^'(stack, bindings) = stash_helper(+stack.h.data, stack.t.h, stack.t.t, bindings),
 
-                                        get(stack, bindings)   = {h: bindings[stack.h.name()], t: stack.t},
+                    /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil() /!$.canard.syntax.atom,  t: stack.t},
+                                        ':?'(stack)           = {h: +stack.h.is_cons() /!$.canard.syntax.atom, t: stack.t},
+                                        '!'(stack)            = {h: +!stack.h.data /!$.canard.syntax.atom, t: stack.t},
 
-                                        id(stack)              = stack,
-                                        i(stack, bindings)     = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
+                      /* cons/uncons */ '::'(stack)           = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
+                                        ':^'(stack)           = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
+                                                                -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
+
+                             /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
 
                                /-$.merge/ arithmetic_bindings(),
 

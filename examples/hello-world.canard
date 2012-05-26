@@ -2,6 +2,5 @@ nb [Hello world example
     Prints the string "hello world" to stdout, then quits]
 
 say [hello world]
-def 'say [log]
-
-def 'nb [permute 1 []]
+= 'say [$<]
+= 'nb [%% 1 []]

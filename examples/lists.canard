@@ -1,28 +1,28 @@
-log map [+ 1] filter [not % swap 3] [1 2 3 4 5 6 7 8 9 10]
+$< map [+ 1] filter [! % swap 3] [1 2 3 4 5 6 7 8 9 10]
 
-def 'map [cond [cons map stash 1 [head swap i] dup stash 1 [tail dup]] [nb] is_cons nip]
-      nb [map [f] (cons x y) -> cons map [f] x f y
-          stash 1 [tail dup]    [f] (cons x y)       = [f] y (cons x y)
-          dup                   [f] y (cons x y)     = [f] [f] y (cons x y)
-          stash 1 [head swap i] [f] [f] y (cons x y) = [f] x (f y)
-          cons map              [f] x (f y)          = cons map [f] x f y
+= 'map [? [:: map %^ 1 [head swap .] dup %^ 1 [tail dup]] [nb] :? nip]
+    nb [map [f] (:: x y) -> :: map [f] x f y
+        %^ 1 [tail dup]    [f] (:: x y)       = [f] y (:: x y)
+        dup                [f] y (:: x y)     = [f] [f] y (:: x y)
+        %^ 1 [head swap .] [f] [f] y (:: x y) = [f] x (f y)
+        :: map             [f] x (f y)        = :: map [f] x f y
 
-          map [f] [] -> []]
+        map [f] [] -> []]
 
-def 'filter [cond [cond [cons swap] [nb] i stash 3 [filter] permute 3 [2 1 1 2 0] uncons swap] [nb] is_cons nip]
-         nb [filter [f] (cons x y) -> cond [cons swap] [nb] f y y filter [f] x
-             uncons swap             [f] (cons x y)       = x y [f]
-             permute 3 [2 1 1 2 0]   x y [f]              = [f] y y [f] x
-             stash 3 [filter]        [f] y y [f] x        = [f] y y filter [f] x
-             cond [cons swap] [nb] i [f] y y filter [f] x = cond [cons swap] [nb] f y y filter [f] x
+= 'filter [? [? [:: swap] [nb] . %^ 3 [filter] %% 3 [2 1 1 2 0] :^ swap] [nb] :? nip]
+       nb [filter [f] (:: x y) -> ? [:: swap] [nb] f y y filter [f] x
+           :^ swap            [f] (:: x y)         = x y [f]
+           %% 3 [2 1 1 2 0]   x y [f]              = [f] y y [f] x
+           %^ 3 [filter]      [f] y y [f] x        = [f] y y filter [f] x
+           ? [:: swap] [nb] . [f] y y filter [f] x = ? [:: swap] [nb] f y y filter [f] x
 
-             filter [f] [] -> []]
+           filter [f] [] -> []]
 
-def 'tail [stash 1 [nb] uncons]
-def 'head [nb uncons]
+= 'tail [%^ 1 [nb] :^]
+= 'head [nb :^]
 
-def 'pull [permute 0 cons []]
-def 'nb   [permute 1 []]
-def 'swap [permute 2 [1 0]]
-def 'nip  [pull 1]
-def 'dup  [pull 0]
+= 'pull [%% 0 :: []]
+= 'nb   [%% 1 []]
+= 'swap [%% 2 [1 0]]
+= 'nip  [pull 1]
+= 'dup  [pull 0]
