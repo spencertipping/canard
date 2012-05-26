@@ -799,7 +799,7 @@ my %comments_for_extension =
      vim   "      elisp ;     bas  '     ada  --    asm  ;   awk #    bc   #    boo #   tex  %         fss  (*,*)  erl %
      scala //     hx    //    io   //    j    NB.   lua  --  n   //   m    %    php //  sql  --        pov  //     pro %
      r     #      self  ","   tcl  #     texi @c    tk   #   csh #    vala //   vbs '   v    /*,*/     vhdl --     ss  ;;;
-     haml  -#     sass  /*,*/ scss /*,*/ css  /*,*/ fig  /   waul #|;
+     haml  -#     sass  /*,*/ scss /*,*/ css  /*,*/ fig  /   waul #   canard nb[,]|;
 
 # No extension suggests a shebang line, which generally requires # to denote a comment.
 $comments_for_extension{''} = '#';
@@ -1770,7 +1770,7 @@ parent::/home/spencertipping/bin/object  95fa6ef5120e9a213ad9781a31d69584
 
 __
 meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__');
-function::sdoc                           b2f9066417ce3368f093796e1180e9b2
+function::sdoc                           2dcf55f3e50721bda37c206b17544c54
 function::sdoc-html                      b23152b3f5be696e5bae842ec43fc5a4
 function::sdoc-markdown                  a35a6441dd750466f2d0e636bee2b382
 function::sdocp                          c3d738d982ba87418a298ff58478a85b
