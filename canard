@@ -258,6 +258,7 @@ meta::alias('er', 'edit sdoc::readme');
 meta::alias('erf', 'edit function::render');
 meta::alias('erwf', 'edit function::render-waul');
 meta::alias('ev', 'edit vim_highlighter::canard');
+meta::alias('l', 'edit --prefix=sdoc::canard::lib/');
 meta::alias('r', <<'__');
 sh waul -e deps/regexp.js -e deps/parser.js -e src/boot.js -c :all
 
@@ -1985,6 +1986,31 @@ meta::retriever('sdocp', <<'__');
 my $attribute = attribute($_[0]);
 exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
 __
+meta::sdoc('canard::lib/lexical', <<'__');
+Canard standard library: lexical scope | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+Writing concatenative code is interesting, but sometimes it's useful to have the usual lexical scoping with destructuring binds. Canard supports this via quotation and compiles the lexical
+forms into concatenative ones. Right now it does not support applicative destructuring; the only thing you can destructure is the stack itself.
+
+Implementation.
+The implementation combs through the given code and performs beta-rewriting, doing nothing to avoid collision cases. This means that you should be very careful about lexical closures, as they
+may exhibit incorrect identifier collisions. The most obvious case is defining the constant function k:
+
+| def 'k fn [x] [fn [y] [x]]
+  def 'return-y k 'y
+  return-y 5                    <- returns 5, not y
+
+This happens because fn is not aware of the global fn[] binding when it compiles the block into stack code; the second fn[] binding won't be compiled until the first function is run. In
+general, it is unsafe to use lexical closures at all because of this problem; however, this can be fixed by replacing 'y' with a gensym at compile-time. Another option is to compile the inner
+fn[] first, yielding concatenative code that invokes the 'x' function:
+
+| def 'k fn [x] fn [y] [x]
+
+This will force fn [y] [x] to be compiled ahead of time, yielding [x permute 1 []].
+
+__
 meta::sdoc('js::boot-image', <<'__');
 #!/usr/bin/env node
 
@@ -2173,7 +2199,7 @@ syn match   canard_bracket              /[\[[\]]/
 syn match   canard_number               /\d\+/
 
 syn keyword canard_def                  def
-syn keyword canard_primitive            permute stash nil cond is_cons is_nil cons uncons id i
+syn keyword canard_primitive            permute stash cond is_cons is_nil cons uncons id i
 
 hi link canard_comment                  Comment
 hi link canard_comment_delimiter        Special
