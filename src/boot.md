@@ -93,7 +93,6 @@ These provide a very simple base language that should be sufficient to write the
                                             uncons(stack)          = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
                                                                      -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
 
-                                            nil(stack)             = {h: $.canard.syntax.nil(), t: stack},
                                             get(stack, bindings)   = {h: bindings[stack.h.name()], t: stack.t},
 
                                             id(stack)              = stack,

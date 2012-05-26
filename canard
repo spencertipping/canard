@@ -374,7 +374,7 @@ nb [Hello world example
 say [hello world]
 def 'say [log]
 
-def 'nb [permute 1 nil]
+def 'nb [permute 1 []]
 
 __
 meta::canard('examples/lists', <<'__');
@@ -401,8 +401,8 @@ def 'filter [cond [cond [cons swap] [nb] i stash 3 [filter] permute 3 [2 1 1 2 0
 def 'tail [stash 1 [nb] uncons]
 def 'head [nb uncons]
 
-def 'pull [permute 0 cons nil]
-def 'nb   [permute 1 nil]
+def 'pull [permute 0 cons []]
+def 'nb   [permute 1 []]
 def 'swap [permute 2 [1 0]]
 def 'nip  [pull 1]
 def 'dup  [pull 0]
@@ -2110,7 +2110,6 @@ These provide a very simple base language that should be sufficient to write the
                                         uncons(stack)          = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
                                                                  -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
 
-                                        nil(stack)             = {h: $.canard.syntax.nil(), t: stack},
                                         get(stack, bindings)   = {h: bindings[stack.h.name()], t: stack.t},
 
                                         id(stack)              = stack,

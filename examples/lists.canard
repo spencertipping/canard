@@ -21,8 +21,8 @@ def 'filter [cond [cond [cons swap] [nb] i stash 3 [filter] permute 3 [2 1 1 2 0
 def 'tail [stash 1 [nb] uncons]
 def 'head [nb uncons]
 
-def 'pull [permute 0 cons nil]
-def 'nb   [permute 1 nil]
+def 'pull [permute 0 cons []]
+def 'nb   [permute 1 []]
 def 'swap [permute 2 [1 0]]
 def 'nip  [pull 1]
 def 'dup  [pull 0]
