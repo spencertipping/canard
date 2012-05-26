@@ -1,4 +1,4 @@
 log fact 5
 def 'fact [cond [* fact - 1 dup] [1 drop] dup]
-def 'drop [permute 1 nil]
+def 'drop [permute 1 []]
 def 'dup  [permute 0 [0]]

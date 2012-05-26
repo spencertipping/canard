@@ -363,7 +363,7 @@ __
 meta::canard('examples/factorial', <<'__');
 log fact 5
 def 'fact [cond [* fact - 1 dup] [1 drop] dup]
-def 'drop [permute 1 nil]
+def 'drop [permute 1 []]
 def 'dup  [permute 0 [0]]
 
 __
@@ -2070,16 +2070,17 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
                                                                                                                     : this.data]
                                    /-$.merge/ interpreter_methods(),
 
-          interpreter_methods()  = capture [should_run()               = this.is_atom() && !this.is_quote() && !this.is_n(),
+          interpreter_methods()  = capture [should_run()               = !this.is_nil() && this.is_atom() && !this.is_quote() && !this.is_n(),
 
-                                            execute(stack, bindings)   = this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                       : this.is_nil()     ? stack
-                                                                                           : {h: this, t: stack},
+                                            execute(stack, bindings)   = rescue ['#{this}:[e]\n#{e}' /raise]
+                                                                       [ this.should_run() ? bindings[this.name()].interpret(stack, bindings)
+                                                                                           : {h: this, t: stack}],
 
-                                            interpret(stack, bindings) = this.is_cons()    ? this.t().interpret(this.h().execute(stack, bindings), bindings)
+                                            interpret(stack, bindings) = rescue ['#{this}:[i]\n#{e}' /raise]
+                                                                       [ this.is_cons()    ? this.t().interpret(this.h().execute(stack, bindings), bindings)
                                                                        : this.is_nil()     ? stack
                                                                        : this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                                           : {h: this, t: stack}],
+                                                                                           : {h: this, t: stack}]],
 
 Default bindings.
 These provide a very simple base language that should be sufficient to write the abstractions necessary to generate the reference compiler.

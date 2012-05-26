@@ -1,4 +1,4 @@
-caterwaul.module( 'canard' , (function(e) {var result= (function($) { (function() {var annotate=e.annotate,parsers=e.parsers,bfs=e.bfs,bfc=e.bfc,state_matrix=e.state_matrix,step_matrix_mutable=e.step_matrix_mutable,step_matrix_immutable=e.step_matrix_immutable,row_composite_states_from=e.row_composite_states_from,alt=e.alt,all=e.all,manyc=e.manyc,manyc_one=e.manyc_one,many=e.many,optional=e.optional,step_matrix_immutable_null=e.step_matrix_immutable_null,step_matrix_mutable_null=e.step_matrix_mutable_null,has_non_null_states=e.has_non_null_states,row_null_states_from=e.row_null_states_from,zero=e.zero,fail=e.fail,match=e.match,reject=e.reject,pluralize=e.pluralize,iv=e.iv,map=e.map,flat_map=e.flat_map,map_state=e.map_state,flat_map_state=e.flat_map_state,logical_state=e.logical_state,linear_string_state=e.linear_string_state,anchor_regexp=e.anchor_regexp,linear_string=e.linear_string,linear_regexp=e.linear_regexp,structure_state=e.structure_state,array_state=e.array_state,proxy_state=e.proxy_state,position_state=e.position_state,position=e.position;
+caterwaul.module( 'canard' , (function(e1) {var result= (function($) { (function() {var annotate=e1.annotate,parsers=e1.parsers,bfs=e1.bfs,bfc=e1.bfc,state_matrix=e1.state_matrix,step_matrix_mutable=e1.step_matrix_mutable,step_matrix_immutable=e1.step_matrix_immutable,row_composite_states_from=e1.row_composite_states_from,alt=e1.alt,all=e1.all,manyc=e1.manyc,manyc_one=e1.manyc_one,many=e1.many,optional=e1.optional,step_matrix_immutable_null=e1.step_matrix_immutable_null,step_matrix_mutable_null=e1.step_matrix_mutable_null,has_non_null_states=e1.has_non_null_states,row_null_states_from=e1.row_null_states_from,zero=e1.zero,fail=e1.fail,match=e1.match,reject=e1.reject,pluralize=e1.pluralize,iv=e1.iv,map=e1.map,flat_map=e1.flat_map,map_state=e1.map_state,flat_map_state=e1.flat_map_state,logical_state=e1.logical_state,linear_string_state=e1.linear_string_state,anchor_regexp=e1.anchor_regexp,linear_string=e1.linear_string,linear_regexp=e1.linear_regexp,structure_state=e1.structure_state,array_state=e1.array_state,proxy_state=e1.proxy_state,position_state=e1.position_state,position=e1.position;
 return(function() {var statics=function() {;
 return{syntax:$.merge($.syntax_subclass(tree_ctor() ,tree_methods() ) ,tree_statics() ) ,default_bindings:function() {;
 return default_bindings() } ,parse:parser() } } ,parser=function() {;
@@ -34,14 +34,13 @@ return this.is_nil() ? '[]'
 :this.is_cons() ? ( '' + (this.t() ) + ' ' + (this.h() ) + '' ) 
 :this.data} } ,interpreter_methods() ) } ,interpreter_methods=function() {;
 return{should_run:function() {;
-return this.is_atom() && !this.is_quote() && !this.is_n() } ,execute:function(stack,bindings) {;
-return this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
-:this.is_nil() ?stack
-: {h:this,t:stack} } ,interpret:function(stack,bindings) {;
-return this.is_cons() ?this.t() .interpret(this.h() .execute(stack,bindings) ,bindings) 
+return!this.is_nil() &&this.is_atom() && !this.is_quote() && !this.is_n() } ,execute:function(stack,bindings) {;
+return(function() {try{return this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
+: {h:this,t:stack} }catch(e) {return(function() {throw( '' + (this) + ':[e]\n' + (e) + '' ) } ) .call(this) } } ) .call(this) } ,interpret:function(stack,bindings) {;
+return(function() {try{return this.is_cons() ?this.t() .interpret(this.h() .execute(stack,bindings) ,bindings) 
 :this.is_nil() ?stack
 :this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
-: {h:this,t:stack} } } } ,up=function(stack,n) {;
+: {h:this,t:stack} }catch(e) {return(function() {throw( '' + (this) + ':[i]\n' + (e) + '' ) } ) .call(this) } } ) .call(this) } } } ,up=function(stack,n) {;
 return n?up(stack.t,n-1) 
 :stack} ,append_items_to=function(s,o,l) {;
 return l.is_cons() ?append_items_to( {t:s,h:up(o, +l.h() .data) .h} ,o,l.t() ) 
@@ -80,5 +79,5 @@ xi<xl;
 return xr} ) .call(this, [ '+' , '-' , '*' , '/' , '%' , '>>' , '<<' , '>>>' , '|' , '&' , '^' , '<' , '>' , '<=' , '>=' , '===' , '!==' , '==' , '!=' ] ) ) ) } ;
 return $.merge( ($.canard=function(source,stack,bindings) {;
 return $.canard.parse(source) .interpret(stack||null,$.merge( {} ,$.canard.default_bindings() ,bindings) ) } ) ,statics() ) } ) .call(this) } ) .call(this) } ) ;
-result.caterwaul_expression_ref_table= {e: ( "caterwaul.parser" ) } ;
+result.caterwaul_expression_ref_table= {e1: ( "caterwaul.parser" ) } ;
 return(result) } ) .call(this,caterwaul.parser) ) ;
