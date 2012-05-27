@@ -368,6 +368,7 @@ notes a9e5975593ed5d90d943ad98405c71e5
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
 sdoc a1e8480e579614c01dabeecf0f963bcc
+text ffe5790f4c605b3bd73283f7c5e57dc5
 vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
 __
 meta::canard('examples/factorial', <<'__');
@@ -763,7 +764,7 @@ file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep
 file::write("$_.md",     retrieve("markdown::canard::$_"), mkpath => 1) for grep s/^sdoc::canard::lib\//lib\//,              sort keys %data;
 file::write("doc/$_.md", retrieve("markdown::note::$_"),   mkpath => 1) for grep s/^note:://,                                sort keys %data;
 
-file::write("stdlib.canard", retrieve("canard-pack::pp::sdoc::canard::stdlib"));
+file::write("stdlib.canard", retrieve("wrapped-near.80::canard-pack::pp::sdoc::canard::stdlib"));
 
 __
 meta::function('rm', <<'__');
@@ -1128,6 +1129,14 @@ terminal::info("compiling waul::$name using $waul ($extensions)");
 with_exported("waul::$name", sub {
   my ($exported) = @_;
   sh("$waul --output '$output' $extensions $exported")});
+
+__
+meta::function('wrapped-near', <<'__');
+my ($text, $approximate_margin) = @_;
+$approximate_margin ||= 80;
+my $pattern = "^(.{$approximate_margin,}?) ";
+1 while $text =~ s/$pattern/\1\n/mg;
+$text;
 
 __
 meta::hook('before-shell::ad', <<'__');
@@ -1821,6 +1830,7 @@ function::canard-pack                                       1baa1b17104517b06709
 meta::type::canard                                          ee0b958db0f8b728c95edf7a27132ef2
 parent::/home/spencertipping/conjectures/perl-objects/sdoc  4049d6a1b51e739f038d4624dcb394b4
 parent::preprocessor                                        88f8be6f851d5f9159d7996dd67ab875
+parent::text                                                727dd08e33498dacbaf10aff70d58487
 retriever::canard-pack                                      0752d53db63bb0fc6df5bfc16c3eac10
 
 __
@@ -1983,6 +1993,12 @@ retriever::sdoc-packed                   f7116f96adf2c748ac1991f4d7c1792b
 retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
+meta::parent('text', <<'__');
+function::wrapped-near                   b34731b33db1a4b56c724b1aa5c97f6d
+parent::/home/spencertipping/bin/object  208e4b12afe64a14bfd8cacf04181e14
+retriever::wrapped-near                  1b00aeef9dbd19633a1fedc443b846e8
+
+__
 meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
 meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
@@ -2047,6 +2063,11 @@ __
 meta::retriever('sdocp', <<'__');
 return undef unless $_[0] =~ /^sdocp::(.*)$/;
 exists $data{"sdoc::$1"} ? sdocp("sdoc::$1") : undef;
+
+__
+meta::retriever('wrapped-near', <<'__');
+return undef unless $_[0] =~ /^wrapped-near\.(\d+)::(.*)$/;
+defined retrieve($2) ? wrapped_near(retrieve($2), $1) : undef;
 
 __
 meta::sdoc('canard::lib/comments', <<'__');

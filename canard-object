@@ -328,6 +328,7 @@ meta::cache('parent-identification', <<'__');
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
+text ffe5790f4c605b3bd73283f7c5e57dc5
 __
 meta::data('author', <<'__');
 Spencer Tipping <spencer@spencertipping.com>
@@ -969,6 +970,14 @@ unlink $other if my $result = $observed eq (my $state = state());
 terminal::error("Verification failed; expected $state but got $observed from $other") unless $result;
 hook('after-verify', $result, observed => $observed, expected => $state);
 $result;
+__
+meta::function('wrapped-near', <<'__');
+my ($text, $approximate_margin) = @_;
+$approximate_margin ||= 80;
+my $pattern = "^(.{$approximate_margin,}?) ";
+1 while $text =~ s/$pattern/\1\n/mg;
+$text;
+
 __
 meta::hook('before-shell::ad', <<'__');
 ad('sdoc::');
@@ -1660,6 +1669,12 @@ template::include              47b5552d609d97fe7f2522d5c1027014
 template::pinclude             c07ff79bf8d642cceaa9ef844bfcb189
 
 __
+meta::parent('text', <<'__');
+function::wrapped-near                   b34731b33db1a4b56c724b1aa5c97f6d
+parent::/home/spencertipping/bin/object  208e4b12afe64a14bfd8cacf04181e14
+retriever::wrapped-near                  1b00aeef9dbd19633a1fedc443b846e8
+
+__
 meta::retriever('canard-pack', <<'__');
 return undef unless $_[0] =~ /^canard-pack::(.*)$/;
 defined retrieve($1) ? canard_pack($1) : undef;
@@ -1718,6 +1733,11 @@ __
 meta::retriever('sdocp', <<'__');
 return undef unless $_[0] =~ /^sdocp::(.*)$/;
 exists $data{"sdoc::$1"} ? sdocp("sdoc::$1") : undef;
+
+__
+meta::retriever('wrapped-near', <<'__');
+return undef unless $_[0] =~ /^wrapped-near\.(\d+)::(.*)$/;
+defined retrieve($2) ? wrapped_near(retrieve($2), $1) : undef;
 
 __
 meta::template('comment', '\'\';     # A mechanism for line or block comments.');
