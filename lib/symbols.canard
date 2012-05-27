@@ -12,7 +12,7 @@ nb[   . s/ 'a 'b 'c -> 'c]
 
 nb[ This function builds a closure by consing up a list with wildcards. Here's the derivation:]
 
-nb[ | s/ 'a 'b -> [? ['b %v] [] $= 'a]]
+nb[ | s/ a b -> [? ['b %v] [] $= 'a]]
 nb[   :+ [?] :: [] :+ %s [%v] :: [] $: %s      a b           = [? ['b %v]] a]
 nb[   :+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] [? ['b %v]] a = [? ['b %v] [] $= 'a %0]]
 

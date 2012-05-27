@@ -2038,10 +2038,38 @@ Licensed under the terms of the MIT source code license
 Introduction.
 This library defines useful list functions, including map, flatmap, filter, append, etc. All traversal goes from right to left, as per the natural cons cell ordering.
 
-Flatmap and map definitions.
-We use the initial definition of :* below as the template, replacing the :: invocation with other functions as appropriate. As a test case, we self-apply :* to its own definition.
+Flatmap definition.
+Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
+map function.
 
+= ':~ :** [:*] [? [':~ %v] [] $= ':* %0
+                ? [':+ %v] [] $= ':: %0] @ ':*
 
+Recursive combinator.
+Recursively descends throughout a list; useful for doing search/replace on chunks of code. This is also templated to support flat-mapping recursively; as such, it is a transformation of the
+block given to a map or flat-map function. Here are the cases:
+
+| :** [map] [f] :: x y -> map [:** [map] [f]] :: x y
+  :** [map] [f] _      -> f _
+
+You can use it like this: :* :** [:*] [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6].
+
+= ':** [? [. ^1 [:: :: :: [] ':**] %0] [. %v] :? %2]
+
+Map-function template.
+Here is the derivation for flatmap:
+
+| :~ [f] :: x y -> :+ :~ [f] x f y
+  ^1 [:^]      [f] :: x y  = [f] x y
+  %% 2 [0 1 0] [f] x y     = [f] x [f] y
+  ^2 [.]       [f] x [f] y = [f] x f y
+  :+ :~        [f] x f y   = :+ :~ [f] x f y
+
+Notice, however, that a number of functions here can be replaced to do other things. For instance, the :+ invocation in flatmap can be replaced with ::, at which point the function will be a
+regular map. What we really have is a 'map template' that can be specialized in different ways. To leverage this, we first define the map function, then we write the map template, then we
+write flatmap as a substitution over the definition of 'map'.
+
+= ':* [? [:: :* ^2 [.] %% 2 [0 1 0] ^1 [:^]] [%v] :? %1]
 
 List append.
 Appends each element from the second list to the first. The head of :+ x y is the head of y. Here are the cases:
@@ -2049,33 +2077,18 @@ Appends each element from the second list to the first. The head of :+ x y is th
 | :+ _ :: t h -> :: :+ _ t h
   :+ x []     -> x
 
-= ':+ [? [:: :+ %^ 1 [:^]] [%v %s] :? %1]
+= ':+ [? [:: :+ ^1 [:^]] [%v %s] :? %1]
 
-Recursive combinator.
-Recursively descends throughout a list; useful for doing search/replace on chunks of code. This is also templated to support flat-mapping recursively; as such, it is a transformation of the
-block given to a map or flat-map function. Here are the cases:
+List length.
+This is the usual recursive length function over lists.
 
-| :** [map] [f] :: x y -> map :** [map] [f] :: x y
-  :** [map] [f] _      -> f _
+= ':# [? [+ 1 :# :t] [0 %v] :? %0]
 
-You can use it like this: :* :** [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6].
+Cons accessors.
+These retrieve the individual pieces of a cons cell.
 
-= ':** [? [. %^ 1 [:**] %0] [. %v] :? %2]
-
-Map-function template.
-Here is the derivation for flatmap:
-
-| :~ [f] :: x y -> :+ :~ [f] x f y
-  %^ 1 [:^]    [f] :: x y  = [f] x y
-  %% 2 [0 1 0] [f] x y     = [f] x [f] y
-  %^ 2 [.]     [f] x [f] y = [f] x f y
-  :+ :~        [f] x f y   = :+ :~ [f] x f y
-
-Notice, however, that a number of functions here can be replaced to do other things. For instance, the :+ invocation in flatmap can be replaced with ::, at which point the function will be a
-regular map. What we really have is a 'map template' that can be specialized in different ways. To leverage this, we first define the map function, then we write the map template, then we
-rewrite the map function in terms of that.
-
-= ':* [? [:: :* %^ 2 [.] %% 2 [0 1 0] %^ 1 [:^]] [%v] :? %1]
+= ':h [%v :^]
+= ':t [%% 2 [0] :^]
 
 __
 meta::sdoc('canard::lib/stack', <<'__');
@@ -2087,10 +2100,14 @@ This library provides a bunch of stack functions that prevent you from having to
 
 = '%0  [%% 0 [0]]               nb [dup x                         = x x]
 = '%1  [%% 0 [1]]               nb [nip x y                       = y x y]
+= '%2  [%% 0 [2]]               nb [nip2 x y z                    = z x y z]
 = '%#  [%% 0 :: []]             nb [nth n x1 x2 ... xn            = xn x1 x2 ... xn]
 = '%v  [%% 1 []]                nb [drop x                        = ]
 = '%v# [%% %s []]               nb [dropn n x1 x2 ... xn xn+1 ... = xn+1 ...]
 = '%s  [%% 2 [1 0]]             nb [swap x y                      = y x]
+
+= '^1 [%^ 1]                    nb [stash [f] x y z ...           = x f y z ...]
+= '^2 [%^ 2]                    nb [stash2 [f] x y z ...          = x y f z ...]
 
 = '%r3 [%% 3 [1 2 0]]           nb [rot3 x y z = y z x]
 = '%R3 [%% 3 [2 0 1]]           nb [Rot3 x y z = z x y]
@@ -2111,7 +2128,7 @@ This is a simple piecewise function that preserves all symbols except for the on
 
 This function builds a closure by consing up a list with wildcards. Here's the derivation:
 
-| s/ 'a 'b -> [? ['b %v] [] $= 'a]
+| s/ a b -> [? ['b %v] [] $= 'a]
   :+ [?] :: [] :+ %s [%v] :: [] $: %s      a b           = [? ['b %v]] a
   :+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] [? ['b %v]] a = [? ['b %v] [] $= 'a %0]
 
@@ -2312,9 +2329,9 @@ setlocal iskeyword=33-90,92,94-127
 
 syn region  canard_bracketed_region     matchgroup=canard_comment           start=/\[/ end=/]/ contained transparent
 syn region  canard_comment              matchgroup=canard_comment_delimiter start=/nb\s*\[/ end=/]/ contains=canard_bracketed_region
-syn match   canard_quoted_symbol        /\<'[^ \n\t\r\[\]]\+/
+syn region  canard_quoted_symbol        start=/\<'/ end=/[ \n\t\r\[\]]\@=\|$/
 syn match   canard_bracket              /[\[[\]]/
-syn match   canard_number               /\d\+/
+syn match   canard_number               /\<\d\+\>/
 
 syn keyword canard_def                  =
 syn keyword canard_intrinsic            $< $\| $# $ $^ $+ $: $. $= %% %^ ? :? /? :: :^ . @ !

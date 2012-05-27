@@ -14,7 +14,7 @@ This is a simple piecewise function that preserves all symbols except for the on
 
 This function builds a closure by consing up a list with wildcards. Here's the derivation:
 
-    s/ 'a 'b -> [? ['b %v] [] $= 'a]
+    s/ a b -> [? ['b %v] [] $= 'a]
     :+ [?] :: [] :+ %s [%v] :: [] $: %s      a b           = [? ['b %v]] a
     :+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] [? ['b %v]] a = [? ['b %v] [] $= 'a %0]
 
