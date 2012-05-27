@@ -12,17 +12,12 @@ nb [Canard standard library | Spencer Tipping
 = ':h [%v :^]
 = ':t [%% 2 [0] :^]
 
-= '%0  [%% 0 [0]]               nb [dup x                         = x x]
-= '%1  [%% 0 [1]]               nb [nip x y                       = y x y]
-= '%2  [%% 0 [2]]               nb [nip2 x y z                    = z x y z]
-= '%#  [%% 0 :: []]             nb [nth n x1 x2 ... xn            = xn x1 x2 ... xn]
-= '%v  [%% 1 []]                nb [drop x                        = ]
-= '%v# [%% %s []]               nb [dropn n x1 x2 ... xn xn+1 ... = xn+1 ...]
-= '%s  [%% 2 [1 0]]             nb [swap x y                      = y x]
-= '^1 [%^ 1]                    nb [stash [f] x y z ...           = x f y z ...]
-= '^2 [%^ 2]                    nb [stash2 [f] x y z ...          = x y f z ...]
-= '%r3 [%% 3 [1 2 0]]           nb [rot3 x y z = y z x]
-= '%R3 [%% 3 [2 0 1]]           nb [Rot3 x y z = z x y]
+= '%0  [%% 0 [0]]
+= '%1  [%% 0 [1]]     = '%s  [%% 2 [1 0]]
+= '%2  [%% 0 [2]]     = '%r3 [%% 3 [1 2 0]]
+= '%#  [%% 0 :: []]   = '%R3 [%% 3 [2 0 1]]
+= '%v  [%% 1 []]      = '^1  [%^ 1]
+= '%v# [%% %s []]     = '^2  [%^ 2]
 
 = 'nb [%% 1 []]
 
