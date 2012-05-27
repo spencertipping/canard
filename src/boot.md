@@ -102,7 +102,7 @@ These provide a very simple base language that should be sufficient to write the
 
                           /* cons/uncons */ '::'(stack)           = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
                                             ':^'(stack)           = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
-                                                                    -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
+                                                                    -then- {h: stack.h.t(), t: {h: stack.h.h(), t: stack.t}},
 
                                  /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
 

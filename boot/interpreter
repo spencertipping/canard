@@ -750,7 +750,7 @@ return{h:$.canard.syntax.atom( +stack.h.is_nil() ) ,t:stack.t} } , ':?' :functio
 return{h:$.canard.syntax.atom( +stack.h.is_cons() ) ,t:stack.t} } , '!' :function(stack) {;
 return{h:$.canard.syntax.atom( + !stack.h.data) ,t:stack.t} } , '::' :function(stack) {;
 return{h:$.canard.syntax.cons(stack.h,stack.t.h) ,t:stack.t.t} } , ':^' :function(stack) {;
-return( !stack.h.is_cons() && (function() {throw new Error( ( '' + (stack.h) + ' is not a cons cell' ) ) } ) .call(this) , {h:stack.h.h() ,t: {h:stack.h.t() ,t:stack.t} } ) } , '.' :function(stack,bindings) {;
+return( !stack.h.is_cons() && (function() {throw new Error( ( '' + (stack.h) + ' is not a cons cell' ) ) } ) .call(this) , {h:stack.h.t() ,t: {h:stack.h.h() ,t:stack.t} } ) } , '.' :function(stack,bindings) {;
 return stack.h.interpret(stack.t,bindings) } } ) ,arithmetic_bindings() ) } ,arithmetic_bindings=function() {;
 return(function(o) {for(var r= {} ,i=0,l=o.length,x;
 i<l;

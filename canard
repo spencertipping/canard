@@ -252,6 +252,9 @@ meta::meta('type::waul', <<'__');
 meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => 'edit';
 
 __
+meta::alias('cb', 'ad -c js::|waul::|canard::examples');
+meta::alias('cl', 'ad -c canard::lib');
+meta::alias('cn', 'ad -c note::');
 meta::alias('eb', 'edit sdoc::waul::boot');
 meta::alias('ebi', 'edit sdoc::js::boot-image');
 meta::alias('er', 'edit sdoc::readme');
@@ -1117,7 +1120,7 @@ with_exported("waul::$name", sub {
 
 __
 meta::hook('before-shell::ad', <<'__');
-ad('canard::|sdoc::|note::');
+ad('note::');
 
 __
 meta::indicator('cc', 'length ::retrieve(\'data::current-continuation\') ? "\\033[1;36mcc\\033[0;0m" : \'\';');
@@ -2251,7 +2254,7 @@ These provide a very simple base language that should be sufficient to write the
 
                       /* cons/uncons */ '::'(stack)           = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
                                         ':^'(stack)           = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
-                                                                -then- {h: stack.h.h(), t: {h: stack.h.t(), t: stack.t}},
+                                                                -then- {h: stack.h.t(), t: {h: stack.h.h(), t: stack.t}},
 
                              /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
 
