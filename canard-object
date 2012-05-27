@@ -376,6 +376,7 @@ meta::function('canard-pack', <<'__');
 my $program = cat(@_);
 $program =~ s/\s*(\]|\[)\s*/\1/g;
 $program =~ s/\s+/ /g;
+$program =~ s/^\s|\s$//g;
 $program;
 
 __

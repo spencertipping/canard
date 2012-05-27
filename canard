@@ -460,6 +460,7 @@ meta::function('canard-pack', <<'__');
 my $program = cat(@_);
 $program =~ s/\s*(\]|\[)\s*/\1/g;
 $program =~ s/\s+/ /g;
+$program =~ s/^\s|\s$//g;
 $program;
 
 __
@@ -1816,7 +1817,7 @@ retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
 meta::parent('canard-object', <<'__');
-function::canard-pack                                       537c0b19d0fcd3dd1daf3a8f26d4dece
+function::canard-pack                                       1baa1b17104517b0670946e937df3e78
 meta::type::canard                                          ee0b958db0f8b728c95edf7a27132ef2
 parent::/home/spencertipping/conjectures/perl-objects/sdoc  4049d6a1b51e739f038d4624dcb394b4
 parent::preprocessor                                        88f8be6f851d5f9159d7996dd67ab875
