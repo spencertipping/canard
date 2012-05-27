@@ -455,6 +455,14 @@ my ($name, @stuff) = @_;
    : table_display([select_keys('--namespace' => 'alias')], [map retrieve($_), select_keys('--namespace' => 'alias')]);
 
 __
+meta::function('canard-pack', <<'__');
+# Packs down a canard program as text.
+my $program = cat(@_);
+$program =~ s/\s*(\]|\[)\s*/\1/g;
+$program =~ s/\s+/ /g;
+$program;
+
+__
 meta::function('cat', 'join "\\n", retrieve(@_);');
 meta::function('cc', <<'__');
 # Stashes a quick one-line continuation. (Used to remind me what I was doing.)
@@ -754,7 +762,7 @@ file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep
 file::write("$_.md",     retrieve("markdown::canard::$_"), mkpath => 1) for grep s/^sdoc::canard::lib\//lib\//,              sort keys %data;
 file::write("doc/$_.md", retrieve("markdown::note::$_"),   mkpath => 1) for grep s/^note:://,                                sort keys %data;
 
-file::write("stdlib.canard", retrieve("pp::sdoc::canard::stdlib"));
+file::write("stdlib.canard", retrieve("canard-pack::pp::sdoc::canard::stdlib"));
 
 __
 meta::function('rm', <<'__');
@@ -1808,9 +1816,11 @@ retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
 meta::parent('canard-object', <<'__');
+function::canard-pack                                       537c0b19d0fcd3dd1daf3a8f26d4dece
 meta::type::canard                                          ee0b958db0f8b728c95edf7a27132ef2
-parent::/home/spencertipping/conjectures/perl-objects/sdoc  8d0d3458d38b520c7ff8da74cf332d74
-parent::preprocessor                                        03278e21c3e08874a6f70024f3166a36
+parent::/home/spencertipping/conjectures/perl-objects/sdoc  4049d6a1b51e739f038d4624dcb394b4
+parent::preprocessor                                        88f8be6f851d5f9159d7996dd67ab875
+retriever::canard-pack                                      0752d53db63bb0fc6df5bfc16c3eac10
 
 __
 meta::parent('notes', <<'__');
@@ -1976,6 +1986,11 @@ meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
 meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
 parent::object               208e4b12afe64a14bfd8cacf04181e14
+
+__
+meta::retriever('canard-pack', <<'__');
+return undef unless $_[0] =~ /^canard-pack::(.*)$/;
+defined retrieve($1) ? canard_pack($1) : undef;
 
 __
 meta::retriever('code-sdoc', <<'__');
@@ -2182,8 +2197,6 @@ This function builds a closure by consing up a list with wildcards. Here's the d
 
 __
 meta::sdoc('canard::stdlib', <<'__');
-nb [Canard standard library | Spencer Tipping
-    Licensed under the terms of the MIT source code license]
 - include sdoc-packed::canard::lib/lexical
 - include sdoc-packed::canard::lib/symbols
 - include sdoc-packed::canard::lib/lists
