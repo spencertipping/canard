@@ -741,7 +741,8 @@ return{h:$.canard.syntax.atom(String.fromCharCode( +stack.h.data) ) ,t:stack.t} 
 return{h:$.canard.syntax.atom(stack.t.h.data.charCodeAt( +stack.h.data) ) ,t:stack.t.t} } , '$+' :function(stack) {;
 return{h:$.canard.syntax.atom(stack.h.data+stack.t.h.data) ,t:stack.t.t} } , '$:' :function(stack) {;
 return{h:stack.h.quote() ,t:stack.t} } , '$.' :function(stack) {;
-return{h:stack.h.unquote() ,t:stack.t} } , '?' :function(stack,bindings) {;
+return{h:stack.h.unquote() ,t:stack.t} } , '$=' :function(stack) {;
+return{h:$.canard.syntax.atom( + (stack.h.data===stack.t.h.data) ) ,t:stack.t.t} } , '?' :function(stack,bindings) {;
 return! ! +stack.t.t.h.data?stack.h.interpret(stack.t.t.t,bindings) 
 :stack.t.h.interpret(stack.t.t.t,bindings) } , '%%' :function(stack) {;
 return append_items_to(up(stack.t.t, +stack.h.data) ,stack.t.t,stack.t.h) } , '%^' :function(stack,bindings) {;

@@ -90,6 +90,8 @@ These provide a very simple base language that should be sufficient to write the
                                             '$:'(stack)           = {h: stack.h.quote(),                                                t: stack.t},
                                             '$.'(stack)           = {h: stack.h.unquote(),                                              t: stack.t},
 
+                                            '$='(stack)           = {h: $.canard.syntax.atom(+(stack.h.data === stack.t.h.data)),       t: stack.t.t},
+
                           /* conditional */ '?'(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
                                                                                         : stack.t.h.interpret(stack.t.t.t, bindings),
 
