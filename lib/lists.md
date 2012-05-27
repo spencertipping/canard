@@ -10,8 +10,22 @@ This library defines useful list functions, including map, flatmap, filter, appe
 Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
 map function.
 
-    = ':~ :** [:*] [? [':~ %v] [] $= ':* %0
-                    ? [':+ %v] [] $= ':: %0] @ ':*
+    = ':~ :** [:*] :+ s/ ':* [':~] s/ ':: [':+] @ ':*
+
+# Search/replace
+
+This is a simple piecewise function that preserves all symbols except for the one being sought. If that one is encountered, an alternative is returned:
+
+    . s/ 'a [b] 'a -> b
+    . s/ 'a [b] 'c -> 'c
+
+This function builds a closure by consing up a list with wildcards. Here's the derivation:
+
+    s/ a [b] -> [? [b %v] [] $= 'a]
+    :+ [?] :: [] :+ %s [%v] :: [] %s         a b           = [? [b %v]] a
+    :+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] [? ['b %v]] a = [? [b %v] [] $= 'a %0]
+
+    = 's/ [:+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] :+ [?] :: [] :+ %s [%v] :: [] %s]
 
 # Recursive combinator
 
