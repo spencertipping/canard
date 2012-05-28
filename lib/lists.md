@@ -10,34 +10,7 @@ This library defines useful list functions, including map, flatmap, filter, appe
 Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
 map function.
 
-    = ':~ :** [:*] :+ s/ ':* [':~] s/ ':: [':+] @ ':*
-
-# Search/replace
-
-This is a simple piecewise function that preserves all symbols except for the one being sought. If that one is encountered, an alternative is returned:
-
-    . s/ 'a [b] 'a -> b
-    . s/ 'a [b] 'c -> 'c
-
-This function builds a closure by consing up a list with wildcards. Here's the derivation:
-
-    s/ a [b] -> [? [b %v] [] $= 'a]
-    :+ [?] :: [] :+ %s [%v] :: [] %s         a b           = [? [b %v]] a
-    :+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] [? ['b %v]] a = [? [b %v] [] $= 'a %0]
-
-    = 's/ [:+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] :+ [?] :: [] :+ %s [%v] :: [] %s]
-
-# Recursive combinator
-
-Recursively descends throughout a list; useful for doing search/replace on chunks of code. This is also templated to support flat-mapping recursively; as such, it is a transformation of the
-block given to a map or flat-map function. Here are the cases:
-
-    :** [map] [f] :: x y -> map [:** [map] [f]] :: x y
-    :** [map] [f] _      -> f _
-
-You can use it like this: :* :** [:*] [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6].
-
-    = ':** [? [. ^1 [:: :: :: [] ':**] %0] [. %v] :? %2]
+    = ':~ :** [? [':~ %v] [] $= ':* %0 ? [':+ %v] [] $= ':: %0] @ ':*
 
 # Map-function template
 

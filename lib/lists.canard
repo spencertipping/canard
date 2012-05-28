@@ -8,32 +8,7 @@ nb[ Flatmap definition.]
 nb[ Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the]
 nb[ map function.]
 
-= ':~ :** [:*] :+ s/ ':* [':~] s/ ':: [':+] @ ':*
-
-nb[ Search/replace.]
-nb[ This is a simple piecewise function that preserves all symbols except for the one being sought. If that one is encountered, an alternative is returned:]
-
-nb[ | . s/ 'a [b] 'a -> b]
-nb[   . s/ 'a [b] 'c -> 'c]
-
-nb[ This function builds a closure by consing up a list with wildcards. Here's the derivation:]
-
-nb[ | s/ a [b] -> [? [b %v] [] $= 'a]]
-nb[   :+ [?] :: [] :+ %s [%v] :: [] %s         a b           = [? [b %v]] a]
-nb[   :+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] [? ['b %v]] a = [? [b %v] [] $= 'a %0]]
-
-= 's/ [:+ %^ 1 [:+ :+ [[] $=] %s [%0] :: [] $:] :+ [?] :: [] :+ %s [%v] :: [] %s]
-
-nb[ Recursive combinator.]
-nb[ Recursively descends throughout a list; useful for doing search/replace on chunks of code. This is also templated to support flat-mapping recursively; as such, it is a transformation of the]
-nb[ block given to a map or flat-map function. Here are the cases:]
-
-nb[ | :** [map] [f] :: x y -> map [:** [map] [f]] :: x y]
-nb[   :** [map] [f] _      -> f _]
-
-nb[ You can use it like this: :* :** [:*] [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6].]
-
-= ':** [? [. ^1 [:: :: :: [] ':**] %0] [. %v] :? %2]
+= ':~ :** [? [':~ %v] [] $= ':* %0 ? [':+ %v] [] $= ':: %0] @ ':*
 
 nb[ Map-function template.]
 nb[ Here is the derivation for flatmap:]
