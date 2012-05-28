@@ -6,6 +6,13 @@ The execution model as implemented in the bootstrap compiler is too high-level. 
     . []     -> . r>
     . _      -> _
 
+Therefore, . is itself a CPS-converter. Whoa.
+
+# Boring stuff to make the above work
+
+This isn't important and is kind of obvious, but the details may be relevant later on.
+
     @ :: x y -> :: x y
     @ []     -> []
+    @ 's     -> s                 <- I'm uneasy about this
     @ s      -> D[s]
