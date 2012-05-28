@@ -1573,6 +1573,22 @@ Unlike Lisp, cons is left-associative and lists are generated in reverse. That i
 would in Lisp or Scheme.
 
 __
+meta::note('callcc-examples', <<'__');
+Call/cc examples.
+It makes sense to implement continuations in terms of a function analogous to call/cc. For example:
+
+| call/cc [. %s 5]              <- the same thing as 5
+  call/cc [.]                   <- the same thing as []
+  call/cc []                    <- the same thing as r<
+
+Some questions:
+
+| 1. How is the data stack tied to the return stack, if at all? Is the data stack part of a continuation?
+  2. How is the current continuation replaced by a different one?
+  3. Does the FP-style continuation model make sense in a concatenative context?
+  4. Is continuation modeling even necessary?
+
+__
 meta::note('continuations', <<'__');
 Continuations.
 In Canard, expressions (lists) are executed from right to left following the cons tree. So E[x :: y] = E[x] I[y], making cons homomorphic to composition. Because of this, a continuation can be
@@ -1727,19 +1743,11 @@ meta::note('self-hosting', <<'__');
 Self-hosting.
 The execution model as implemented in the bootstrap compiler is too high-level. Here's the definition of the evaluation function, assuming two functions r< and r> from Forth:
 
-| . :: x y -> . @ y r< [. x]
-  . []     -> . r>
-  . _      -> _
+| . :: x y -> .i y r< [. x]   .i :: x y -> :: x y
+  . []     -> . r>            .i []     -> []
+  . _      -> _               .i _      -> . D[_]
 
-Therefore, . is itself a CPS-converter. Whoa.
-
-Boring stuff to make the above work.
-This isn't important and is kind of obvious, but the details may be relevant later on.
-
-| @ :: x y -> :: x y
-  @ []     -> []
-  @ 's     -> s                 <- I'm uneasy about this
-  @ s      -> D[s]
+This isn't quite right, but it is the right idea. The r< function doesn't make sense in Canard because of the explicitness of composition.
 
 __
 meta::parent('/home/spencertipping/bin/object', <<'__');
