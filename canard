@@ -1750,6 +1750,15 @@ The execution model as implemented in the bootstrap compiler is too high-level. 
 This isn't quite right, but it is the right idea. The r< function doesn't make sense in Canard because of the explicitness of composition.
 
 __
+meta::note('why-continuations', <<'__');
+Why implement continuations.
+It may not be necessary to implement any sort of CPS natively. The reason is that concatenative programs are much easier to transform than applicative ones. The program is arguably already
+CPS-converted; the evaluation function can be easily modified to maintain a heap-allocated return stack.
+
+Cases where continuations are useful.
+There are two cases where continuations are particularly compelling. One is to implement coroutines, and the other is to implement backtracking search algorithms.
+
+__
 meta::parent('/home/spencertipping/bin/object', <<'__');
 bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
 bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
