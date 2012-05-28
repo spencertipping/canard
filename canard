@@ -1709,6 +1709,33 @@ sense that no such basis exists at the moment. Maybe I'm wrong about this. But i
   1 []'. Dup is 'permute 1 [0 0]'. Get is 'permute 0 cons []'.
 
 __
+meta::note('quotation', <<'__');
+Quotation.
+There are some strange things happening around quoted symbols. Here are the specifics:
+
+| 1. E[s] for some symbol s is the same as E[D[s]], where D[s] is the definition of s.
+  2. The prefix ' returns a function which pushes the given symbol onto the data stack.
+  3. E[:: x y] = E[x] I[y], not E[x] E[y].
+  4. I[s] = E[s] for any symbol.
+  5. I[:: x y] pushes :: x y onto the data stack.
+
+The whole point behind the E/I distinction is that lists are quoted when in the head position. We want evaluation to distribute only across list tails, not heads. Therefore, we need to define
+two separate functions to handle this case.
+
+__
+meta::note('self-hosting', <<'__');
+Self-hosting.
+The execution model as implemented in the bootstrap compiler is too high-level. Here's the definition of the evaluation function, assuming two functions r< and r> from Forth:
+
+| . :: x y -> . @ y r< [. x]
+  . []     -> . r>
+  . _      -> _
+
+| @ :: x y -> :: x y
+  @ []     -> []
+  @ s      -> D[s]
+
+__
 meta::parent('/home/spencertipping/bin/object', <<'__');
 bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
 bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
