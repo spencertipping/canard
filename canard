@@ -1750,6 +1750,14 @@ The execution model as implemented in the bootstrap compiler is too high-level. 
 This isn't quite right, but it is the right idea. The r< function doesn't make sense in Canard because of the explicitness of composition.
 
 __
+meta::note('stack-representation', <<'__');
+Stack representation.
+Canard uses multiple stacks to execute a program. The central one is the data stack; this is the only stack that is implicitly accessed by primitive functions, and this stack maintains
+pointers to the others. The other primary stack is used for return addresses.
+
+Every stack is encoded as a linked list and can be manipulated as such.
+
+__
 meta::note('why-continuations', <<'__');
 Why implement continuations.
 It may not be necessary to implement any sort of CPS natively. The reason is that concatenative programs are much easier to transform than applicative ones. The program is arguably already
