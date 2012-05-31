@@ -36,3 +36,6 @@ instruction (add the top two stack values) would be something like this:
 
 Not sure whether this scales, however. Intel instructions have low enough information density that I can see this scheme breaking down for more complex instructions. Maybe it's possible to
 overcome this by using very long cons cells...
+
+Also, the existing scheme makes it very difficult to detect a cons cell. Testing a single continuation-jump byte seems really sketchy. The limit case is that we would need to decode the whole
+thing as x86 instructions and figure out whether the e9 is a real opcode.
