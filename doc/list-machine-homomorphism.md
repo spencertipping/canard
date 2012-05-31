@@ -10,3 +10,29 @@ representational standpoint. How might this work? Here are some options:
     2. Lists are always represented in some form that can be executed natively; so consing corresponds to jumping from one list into another.
 
 There are probably other solutions, but I think (2) is interesting. Not sure what to do about primitive commands...
+
+# Executable list representation
+
+The x86-64 32-bit relative jump instruction uses a single-byte E9 opcode. This wouldn't add a lot of overhead to a cons cell and could easily enough fit into a 64-bit chunk. There are some
+other considerations, however, among which are things like CPS conversion. Encoding the list's execution semantics into the list itself makes the compiler intrinsic, which may not be a great
+idea. But let's follow this to see where it goes.
+
+Cons cell (nop precedes each jump, and the first one is a call to push the continuation pointer):
+
+    0f1f00 e8 hhhhhhhh 0f1f00 e9 tttttttt
+
+Therefore, nil can be encoded as a ret instruction:
+
+    0f1f80 00000000 c3
+
+The trouble with this approach is that we have no way to encode primitive stack instructions. Technically, those should be directly encoded into the head of the list. So, for example, the +
+instruction (add the top two stack values) would be something like this:
+
+    4883ee08 488b4608 480106 e9 tttttttt
+    subq $8, %rsi
+    movq 8(%rsi), %rax
+    addq %rax, (%rsi)
+    jmp  tttttttt
+
+Not sure whether this scales, however. Intel instructions have low enough information density that I can see this scheme breaking down for more complex instructions. Maybe it's possible to
+overcome this by using very long cons cells...
