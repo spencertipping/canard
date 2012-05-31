@@ -60,3 +60,9 @@ There is only one control flow statement:
 
     ? 0 [true-branch] [false-branch] = false-branch
     ? x [true-branch] [false-branch] = true-branch        (x != 0)
+
+# Primitive representation
+
+What happens when you inspect something like the ^ function? Theoretically you would see a list of stack instructions, but in this case that doesn't make sense; there aren't other stack
+instructions that will end up producing ^. Maybe the right move here is to provide some sort of machine code representation of the intrinsic. It could be the case that lists are homomorphic to
+machine code anyway, at least across evaluation. (!)

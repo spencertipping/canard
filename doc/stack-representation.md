@@ -16,4 +16,5 @@ Here are the relevant expansions:
 Here, the recursive definition is really a way to encode a jump operation since all calls are tail calls. The "current continuation" can be pushed onto the data stack as a list using @cc. The
 return stack is used only in the explicit context implied by r< and r>; the interpreter itself doesn't do anything particularly interesting with it.
 
-Note: This evaluation strategy imposes a significant amount of GC overhead. It may be worth reconsidering...
+Note: This evaluation strategy imposes a significant amount of GC overhead. It may be worth reconsidering. However, I think there are allocation heuristics that can be used to ameliorate the
+effect.
