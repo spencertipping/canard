@@ -39,3 +39,17 @@ overcome this by using very long cons cells...
 
 Also, the existing scheme makes it very difficult to detect a cons cell. Testing a single continuation-jump byte seems really sketchy. The limit case is that we would need to decode the whole
 thing as x86 instructions and figure out whether the e9 is a real opcode.
+
+# Optimizing compilation
+
+The list representation above is suboptimal in a few ways:
+
+    1. Function calls are not inlined.
+    2. There are nops all over the place.
+    3. Adjacent instructions have not been fused. This can be resolved at a symbolic level; there is no particular reason to implement a dynamic register allocator, I think.
+    4. The stack model is unerased (not sure whether it makes sense to tackle this).
+    5. Any polymorphic primitives will have unerased decisionals (unfortunately, the VM does provide some of these).
+
+So in order to optimize, we'll have to go back to the symbolic stage and start fusing instructions into a separate native instruction stream, doing some register-stack aliasing in the process.
+This also means we'll need to know the shape of each primitive, which shouldn't be too difficult. (Now it's becoming clear why most stack VMs don't provide high-power stack manipulators, but
+if we constant-fold first it shouldn't be an issue.)
