@@ -1630,6 +1630,33 @@ Here's the sequence of return stack contents after each step:
 So a continuation is the pair of data/return stack values, assuming immutable cons cells and stack entries in each case.
 
 __
+meta::note('global-symbol-table', <<'__');
+Global symbol table.
+This is an interesting problem. Lists fundamentally contain symbols, not functions, since we don't know whether they will be executed. So we can't fully erase the identity of the symbols that
+make up these lists, at least in the authoritative copy.
+
+Therefore, inlining is not of much use beyond the obvious primitive case because otherwise the lists are impossible to reconstruct. For example:
+
+| = 'foo [bar bif baz]
+
+If foo is represented as 0f1f 09 ... 0f1f 0b ... 0f1f 08 ... 0f1f 80 00000000 c3, then how do we know that it was written as [bar bif baz] instead of [<definition of bar> <definition of bif>
+<definition of baz>]? Preserving the function calls is important here:
+
+| 0f1f 09 e8 baz-offset 0f1f e8 bif-offset 0f1f 09 e8 bar-offset 0f1f 80 00000000 c3
+
+It's starting to look like a mistake to use machine language as an authoritative list encoding for a few reasons:
+
+| 1. There is some overhead involved in allocating cons cells this way.
+  2. There is also some overhead executing lists defined this way.
+  3. Inlining is not generally possible, which will slow the processor down.
+  4. Decoding is a pain and requires extra metadata.
+  5. On processors/operating systems with the NX bit, we'll have to change the memory protection of the page where the list is allocated.
+
+Mutability vs immutability.
+Any recursive calls will need to be indirect, so it seems reasonable enough to just make the global table mutable. But it's fine if modifying it is expensive, since this should be an uncommon
+case. Modifying a global symbol could invalidate arbitrarily much code, or it could even fail to be reflected in already-compiled functions.
+
+__
 meta::note('list-machine-homomorphism', <<'__');
 List/machine-language homomorphism.
 Canard lists can be translated into machine language via the compiler. In this sense, Canard is not an interpreter after all, but a compiler that does the translation up-front. This makes a
@@ -1770,6 +1797,37 @@ sense that no such basis exists at the moment. Maybe I'm wrong about this. But i
 
   The idea is that the top n items would be dropped, then replaced by items at i1, i2, ..., ik in the original stack. For instance, swap would be defined as 'permute 2 [1 0]'. Drop is 'permute
   1 []'. Dup is 'permute 1 [0 0]'. Get is 'permute 0 cons []'.
+
+__
+meta::note('prefused-conses', <<'__');
+Prefused conses.
+Cons cells are immutable, so there isn't a real reason to fragment them prematurely. Instead, we can prefuse them; runs of sequential atoms can be represented in a linear string. This
+completes the CPS-conversion and inlines things in the process. For example:
+
+| = 'foo [bar bif baz]
+
+Here, the definitions of bar, bif, and baz can be inlined into a single mega-cons:
+
+| [baz definition] [bif definition] [bar definition] 0f1f80 00000000 c3
+
+The only difficulty is that we need to know where each sub-definition begins and ends. It should be possible to do this by inserting three-byte nop instructions and using the ModR/M byte to
+encode the length of the current 'instruction'. For example:
+
+| 0f1f 09 [baz definition: 9 bytes] 0f1f 0b [bif definition: 11 bytes] 0f1f 08 [bar definition: 8 bytes] 0f1f 80 00000000 c3
+  ^                                 ^                                  ^                                 ^
+
+The jump targets are marked with carets. It's important to refer to the nop instructions because these encode the length of the next list entry.
+
+Allocating prefused data.
+In a case like the map function, we can allocate a prefused cons easily enough by having the allocator hand us memory towards the end, not the beginning, of the heap. We can then request more
+chunks and see whether they are contiguous. This means that the allocator needs to know how we're representing cons cells, and must be aware of the implicit sequencing going on. The GC must be
+able to do the same thing in order to collect prefused segments that are no longer in use:
+
+| 0f1f 05 ... 0f1f 08 ... (live set ->) 0f1f 03 ... 0f1f 80 00000000 c3
+  |---------------------|
+   this needs to be GC'd
+                                <---- |
+       future conses onto the same tail
 
 __
 meta::note('quotation', <<'__');
