@@ -53,3 +53,6 @@ The list representation above is suboptimal in a few ways:
 So in order to optimize, we'll have to go back to the symbolic stage and start fusing instructions into a separate native instruction stream, doing some register-stack aliasing in the process.
 This also means we'll need to know the shape of each primitive, which shouldn't be too difficult. (Now it's becoming clear why most stack VMs don't provide high-power stack manipulators, but
 if we constant-fold first it shouldn't be an issue.)
+
+Optimization should not be a big concern in the native representation of cons cells, since it can be handled from within the language. The real value of having native cons representation is
+enabling a protocol by which low-level system programming can be achieved.
