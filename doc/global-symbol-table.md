@@ -10,7 +10,7 @@ Therefore, inlining is not of much use beyond the obvious primitive case because
 If foo is represented as 0f1f 09 ... 0f1f 0b ... 0f1f 08 ... 0f1f 80 00000000 c3, then how do we know that it was written as [bar bif baz] instead of [<definition of bar> <definition of bif>
 <definition of baz>]? Preserving the function calls is important here:
 
-    0f1f 09 e8 baz-offset 0f1f e8 bif-offset 0f1f 09 e8 bar-offset 0f1f 80 00000000 c3
+    0f1f 09 e8 baz-offset 0f1f 09 e8 bif-offset 0f1f 09 e8 bar-offset 0f1f 80 00000000 c3
 
 It's starting to look like a mistake to use machine language as an authoritative list encoding for a few reasons:
 
@@ -18,7 +18,10 @@ It's starting to look like a mistake to use machine language as an authoritative
     2. There is also some overhead executing lists defined this way.
     3. Inlining is not generally possible, which will slow the processor down.
     4. Decoding is a pain and requires extra metadata.
-    5. On processors/operating systems with the NX bit, we'll have to change the memory protection of the page where the list is allocated.
+    5. On systems with W^X (currently just OpenBSD, according to Wikipedia), we'll have to change the memory protection of the page where the list is allocated.
+
+A nice advantage, however, is that we now have a way to encode native instructions without explicit decisionals. Otherwise the interpreter needs to know the difference between primitives and
+other instructions.
 
 # Mutability vs immutability
 
