@@ -1145,7 +1145,7 @@ $text;
 
 __
 meta::hook('before-shell::ad', <<'__');
-ad('note::');
+ad('alias::c.');
 
 __
 meta::indicator('cc', 'length ::retrieve(\'data::current-continuation\') ? "\\033[1;36mcc\\033[0;0m" : \'\';');
