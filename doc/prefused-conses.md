@@ -17,6 +17,9 @@ encode the length of the current 'instruction'. For example:
 
 The jump targets are marked with carets. It's important to refer to the nop instructions because these encode the length of the next list entry.
 
+Update: function definitions can't be inlined due to the structural inspection problem. Instead, each defined symbol needs to have an identity (probably a memory address; these identities can
+be opaque), and this identity needs to be the referent of the head of a cons. Inlining should happen inside the compiler, which is defined in user-space.
+
 # Allocating prefused data
 
 In a case like the map function, we can allocate a prefused cons easily enough by having the allocator hand us memory towards the end, not the beginning, of the heap. We can then request more
