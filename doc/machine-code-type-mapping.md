@@ -16,3 +16,5 @@ In particular, the transparent pointer is interesting because you could easily e
 
 Here we have just one cons cell: prog1 :: nil. Address2 is an intermediate pointer, but its type is encoded by the machine instruction that represents it, which importantly has tail
 precedence: jmp a -> jmp b === jmp b. Any machine operation with this property can be erased when converting back from the machine-code representation to the logical one.
+
+Quoted symbols are encoded as instructions that push the symbol's address onto the data stack.
