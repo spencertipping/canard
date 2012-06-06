@@ -1666,6 +1666,12 @@ The problem with = 'print '$< is that after this, the symbol 'print is equivalen
 Maybe the right answer is to just disable aliasing altogether...
 
 __
+meta::note('gc', <<'__');
+Garbage collection.
+GC is implemented as a library and is, importantly, non-primitive. Most GC libraries probably provide custom stack representations and cons allocators, and their entry point is an evaluation
+function.
+
+__
 meta::note('global-symbol-table', <<'__');
 Global symbol table.
 This is an interesting problem. Lists fundamentally contain symbols, not functions, since we don't know whether they will be executed. So we can't fully erase the identity of the symbols that
@@ -1855,6 +1861,16 @@ Here we have just one cons cell: prog1 :: nil. Address2 is an intermediate point
 precedence: jmp a -> jmp b === jmp b. Any machine operation with this property can be erased when converting back from the machine-code representation to the logical one.
 
 __
+meta::note('native-execution', <<'__');
+Native execution.
+Canard doesn't have a garbage collector initially, so how should the initial execution model work? It is unclear whether the native environment should even provide an allocation function at
+all; maybe this is best left to the standard library. Maybe the initial environment uses a linear stack and provides no allocation other than mmap(). The other stuff could be built as custom
+managed heaps on top of this.
+
+There's a lot to recommend this approach. The problem is that the main environment is likely to have a representation that differs from list-based environments, which means that potentially
+more code is required to work with it.
+
+__
 meta::note('numbers', <<'__');
 Numbers.
 Canard doesn't need a way to represent all numeric literals. It just needs to express each byte value and provide some arithmetic operators. So, as part of the boot image, there are 255
@@ -1866,6 +1882,14 @@ Each of these pushes a single byte value onto the stack. It is not too difficult
 depending on the compiler).
 
 This removes the numeric-parsing case from the boot compiler/interpreter, which is ideal. Now all non-bracket words can be treated exactly the same way.
+
+__
+meta::note('optimization', <<'__');
+Optimization.
+Optimization libraries will probably fall into one of two categories. High-level optimizers remove unnecessary operations from a function by detecting invariants. Low-level optimizers find
+ways to encode various operations efficiently on the target processor.
+
+Note that high-level optimizers often don't use the usual set of primitives. These are domain-specific languages that know about certain classes of optimizations.
 
 __
 meta::note('parameter-space', <<'__');
