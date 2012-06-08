@@ -103,10 +103,6 @@ meta::define_form 'alias', sub {
   };
 };
 __
-meta::meta('type::binary', <<'__');
-meta::functor::editable 'binary', extension => '.binary', default => 'edit', inherit => 0;
-
-__
 meta::meta('type::bootstrap', <<'__');
 # Bootstrap attributes don't get executed. The reason for this is that because
 # they are serialized directly into the header of the file (and later duplicated
@@ -256,9 +252,13 @@ meta::meta('type::waul', <<'__');
 meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => 'edit';
 
 __
-meta::alias('cb', 'ad -c js::|waul::|canard::examples');
+meta::alias('cb', <<'__');
+ad -c js::|waul::|canard::examples
+
+__
 meta::alias('cl', 'ad -c canard::lib');
 meta::alias('cn', 'ad -c note::');
+meta::alias('cr', 'ad -c sdoc::canard::boot');
 meta::alias('eb', 'edit sdoc::waul::boot');
 meta::alias('ebi', 'edit sdoc::js::boot-image');
 meta::alias('er', 'edit sdoc::readme');
@@ -272,6 +272,7 @@ sh waul -e deps/regexp.js -e deps/parser.js -e src/boot.js -c :all
 
 __
 meta::alias('repl', 'sh boot/interpreter');
+meta::alias('sr', 'srepl');
 meta::alias('srepl', <<'__');
 sh boot/interpreter -i stdlib.canard
 
@@ -491,22 +492,6 @@ for (grep length, @_) {
       rm('data::permanent-identity');
       file::write($_, serialize(), noclobber => 1);
       chmod(0700, $_)})})}
-__
-meta::function('compile-binary', <<'__');
-# Compiles binary-text to binary output.
-my $text = join '', map split(/\s+/), split /#.*/m, retrieve($_[0]);
-my $hex_letters = '0123456789abcdef';
-
-my $next       = 1;
-my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
-my $repetition = sub {my $count = $next; $next = 1; $count};
-my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
-my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
-
-my @tokens = split m!(-[01]{8}|[0-9a-f]{2}|/\d+/)!, $text;
-my @output = map /^-([01]{8})/ ? &$binary($1) : /^\/(\d+)\// ? &$repeat($1) : /^[0-9a-f]{2}/ ? &$hex($_) : '', @tokens;
-join '', @output;
-
 __
 meta::function('cp', <<'__');
 my $from = shift @_;
@@ -2205,15 +2190,6 @@ retriever::sdoc-packed                   f7116f96adf2c748ac1991f4d7c1792b
 retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
-meta::parent('binary', <<'__');
-function::compile-binary                 051591976db1e9ef71a02a7747ca6b0f
-meta::type::binary                       3a80e9982dedb950aa1a9ae301670dc4
-parent::/home/spencertipping/bin/object  208e4b12afe64a14bfd8cacf04181e14
-parent::vim-highlighters                 f3bda418899ffc5cdeb6774b6b1477c7
-retriever::bin                           24b2382d3f002ee325963a5c652c53ff
-vim_highlighter::binary                  e098b0a683b32e2b23f8fc3c4a683c79
-
-__
 meta::parent('canard-object', <<'__');
 function::canard-pack                                       1baa1b17104517b0670946e937df3e78
 meta::type::canard                                          ee0b958db0f8b728c95edf7a27132ef2
@@ -2388,19 +2364,6 @@ parent::/home/spencertipping/bin/object  208e4b12afe64a14bfd8cacf04181e14
 retriever::wrapped-near                  1b00aeef9dbd19633a1fedc443b846e8
 
 __
-meta::parent('vim-highlighters', <<'__');
-function::vim                cf9e37026f6cd1499a6dd258fbbcd060
-meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
-parent::object               208e4b12afe64a14bfd8cacf04181e14
-
-__
-meta::retriever('bin', <<'__');
-# Compiles a binary text file.
-my $name = $_[0];
-return undef unless $name =~ s/^bin::/binary::/ && defined retrieve($name);
-compile_binary($name);
-
-__
 meta::retriever('canard-pack', <<'__');
 return undef unless $_[0] =~ /^canard-pack::(.*)$/;
 defined retrieve($1) ? canard_pack($1) : undef;
@@ -2504,6 +2467,23 @@ Like the regular map function, but distributes over sub-lists recursively. This 
 You can use it like this: :** [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6].
 
 = ':** [? [:* :: :: [] ':**] [.] :? %1]
+
+__
+meta::sdoc('canard::lib/iteration', <<'__');
+Canard iteration library | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This library provides trivial functions to iterate over numeric quantities.
+
+= '#* [? [#* - 1 ^1 [^1 [.] %0]] [%% 2 []] %0]
+
+  nb [#* n [f] x -> #* (n-1) [f] f x
+      ^1 [^1 [.] %0] n [f] x   = n [f] f x
+      #* - 1         n [f] f x = #* (n-1) [f] f x
+
+      #* 0 [f] x -> x
+      %% 2 [] 0 [f] x = x]
 
 __
 meta::sdoc('canard::lib/lexical', <<'__');
@@ -2613,6 +2593,7 @@ __
 meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/lexical
 - include sdoc-packed::canard::lib/lists
+- include sdoc-packed::canard::lib/iteration
 - include sdoc-packed::canard::lib/functional
 - include sdoc-packed::canard::lib/stack
 - include sdoc-packed::canard::lib/comments
@@ -2793,24 +2774,6 @@ my ($commands) = @_;
 return '' if template::failing_conditional($commands);
 my $text = join "\n\n", map retrieve($_), split /\s+/, $commands;
 "\n\n$text\n\n";
-__
-meta::vim_highlighter('binary', <<'__');
-" Language: Binary text
-" Creator:  Spencer Tipping <spencer@spencertipping.com>
-" License:  MIT source code license
-
-syn case match
-
-syn match bt_line_comment       /#.*/
-syn match bt_binary_octet       /-[01]\{8\}/
-syn match bt_hex_octet          /[0-9a-f]\{2\}/
-syn match bt_repetition_prefix  -/\d\+/-
-
-hi link bt_line_comment      Comment
-hi link bt_binary_octet      Keyword
-hi link bt_hex_octet         Type
-hi link bt_repetition_prefix Preproc
-
 __
 meta::vim_highlighter('canard', <<'__');
 " Canard language highlighter | Spencer Tipping
