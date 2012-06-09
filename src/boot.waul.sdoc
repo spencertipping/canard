@@ -40,7 +40,6 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
                                             is_atom()  = !this.length,                               t()    = this[0],
                                             is_quote() = this.is_atom() && /^'/.test(this.data),     name() = this.data.replace(/^'/, ''),
                                             is_nil()   = this.is_atom() && this.data === '[]',
-                                            is_n()     = this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/.test(this.data),
 
                                             unquote()  = this.is_atom() && /^'/.test(this.data) ? $.canard.syntax.atom(this.data /~substr/ 1) : this,
                                             quote()    = this.is_atom()                         ? $.canard.syntax.atom("'#{this.data}")       : this,
@@ -52,7 +51,7 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
                                                                                                                     : this.data]
                                    /-$.merge/ interpreter_methods(),
 
-          interpreter_methods()  = capture [should_run()               = !this.is_nil() && this.is_atom() && !this.is_quote() && !this.is_n(),
+          interpreter_methods()  = capture [should_run()               = !this.is_nil() && this.is_atom() && !this.is_quote(),
 
                                             execute(stack, bindings)   = rescue ['#{this}:[e]\n#{e}' /raise]
                                                                        [ this.should_run() ? bindings[this.name()].interpret(stack, bindings)
@@ -82,28 +81,28 @@ These provide a very simple base language that should be sufficient to write the
                                         depth(stack)          = {h: $.canard.syntax.atom(stack_depth(stack)), t: stack},
                                         clear(stack)          = null,
 
-                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())                                   -then- stack.t,
-                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m')                      -then- stack,
-                                        '#<'(stack)           = process.stdout.write(new Buffer(1) <se> it[0] -eq- +stack.h.data) -then- stack.t,
+                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())                              -then- stack.t,
+                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m')                 -then- stack,
+                                        '#<'(stack)           = process.stdout.write(new Buffer(1) <se> it[0] -eq- +stack.h) -then- stack.t,
 
-              /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                      t: stack.t},
-                                        '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)),       t: stack.t},
-                                        '$^'(stack)           = {h: $.canard.syntax.atom(stack.t.h.data.charCodeAt(+stack.h.data)), t: stack.t.t},
-                                        '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),            t: stack.t.t},
-                                        '$:'(stack)           = {h: stack.h.quote(),                                                t: stack.t},
-                                        '$.'(stack)           = {h: stack.h.unquote(),                                              t: stack.t},
+              /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                t: stack.t},
+                                        '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h)),      t: stack.t},
+                                        '$^'(stack)           = {h: stack.t.h.data.charCodeAt(+stack.h.data),                 t: stack.t.t},
+                                        '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),      t: stack.t.t},
+                                        '$:'(stack)           = {h: stack.h.quote(),                                          t: stack.t},
+                                        '$.'(stack)           = {h: stack.h.unquote(),                                        t: stack.t},
 
-                                        '$='(stack)           = {h: $.canard.syntax.atom(+(stack.h.data === stack.t.h.data)),       t: stack.t.t},
+                                        '$='(stack)           = {h: +(stack.h.data === stack.t.h.data), t: stack.t.t},
 
-                      /* conditional */ '?'(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
-                                                                                    : stack.t.h.interpret(stack.t.t.t, bindings),
+                      /* conditional */ '?'(stack, bindings)  = +stack.t.t.h ? stack  .h.interpret(stack.t.t.t, bindings)
+                                                                             : stack.t.h.interpret(stack.t.t.t, bindings),
 
-                      /* permutation */ '%%'(stack)           = append_items_to(stack.t.t /-up/ +stack.h.data, stack.t.t, stack.t.h),
-                                        '%^'(stack, bindings) = stash_helper(+stack.h.data, stack.t.h, stack.t.t, bindings),
+                      /* permutation */ '%%'(stack)           = append_items_to(stack.t.t /-up/ +stack.h, stack.t.t, stack.t.h),
+                                        '%^'(stack, bindings) = stash_helper(+stack.h, stack.t.h, stack.t.t, bindings),
 
-                    /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil() /!$.canard.syntax.atom,  t: stack.t},
-                                        ':?'(stack)           = {h: +stack.h.is_cons() /!$.canard.syntax.atom, t: stack.t},
-                                        '!'(stack)            = {h: +!stack.h.data /!$.canard.syntax.atom, t: stack.t},
+                    /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil(),  t: stack.t},
+                                        ':?'(stack)           = {h: +stack.h.is_cons(), t: stack.t},
+                                        '!'(stack)            = {h: +!stack.h,          t: stack.t},
 
                       /* cons/uncons */ '::'(stack)           = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
                                         ':^'(stack)           = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
@@ -111,10 +110,11 @@ These provide a very simple base language that should be sufficient to write the
 
                              /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
 
+                               /          numeric_bindings()
                                /-$.merge/ arithmetic_bindings(),
 
+          numeric_bindings()    = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
           arithmetic_bindings() = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
-                                  *[[x, {interpret: "function (stack) {return {h: caterwaul.canard.syntax.atom(+(+stack.t.h.data #{x} +stack.h.data)), t: stack.t.t}}" /!$.parse /!$.compile}]]
-                                  -object -seq]
+                                  *[[x, {interpret: "function (stack) {return {h: stack.t.h #{x} stack.h, t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
 
   -using- caterwaul.parser});

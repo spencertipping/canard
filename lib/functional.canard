@@ -1,6 +1,20 @@
 nb[ Canard standard library: function manipulation | Spencer Tipping ]
 nb[ Licensed under the terms of the MIT source code license ]
 
+nb[ Piecewise construction. ]
+nb[ This serves the purpose of something like 'where' in functional languages. The idea is to provide a series of local definitions that will be inlined into the form in question. This is done ]
+nb[ first by defining a substitution function, then deriving a recursive variant from that. ]
+
+nb[ | :/ symbol replacement -> [? :: replacement 'nb [] $= 'symbol %0] ]
+nb[   %s $:                     symbol replacement                      = replacement 'symbol ]
+nb[   :: %s ''nb                replacement 'symbol                     = (:: replacement 'nb) 'symbol ]
+nb[   ^1 [:: %s '%0 :: [[] $=]] (:: replacement 'nb) 'symbol            = (:: replacement 'nb) [[] $= 'symbol %0] ]
+nb[   :+ [?] :+ :: []           (:: replacement 'nb) [[] $= 'symbol %0] = [? (:: replacement 'nb) [] $= 'symbol %0] ]
+
+nb[ The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :* or :**. ]
+
+= ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s 'nb %s $:]
+
 nb[ Composition. ]
 nb[ Functions can be composed by appending their list forms. . @o f g x is the same as f g x. ]
 

@@ -2386,45 +2386,16 @@ return undef unless $_[0] =~ /^wrapped-near\.(\d+)::(.*)$/;
 defined retrieve($2) ? wrapped_near(retrieve($2), $1) : undef;
 
 __
-meta::sdoc('canard::lib/binary', <<'__');
-Binary emitters | Spencer Tipping
+meta::sdoc('canard::lib/canard-linux-x64', <<'__');
+Linux/x86-64 Canard compiler | Spencer Tipping
 Licensed under the terms of the MIT source code license
 
 Introduction.
-These are a series of functions that allow you to represent numbers in various ways, most importantly in hexadecimal and binary. Rather than doing anything particularly creative, I'm just
-building up custom entries in the main symbol table. There are 256 for each of hexadecimal and binary:
+This library implements the Canard compiler for Linux on x86-64. The compiler is written in machine language and is self-hosting. It also provides a set of primitives that allow the language
+to operate, as well as a core memory image that you can use to create an interpreter instance.
 
-| b00000000
-  b00000001
-  b00000010
-  b00000011
-  ...
-  b11111111
-  x00
-  x01
-  x02
-  ...
-  xff
-
-Each of these just pushes the given number onto the stack; there is no runtime conversion.
-
-Numeric constant definitions.
-This is simple enough. For each number, we just cons up that number to a list, convert the number to each base, and assign the function.
-
-#* 256 [= $+ 'x #16 %s :: [] %0
-        = $+ 'b #2  %s :: [] %0 %0]
-
-Base conversion.
-These functions convert decimal numbers to hex and binary, respectively. Each one operates on bytes and prepends zeroes to fill to eight bits.
-
-= '#16 [nb #* 2 [^1 [$+ %s $ $^ %s '0123456789abcdef & 15 >>> * 4] %% 2 [1 0 1]] %s ']
-= '#2  [nb #* 8 [^1 [$+ %s $ $^ %s '01               & 1  >>>]     %% 2 [1 0 1]] %s ']
-
-| #b n -> nb #* b [block] n ""
-
-| [block] i n s -> n ($+ %s ($ $^ %s 'alphabet & mask >>> i n) s)
-  %% 2 [1 0 1]                         i n s   = n i n s
-  ^1 [$+ $ $^ %s 'alphabet & mask >>>] n i n s = n ($+ %s ($ $^ %s 'alphabet & mask >>> i n) s)]
+Primitive functions.
+Primitives are defined in terms of their machine-language equivalents. The following functions are considered to be primitive:
 
 __
 meta::sdoc('canard::lib/comments', <<'__');
@@ -2445,6 +2416,20 @@ __
 meta::sdoc('canard::lib/functional', <<'__');
 Canard standard library: function manipulation | Spencer Tipping
 Licensed under the terms of the MIT source code license
+
+Piecewise construction.
+This serves the purpose of something like 'where' in functional languages. The idea is to provide a series of local definitions that will be inlined into the form in question. This is done
+first by defining a substitution function, then deriving a recursive variant from that.
+
+| :/ symbol replacement -> [? :: replacement 'nb [] $= 'symbol %0]
+  %s $:                     symbol replacement                      = replacement 'symbol
+  :: %s ''nb                replacement 'symbol                     = (:: replacement 'nb) 'symbol
+  ^1 [:: %s '%0 :: [[] $=]] (:: replacement 'nb) 'symbol            = (:: replacement 'nb) [[] $= 'symbol %0]
+  :+ [?] :+ :: []           (:: replacement 'nb) [[] $= 'symbol %0] = [? (:: replacement 'nb) [] $= 'symbol %0]
+
+The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :* or :**.
+
+= ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s 'nb %s $:]
 
 Composition.
 Functions can be composed by appending their list forms. . @o f g x is the same as f g x.
@@ -2474,7 +2459,7 @@ Licensed under the terms of the MIT source code license
 Introduction.
 This library provides trivial functions to iterate over numeric quantities.
 
-= '#* [? [#* ^2 [.] %% 2 [0 1 1 0] - 1] [%% 2 []] %0]
+= '#* [? [#* ^2 [.] %% 02 [00 01 01 00] - 01] [%% 02 []] %0]
 
 | #* n [f] x -> #* (n-1) [f] f (n-1) x
   %% 2 [0 1 1 0] - 1 n [f] x               = (n-1) [f] [f] (n-1) x
@@ -2520,7 +2505,7 @@ Flatmap definition.
 Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
 map function.
 
-= ':~ :** [? [':~ %v] [] $= ':* %0 ? [':+ %v] [] $= ':: %0] @ ':*
+= ':~ :** @o :/ ':* [':~] :/ ':: [':+] @ ':*
 
 Map-function template.
 Here is the derivation for flatmap:
@@ -2535,7 +2520,7 @@ Notice, however, that a number of functions here can be replaced to do other thi
 regular map. What we really have is a 'map template' that can be specialized in different ways. To leverage this, we first define the map function, then we write the map template, then we
 write flatmap as a substitution over the definition of 'map'.
 
-= ':* [? [:: :* ^2 [.] %% 2 [0 1 0] ^1 [:^]] [%v] :? %1]
+= ':* [? [:: :* ^2 [.] %% 02 [00 01 00] ^1 [:^]] [%v] :? %1]
 
 List append.
 Appends each element from the second list to the first. The head of :+ x y is the head of y. Here are the cases:
@@ -2548,13 +2533,37 @@ Appends each element from the second list to the first. The head of :+ x y is th
 List length.
 This is the usual recursive length function over lists.
 
-= ':# [? [+ 1 :# :t] [0 %v] :? %0]
+= ':# [? [+ 01 :# :t] [00 %v] :? %0]
 
 Cons accessors.
 These retrieve the individual pieces of a cons cell.
 
 = ':h [%v :^]
-= ':t [%% 2 [0] :^]
+= ':t [%% 02 [00] :^]
+
+__
+meta::sdoc('canard::lib/numbers', <<'__');
+Canard numeric library | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This library implements some functions to make numeric manipulation more convenient. Functions provided include:
+
+| 1. Single-digit numeric aliases; e.g. 1 -> 01, 2 -> 02, ... 9 -> 09
+  2. Single-digit numeric adjustments: +1 -> [+ 01], -1 -> [- 01], ... +9 -> [+ 09] (same for * and /)
+
+#* 0a [= #d %s :: [] $+ '0 #d %0  =#:prefix-op '+ %0  =#:prefix-op '* %0
+                                  =#:prefix-op '- %0  =#:prefix-op '/ %0]
+
+= '=#:prefix-op [= $+ ^1 [#d ^1 [:: :: [] ^1 [$+ '0 #d]]] %% 02 [00 01 00 01]]
+
+| =#:prefix-op prefix n -> = $+ prefix #d n :: :: [] prefix $+ '0 n
+  %% 2 [0 1 0 1]  prefix n                         = prefix n prefix n
+  %^ 3 [$+ '0 #d] prefix n prefix n                = prefix n prefix $+ '0 #d n
+  ^2 [:: :: []]   prefix n prefix $+ '0 n          = prefix n :: :: [] prefix $+ '0 #d n
+  = $+ ^1 [#d]    prefix n :: :: [] prefix $+ '0 n = = $+ prefix #d n :: :: [] prefix $+ '0 #d n
+
+= '#d [$ + 30]
 
 __
 meta::sdoc('canard::lib/stack', <<'__');
@@ -2579,19 +2588,19 @@ This library provides a bunch of stack functions that prevent you from having to
 | ^1    stash [f] x y = x f y
   ^2    stash2 [f] x y z = x y f z
 
-= '%0  [%% 0 [0]]
-= '%1  [%% 0 [1]]     = '%s  [%% 2 [1 0]]
-= '%2  [%% 0 [2]]     = '%r3 [%% 3 [1 2 0]]
-= '%#  [%% 0 :: []]   = '%R3 [%% 3 [2 0 1]]
+= '%0  [%% 00 [00]]
+= '%1  [%% 00 [01]]   = '%s  [%% 02 [01 00]]
+= '%2  [%% 00 [02]]   = '%r3 [%% 03 [01 02 00]]
+= '%#  [%% 00 :: []]  = '%R3 [%% 03 [02 00 01]]
 
-= '%v  [%% 1 []]      = '^1  [%^ 1]
-= '%v# [%% %s []]     = '^2  [%^ 2]
+= '%v  [%% 01 []]     = '^1  [%^ 01]
+= '%v# [%% %s []]     = '^2  [%^ 02]
 
 __
 meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/lexical
 - include sdoc-packed::canard::lib/lists
-- include sdoc-packed::canard::lib/binary
+- include sdoc-packed::canard::lib/numbers
 - include sdoc-packed::canard::lib/iteration
 - include sdoc-packed::canard::lib/functional
 - include sdoc-packed::canard::lib/stack
@@ -2617,6 +2626,7 @@ caterwaul(':all')(function ($) {
   when.false,
 
   process.argv.length > 2 && process.argv[2] !== '-i' -se [process.argv.shift(), when.it] ? start_from_file() : start_from_repl(),
+  Number.prototype.is_cons() = false,
 
   where [start_from_file() = $.canard(process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] -seq -re- it.join('\n\n')),
 
@@ -2675,7 +2685,6 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
                                             is_atom()  = !this.length,                               t()    = this[0],
                                             is_quote() = this.is_atom() && /^'/.test(this.data),     name() = this.data.replace(/^'/, ''),
                                             is_nil()   = this.is_atom() && this.data === '[]',
-                                            is_n()     = this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/.test(this.data),
 
                                             unquote()  = this.is_atom() && /^'/.test(this.data) ? $.canard.syntax.atom(this.data /~substr/ 1) : this,
                                             quote()    = this.is_atom()                         ? $.canard.syntax.atom("'#{this.data}")       : this,
@@ -2687,7 +2696,7 @@ The interpreter is just a tree-walker that acts as a nondestructive function fro
                                                                                                                     : this.data]
                                    /-$.merge/ interpreter_methods(),
 
-          interpreter_methods()  = capture [should_run()               = !this.is_nil() && this.is_atom() && !this.is_quote() && !this.is_n(),
+          interpreter_methods()  = capture [should_run()               = !this.is_nil() && this.is_atom() && !this.is_quote(),
 
                                             execute(stack, bindings)   = rescue ['#{this}:[e]\n#{e}' /raise]
                                                                        [ this.should_run() ? bindings[this.name()].interpret(stack, bindings)
@@ -2717,28 +2726,28 @@ These provide a very simple base language that should be sufficient to write the
                                         depth(stack)          = {h: $.canard.syntax.atom(stack_depth(stack)), t: stack},
                                         clear(stack)          = null,
 
-                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())                                   -then- stack.t,
-                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m')                      -then- stack,
-                                        '#<'(stack)           = process.stdout.write(new Buffer(1) <se> it[0] -eq- +stack.h.data) -then- stack.t,
+                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())                              -then- stack.t,
+                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m')                 -then- stack,
+                                        '#<'(stack)           = process.stdout.write(new Buffer(1) <se> it[0] -eq- +stack.h) -then- stack.t,
 
-              /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                      t: stack.t},
-                                        '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)),       t: stack.t},
-                                        '$^'(stack)           = {h: $.canard.syntax.atom(stack.t.h.data.charCodeAt(+stack.h.data)), t: stack.t.t},
-                                        '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),            t: stack.t.t},
-                                        '$:'(stack)           = {h: stack.h.quote(),                                                t: stack.t},
-                                        '$.'(stack)           = {h: stack.h.unquote(),                                              t: stack.t},
+              /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                t: stack.t},
+                                        '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h)),      t: stack.t},
+                                        '$^'(stack)           = {h: stack.t.h.data.charCodeAt(+stack.h.data),                 t: stack.t.t},
+                                        '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),      t: stack.t.t},
+                                        '$:'(stack)           = {h: stack.h.quote(),                                          t: stack.t},
+                                        '$.'(stack)           = {h: stack.h.unquote(),                                        t: stack.t},
 
-                                        '$='(stack)           = {h: $.canard.syntax.atom(+(stack.h.data === stack.t.h.data)),       t: stack.t.t},
+                                        '$='(stack)           = {h: +(stack.h.data === stack.t.h.data), t: stack.t.t},
 
-                      /* conditional */ '?'(stack, bindings)  = !!+stack.t.t.h.data ? stack  .h.interpret(stack.t.t.t, bindings)
-                                                                                    : stack.t.h.interpret(stack.t.t.t, bindings),
+                      /* conditional */ '?'(stack, bindings)  = +stack.t.t.h ? stack  .h.interpret(stack.t.t.t, bindings)
+                                                                             : stack.t.h.interpret(stack.t.t.t, bindings),
 
-                      /* permutation */ '%%'(stack)           = append_items_to(stack.t.t /-up/ +stack.h.data, stack.t.t, stack.t.h),
-                                        '%^'(stack, bindings) = stash_helper(+stack.h.data, stack.t.h, stack.t.t, bindings),
+                      /* permutation */ '%%'(stack)           = append_items_to(stack.t.t /-up/ +stack.h, stack.t.t, stack.t.h),
+                                        '%^'(stack, bindings) = stash_helper(+stack.h, stack.t.h, stack.t.t, bindings),
 
-                    /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil() /!$.canard.syntax.atom,  t: stack.t},
-                                        ':?'(stack)           = {h: +stack.h.is_cons() /!$.canard.syntax.atom, t: stack.t},
-                                        '!'(stack)            = {h: +!stack.h.data /!$.canard.syntax.atom, t: stack.t},
+                    /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil(),  t: stack.t},
+                                        ':?'(stack)           = {h: +stack.h.is_cons(), t: stack.t},
+                                        '!'(stack)            = {h: +!stack.h,          t: stack.t},
 
                       /* cons/uncons */ '::'(stack)           = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
                                         ':^'(stack)           = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
@@ -2746,11 +2755,12 @@ These provide a very simple base language that should be sufficient to write the
 
                              /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
 
+                               /          numeric_bindings()
                                /-$.merge/ arithmetic_bindings(),
 
+          numeric_bindings()    = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
           arithmetic_bindings() = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
-                                  *[[x, {interpret: "function (stack) {return {h: caterwaul.canard.syntax.atom(+(+stack.t.h.data #{x} +stack.h.data)), t: stack.t.t}}" /!$.parse /!$.compile}]]
-                                  -object -seq]
+                                  *[[x, {interpret: "function (stack) {return {h: stack.t.h #{x} stack.h, t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
 
   -using- caterwaul.parser});
 

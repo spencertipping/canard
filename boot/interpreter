@@ -703,8 +703,7 @@ return!this.length} ,t:function() {;
 return this[0] } ,is_quote:function() {;
 return this.is_atom() && /^'/ .test(this.data) } ,name:function() {;
 return this.data.replace( /^'/ , '' ) } ,is_nil:function() {;
-return this.is_atom() &&this.data=== '[]' } ,is_n:function() {;
-return this.is_atom() && /^-?\d+\.?\d*([eE][-+]?\d+)?$/ .test(this.data) } ,unquote:function() {;
+return this.is_atom() &&this.data=== '[]' } ,unquote:function() {;
 return this.is_atom() && /^'/ .test(this.data) ?$.canard.syntax.atom( (this.data) .substr(1) ) 
 :this} ,quote:function() {;
 return this.is_atom() ?$.canard.syntax.atom( ( "'" + (this.data) + "" ) ) 
@@ -715,7 +714,7 @@ return this.is_nil() ? '[]'
 :this.is_cons() ? ( '' + (this.t() ) + ' ' + (this.h() ) + '' ) 
 :this.data} } ,interpreter_methods() ) } ,interpreter_methods=function() {;
 return{should_run:function() {;
-return!this.is_nil() &&this.is_atom() && !this.is_quote() && !this.is_n() } ,execute:function(stack,bindings) {;
+return!this.is_nil() &&this.is_atom() && !this.is_quote() } ,execute:function(stack,bindings) {;
 return(function() {try{return this.should_run() ?bindings[this.name() ] .interpret(stack,bindings) 
 : {h:this.unquote() ,t:stack} }catch(e) {return(function() {throw( '' + (this) + ':[e]\n' + (e) + '' ) } ) .call(this) } } ) .call(this) } ,interpret:function(stack,bindings) {;
 return(function() {try{return this.is_cons() ?this.t() .interpret(this.h() .execute(stack,bindings) ,bindings) 
@@ -743,31 +742,44 @@ return{h:$.canard.syntax.atom(stack_depth(stack) ) ,t:stack} } ,clear:function(s
 return null} , '$<' :function(stack) {;
 return(console.log(stack.h.toString() ) ,stack.t) } , '$|' :function(stack) {;
 return(console.log( ( '\033[1;32m' + (stack.h) + '\033[0;0m' ) ) ,stack) } , '#<' :function(stack) {;
-return(process.stdout.write( (function(it) {return it[0] = +stack.h.data,it} ) .call(this, (new Buffer(1) ) ) ) ,stack.t) } , '$#' :function(stack) {;
+return(process.stdout.write( (function(it) {return it[0] = +stack.h,it} ) .call(this, (new Buffer(1) ) ) ) ,stack.t) } , '$#' :function(stack) {;
 return{h:$.canard.syntax.atom(stack.h.data.length) ,t:stack.t} } , '$' :function(stack) {;
-return{h:$.canard.syntax.atom(String.fromCharCode( +stack.h.data) ) ,t:stack.t} } , '$^' :function(stack) {;
-return{h:$.canard.syntax.atom(stack.t.h.data.charCodeAt( +stack.h.data) ) ,t:stack.t.t} } , '$+' :function(stack) {;
+return{h:$.canard.syntax.atom(String.fromCharCode( +stack.h) ) ,t:stack.t} } , '$^' :function(stack) {;
+return{h:stack.t.h.data.charCodeAt( +stack.h.data) ,t:stack.t.t} } , '$+' :function(stack) {;
 return{h:$.canard.syntax.atom(stack.h.data+stack.t.h.data) ,t:stack.t.t} } , '$:' :function(stack) {;
 return{h:stack.h.quote() ,t:stack.t} } , '$.' :function(stack) {;
 return{h:stack.h.unquote() ,t:stack.t} } , '$=' :function(stack) {;
-return{h:$.canard.syntax.atom( + (stack.h.data===stack.t.h.data) ) ,t:stack.t.t} } , '?' :function(stack,bindings) {;
-return! ! +stack.t.t.h.data?stack.h.interpret(stack.t.t.t,bindings) 
+return{h: + (stack.h.data===stack.t.h.data) ,t:stack.t.t} } , '?' :function(stack,bindings) {;
+return+stack.t.t.h?stack.h.interpret(stack.t.t.t,bindings) 
 :stack.t.h.interpret(stack.t.t.t,bindings) } , '%%' :function(stack) {;
-return append_items_to(up(stack.t.t, +stack.h.data) ,stack.t.t,stack.t.h) } , '%^' :function(stack,bindings) {;
-return stash_helper( +stack.h.data,stack.t.h,stack.t.t,bindings) } , '/?' :function(stack) {;
-return{h:$.canard.syntax.atom( +stack.h.is_nil() ) ,t:stack.t} } , ':?' :function(stack) {;
-return{h:$.canard.syntax.atom( +stack.h.is_cons() ) ,t:stack.t} } , '!' :function(stack) {;
-return{h:$.canard.syntax.atom( + !stack.h.data) ,t:stack.t} } , '::' :function(stack) {;
+return append_items_to(up(stack.t.t, +stack.h) ,stack.t.t,stack.t.h) } , '%^' :function(stack,bindings) {;
+return stash_helper( +stack.h,stack.t.h,stack.t.t,bindings) } , '/?' :function(stack) {;
+return{h: +stack.h.is_nil() ,t:stack.t} } , ':?' :function(stack) {;
+return{h: +stack.h.is_cons() ,t:stack.t} } , '!' :function(stack) {;
+return{h: + !stack.h,t:stack.t} } , '::' :function(stack) {;
 return{h:$.canard.syntax.cons(stack.h,stack.t.h) ,t:stack.t.t} } , ':^' :function(stack) {;
 return( !stack.h.is_cons() && (function() {throw new Error( ( '' + (stack.h) + ' is not a cons cell' ) ) } ) .call(this) , {h:stack.h.t() ,t: {h:stack.h.h() ,t:stack.t} } ) } , '.' :function(stack,bindings) {;
-return stack.h.interpret(stack.t,bindings) } } ) ,arithmetic_bindings() ) } ,arithmetic_bindings=function() {;
+return stack.h.interpret(stack.t,bindings) } } ) ,numeric_bindings() ,arithmetic_bindings() ) } ,numeric_bindings=function() {;
 return(function(o) {for(var r= {} ,i=0,l=o.length,x;
 i<l;
  ++i)x=o[i] ,r[x[0] ] =x[1] ;
 return r} ) .call(this, ( (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
- ++xi)x=xs[xi] ,xr.push( ( [x, {interpret:$.compile($.parse( ( "function (stack) {return {h: caterwaul.canard.syntax.atom(+(+stack.t.h.data " + (x) + " +stack.h.data)), t: stack.t.t}}" ) ) ) } ] ) ) ;
+ ++xi)x=xs[xi] ,xr.push( ( [ '0123456789abcdef' .charAt(x>>>4) + '0123456789abcdef' .charAt(x&15) , {interpret: (function(x) {return(function(stack) {return{h:x,t:stack} } ) } ) (x) } ] ) ) ;
+return xr} ) .call(this, (function(i,u,s) {if( (u-i) *s<=0)return[] ;
+for(var r= [] ,d=u-i;
+d>0?i<u
+:i>u;
+i+=s)r.push(i) ;
+return r} ) ( (0) , (256) , (1) ) ) ) ) } ,arithmetic_bindings=function() {;
+return(function(o) {for(var r= {} ,i=0,l=o.length,x;
+i<l;
+ ++i)x=o[i] ,r[x[0] ] =x[1] ;
+return r} ) .call(this, ( (function(xs) {var x,x0,xi,xl,xr;
+for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
+xi<xl;
+ ++xi)x=xs[xi] ,xr.push( ( [x, {interpret:$.compile($.parse( ( "function (stack) {return {h: stack.t.h " + (x) + " stack.h, t: stack.t.t}}" ) ) ) } ] ) ) ;
 return xr} ) .call(this, [ '+' , '-' , '*' , '/' , '%' , '>>' , '<<' , '>>>' , '|' , '&' , '^' , '<' , '>' , '<=' , '>=' , '===' , '!==' , '==' , '!=' ] ) ) ) } ;
 return $.merge( ($.canard=function(source,stack,bindings) {;
 return $.canard.parse(source) .interpret(stack||null,$.merge( {} ,$.canard.default_bindings() ,bindings) ) } ) ,statics() ) } ) .call(this) } ) .call(this) } ) ;
@@ -782,6 +794,7 @@ caterwaul(':all')(function ($) {
   when.false,
 
   process.argv.length > 2 && process.argv[2] !== '-i' -se [process.argv.shift(), when.it] ? start_from_file() : start_from_repl(),
+  Number.prototype.is_cons() = false,
 
   where [start_from_file() = $.canard(process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] -seq -re- it.join('\n\n')),
 

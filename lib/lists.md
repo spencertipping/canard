@@ -10,7 +10,7 @@ This library defines useful list functions, including map, flatmap, filter, appe
 Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
 map function.
 
-    = ':~ :** [? [':~ %v] [] $= ':* %0 ? [':+ %v] [] $= ':: %0] @ ':*
+    = ':~ :** @o :/ ':* [':~] :/ ':: [':+] @ ':*
 
 # Map-function template
 
@@ -26,7 +26,7 @@ Notice, however, that a number of functions here can be replaced to do other thi
 regular map. What we really have is a 'map template' that can be specialized in different ways. To leverage this, we first define the map function, then we write the map template, then we
 write flatmap as a substitution over the definition of 'map'.
 
-    = ':* [? [:: :* ^2 [.] %% 2 [0 1 0] ^1 [:^]] [%v] :? %1]
+    = ':* [? [:: :* ^2 [.] %% 02 [00 01 00] ^1 [:^]] [%v] :? %1]
 
 # List append
 
@@ -41,11 +41,11 @@ Appends each element from the second list to the first. The head of :+ x y is th
 
 This is the usual recursive length function over lists.
 
-    = ':# [? [+ 1 :# :t] [0 %v] :? %0]
+    = ':# [? [+ 01 :# :t] [00 %v] :? %0]
 
 # Cons accessors
 
 These retrieve the individual pieces of a cons cell.
 
     = ':h [%v :^]
-    = ':t [%% 2 [0] :^]
+    = ':t [%% 02 [00] :^]
