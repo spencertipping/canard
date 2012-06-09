@@ -20,6 +20,13 @@ building up custom entries in the main symbol table. There are 256 for each of h
 
 Each of these just pushes the given number onto the stack; there is no runtime conversion.
 
+# Numeric constant definitions
+
+This is simple enough. For each number, we just cons up that number to a list, convert the number to each base, and assign the function.
+
+    #* 256 [= $+ 'x #16 %s :: [] %0
+            = $+ 'b #2  %s :: [] %0 %0]
+
 # Base conversion
 
 These functions convert decimal numbers to hex and binary, respectively. Each one operates on bytes and prepends zeroes to fill to eight bits.
@@ -32,7 +39,3 @@ These functions convert decimal numbers to hex and binary, respectively. Each on
     [block] i n s -> n ($+ %s ($ $^ %s 'alphabet & mask >>> i n) s)
     %% 2 [1 0 1]                         i n s   = n i n s
     ^1 [$+ $ $^ %s 'alphabet & mask >>>] n i n s = n ($+ %s ($ $^ %s 'alphabet & mask >>> i n) s)]
-
-# Numeric constant definitions
-
-This is simple enough. For each number, we just cons up that number to a list, convert the number to each base, and assign the function.
