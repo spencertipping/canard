@@ -1,4 +1,0 @@
-$< fact 5
-= 'fact [? [* fact - 1 dup] [1 drop] dup]
-= 'drop [%% 1 []]
-= 'dup  [%% 0 [0]]

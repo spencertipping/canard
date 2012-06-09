@@ -253,7 +253,7 @@ meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => '
 
 __
 meta::alias('cb', <<'__');
-ad -c js::|waul::|canard::examples
+ad -c js::|waul::
 
 __
 meta::alias('cl', 'ad -c canard::lib');
@@ -281,7 +281,6 @@ meta::alias('srepl', <<'__');
 sh boot/interpreter -i stdlib.canard
 
 __
-meta::alias('x', 'run_example');
 meta::bootstrap('html', <<'__');
 <html>
   <head>
@@ -380,53 +379,6 @@ preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
 sdoc a1e8480e579614c01dabeecf0f963bcc
 text ffe5790f4c605b3bd73283f7c5e57dc5
 vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
-__
-meta::canard('examples/factorial', <<'__');
-$< fact 5
-= 'fact [? [* fact - 1 dup] [1 drop] dup]
-= 'drop [%% 1 []]
-= 'dup  [%% 0 [0]]
-
-__
-meta::canard('examples/hello-world', <<'__');
-nb [Hello world example
-    Prints the string "hello world" to stdout, then quits]
-
-say [hello world]
-= 'say [$<]
-= 'nb [%% 1 []]
-
-__
-meta::canard('examples/lists', <<'__');
-$< map [+ 1] filter [! % swap 3] [1 2 3 4 5 6 7 8 9 10]
-
-= 'map [? [:: map %^ 1 [head swap .] dup %^ 1 [tail dup]] [nb] :? nip]
-    nb [map [f] (:: x y) -> :: map [f] x f y
-        %^ 1 [tail dup]    [f] (:: x y)       = [f] y (:: x y)
-        dup                [f] y (:: x y)     = [f] [f] y (:: x y)
-        %^ 1 [head swap .] [f] [f] y (:: x y) = [f] x (f y)
-        :: map             [f] x (f y)        = :: map [f] x f y
-
-        map [f] [] -> []]
-
-= 'filter [? [? [:: swap] [nb] . %^ 3 [filter] %% 3 [2 1 1 2 0] :^ swap] [nb] :? nip]
-       nb [filter [f] (:: x y) -> ? [:: swap] [nb] f y y filter [f] x
-           :^ swap            [f] (:: x y)         = x y [f]
-           %% 3 [2 1 1 2 0]   x y [f]              = [f] y y [f] x
-           %^ 3 [filter]      [f] y y [f] x        = [f] y y filter [f] x
-           ? [:: swap] [nb] . [f] y y filter [f] x = ? [:: swap] [nb] f y y filter [f] x
-
-           filter [f] [] -> []]
-
-= 'tail [%^ 1 [nb] :^]
-= 'head [nb :^]
-
-= 'pull [%% 0 :: []]
-= 'nb   [%% 1 []]
-= 'swap [%% 2 [1 0]]
-= 'nip  [pull 1]
-= 'dup  [pull 0]
-
 __
 meta::data('author', 'Spencer Tipping');
 meta::data('default-action', 'shell');
@@ -546,10 +498,6 @@ save();
 
 __
 meta::function('enable', 'hook(\'enable\', chmod_self(sub {$_[0] | $_[0] >> 2}));');
-meta::function('example', <<'__');
-create("canard::examples/$_[0]");
-
-__
 meta::function('export', <<'__');
 # Exports data into a text file.
 #   export attr1 attr2 attr3 ... file.txt
@@ -773,10 +721,9 @@ sh("waul @deps src/boot.waul.sdoc") unless $$options{-W};
 file::write('boot/interpreter', retrieve('pp::js::boot-image'), mkpath => 1),
 chmod 0700, 'boot/interpreter';
 
-file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep s/^(sdoc::)?canard::examples\//examples\//, sort keys %data;
-file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep s/^(sdoc::)?canard::lib\//lib\//,           sort keys %data;
-file::write("$_.md",     retrieve("markdown::canard::$_"), mkpath => 1) for grep s/^sdoc::canard::lib\//lib\//,              sort keys %data;
-file::write("doc/$_.md", retrieve("markdown::note::$_"),   mkpath => 1) for grep s/^note:://,                                sort keys %data;
+file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep s/^(sdoc::)?canard::lib\//lib\//, sort keys %data;
+file::write("$_.md",     retrieve("markdown::canard::$_"), mkpath => 1) for grep s/^sdoc::canard::lib\//lib\//,    sort keys %data;
+file::write("doc/$_.md", retrieve("markdown::note::$_"),   mkpath => 1) for grep s/^note:://,                      sort keys %data;
 
 file::write("stdlib.canard", retrieve("wrapped-near.80::canard-pack::pp::sdoc::canard::stdlib"));
 

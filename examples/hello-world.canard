@@ -1,6 +1,0 @@
-nb [Hello world example
-    Prints the string "hello world" to stdout, then quits]
-
-say [hello world]
-= 'say [$<]
-= 'nb [%% 1 []]
