@@ -71,13 +71,20 @@ These provide a very simple base language that should be sufficient to write the
           append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
 
+          stack_depth(s)            = s ? 1 + stack_depth(s.t) : 0,
+
           default_bindings() = capture [
 
                      /* symbol table */ '='(stack, bindings)  = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
                                         '@'(stack, bindings)  = {h: bindings[stack.h.name()], t: stack.t},
 
-                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())              -then- stack.t,
-                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m') -then- stack,
+                             /* repl */ ls(stack, bindings)   = process.stdout.write(bindings /keys /seq -re- it.join(' ') + '\n') -then- stack,
+                                        depth(stack)          = {h: $.canard.syntax.atom(stack_depth(stack)), t: stack},
+                                        clear(stack)          = null,
+
+                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())                                   -then- stack.t,
+                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m')                      -then- stack,
+                                        '#<'(stack)           = process.stdout.write(new Buffer(1) <se> it[0] -eq- +stack.h.data) -then- stack.t,
 
               /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                      t: stack.t},
                                         '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)),       t: stack.t},

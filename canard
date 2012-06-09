@@ -258,8 +258,12 @@ ad -c js::|waul::|canard::examples
 __
 meta::alias('cl', 'ad -c canard::lib');
 meta::alias('cn', 'ad -c note::');
-meta::alias('cr', 'ad -c sdoc::canard::boot');
+meta::alias('cr', <<'__');
+ad -c canard::boot
+
+__
 meta::alias('eb', 'edit sdoc::waul::boot');
+meta::alias('ebb', 'edit sdoc::canard::boot/binary');
 meta::alias('ebi', 'edit sdoc::js::boot-image');
 meta::alias('er', 'edit sdoc::readme');
 meta::alias('erf', 'edit function::render');
@@ -460,6 +464,10 @@ my ($name, @stuff) = @_;
 @_ ? @stuff ? around_hook('alias', @_, sub {associate("alias::$name", join(' ', @stuff), execute => 1)})
             : retrieve("alias::$name") // "Undefined alias $name"
    : table_display([select_keys('--namespace' => 'alias')], [map retrieve($_), select_keys('--namespace' => 'alias')]);
+
+__
+meta::function('boot', <<'__');
+create("sdoc::canard::boot/$_[0]");
 
 __
 meta::function('canard-pack', <<'__');
@@ -2429,6 +2437,44 @@ return undef unless $_[0] =~ /^wrapped-near\.(\d+)::(.*)$/;
 defined retrieve($2) ? wrapped_near(retrieve($2), $1) : undef;
 
 __
+meta::sdoc('canard::lib/binary', <<'__');
+Binary emitters | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+These are a series of functions that allow you to represent numbers in various ways, most importantly in hexadecimal and binary. Rather than doing anything particularly creative, I'm just
+building up custom entries in the main symbol table. There are 256 for each of hexadecimal and binary:
+
+| b00000000
+  b00000001
+  b00000010
+  b00000011
+  ...
+  b11111111
+  x00
+  x01
+  x02
+  ...
+  xff
+
+Each of these just pushes the given number onto the stack; there is no runtime conversion.
+
+Base conversion.
+These functions convert decimal numbers to hex and binary, respectively. Each one operates on bytes and prepends zeroes to fill to eight bits.
+
+= '#16 [nb #* 2 [^1 [$+ %s $ $^ %s '0123456789abcdef & 15 >>> * 4] %% 2 [1 0 1]] %s ']
+= '#2  [nb #* 8 [^1 [$+ %s $ $^ %s '01               & 1  >>>]     %% 2 [1 0 1]] %s ']
+
+| #b n -> nb #* b [block] n ""
+
+| [block] i n s -> n ($+ %s ($ $^ %s 'alphabet & mask >>> i n) s)
+  %% 2 [1 0 1]                         i n s   = n i n s
+  ^1 [$+ $ $^ %s 'alphabet & mask >>>] n i n s = n ($+ %s ($ $^ %s 'alphabet & mask >>> i n) s)]
+
+Numeric constant definitions.
+This is simple enough. For each number, we just cons up that number to a list, convert the number to each base, and assign the function.
+
+__
 meta::sdoc('canard::lib/comments', <<'__');
 Canard standard library: comments | Spencer Tipping
 Licensed under the terms of the MIT source code license
@@ -2476,14 +2522,13 @@ Licensed under the terms of the MIT source code license
 Introduction.
 This library provides trivial functions to iterate over numeric quantities.
 
-= '#* [? [#* - 1 ^1 [^1 [.] %0]] [%% 2 []] %0]
+= '#* [? [#* ^2 [.] %% 2 [0 1 1 0] - 1] [%% 2 []] %0]
+   nb [#* n [f] x -> #* (n-1) [f] f (n-1) x
+       %% 2 [0 1 1 0] - 1 n [f] x               = (n-1) [f] [f] (n-1) x
+       #* ^2 [.]          (n-1) [f] [f] (n-1) x = #* (n-1) [f] f (n-1) x
 
-  nb [#* n [f] x -> #* (n-1) [f] f x
-      ^1 [^1 [.] %0] n [f] x   = n [f] f x
-      #* - 1         n [f] f x = #* (n-1) [f] f x
-
-      #* 0 [f] x -> x
-      %% 2 [] 0 [f] x = x]
+       #* 0 [f] x -> x
+       %% 2 [] 0 [f] x = x]
 
 __
 meta::sdoc('canard::lib/lexical', <<'__');
@@ -2594,6 +2639,7 @@ meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/lexical
 - include sdoc-packed::canard::lib/lists
 - include sdoc-packed::canard::lib/iteration
+- include sdoc-packed::canard::lib/binary
 - include sdoc-packed::canard::lib/functional
 - include sdoc-packed::canard::lib/stack
 - include sdoc-packed::canard::lib/comments
@@ -2707,13 +2753,20 @@ These provide a very simple base language that should be sufficient to write the
           append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
 
+          stack_depth(s)            = s ? 1 + stack_depth(s.t) : 0,
+
           default_bindings() = capture [
 
                      /* symbol table */ '='(stack, bindings)  = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
                                         '@'(stack, bindings)  = {h: bindings[stack.h.name()], t: stack.t},
 
-                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())              -then- stack.t,
-                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m') -then- stack,
+                             /* repl */ ls(stack, bindings)   = process.stdout.write(bindings /keys /seq -re- it.join(' ') + '\n') -then- stack,
+                                        depth(stack)          = {h: $.canard.syntax.atom(stack_depth(stack)), t: stack},
+                                        clear(stack)          = null,
+
+                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())                                   -then- stack.t,
+                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m')                      -then- stack,
+                                        '#<'(stack)           = process.stdout.write(new Buffer(1) <se> it[0] -eq- +stack.h.data) -then- stack.t,
 
               /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                      t: stack.t},
                                         '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h.data)),       t: stack.t},

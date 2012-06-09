@@ -50,15 +50,23 @@ return n?up(stack.t,n-1)
 return l.is_cons() ?append_items_to( {t:s,h:up(o, +l.h() .data) .h} ,o,l.t() ) 
 :s} ,stash_helper=function(n,b,s,bs) {;
 return n? {h:s.h,t:stash_helper(n-1,b,s.t,bs) } 
-:b.interpret(s,bs) } ,default_bindings=function() {;
+:b.interpret(s,bs) } ,stack_depth=function(s) {;
+return s?1+stack_depth(s.t) 
+:0} ,default_bindings=function() {;
 return $.merge( (function(xs) {var x,x0,xi,xl,xr;
 var xr=new xs.constructor() ;
-for(var k in xs)if(Object.prototype.hasOwnProperty.call(xs,k) )x=xs[k] ,xr[k] = ( {interpret:x} ) ;
+for(var k1 in xs)if(Object.prototype.hasOwnProperty.call(xs,k1) )x=xs[k1] ,xr[k1] = ( {interpret:x} ) ;
 return xr} ) .call(this, { '=' :function(stack,bindings) {;
 return(bindings[stack.h.name() ] =stack.t.h,stack.t.t) } , '@' :function(stack,bindings) {;
-return{h:bindings[stack.h.name() ] ,t:stack.t} } , '$<' :function(stack) {;
+return{h:bindings[stack.h.name() ] ,t:stack.t} } ,ls:function(stack,bindings) {;
+return(process.stdout.write( (function(it) {return it.join( ' ' ) } ) .call(this, ( (function(o) {var ks= [] ;
+for(var k in o)Object.prototype.hasOwnProperty.call(o,k) &&ks.push(k) ;
+return ks} ) .call(this, (bindings) ) ) ) + '\n' ) ,stack) } ,depth:function(stack) {;
+return{h:$.canard.syntax.atom(stack_depth(stack) ) ,t:stack} } ,clear:function(stack) {;
+return null} , '$<' :function(stack) {;
 return(console.log(stack.h.toString() ) ,stack.t) } , '$|' :function(stack) {;
-return(console.log( ( '\033[1;32m' + (stack.h) + '\033[0;0m' ) ) ,stack) } , '$#' :function(stack) {;
+return(console.log( ( '\033[1;32m' + (stack.h) + '\033[0;0m' ) ) ,stack) } , '#<' :function(stack) {;
+return(process.stdout.write( (function(it) {return it[0] = +stack.h.data,it} ) .call(this, (new Buffer(1) ) ) ) ,stack.t) } , '$#' :function(stack) {;
 return{h:$.canard.syntax.atom(stack.h.data.length) ,t:stack.t} } , '$' :function(stack) {;
 return{h:$.canard.syntax.atom(String.fromCharCode( +stack.h.data) ) ,t:stack.t} } , '$^' :function(stack) {;
 return{h:$.canard.syntax.atom(stack.t.h.data.charCodeAt( +stack.h.data) ) ,t:stack.t.t} } , '$+' :function(stack) {;
