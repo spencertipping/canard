@@ -8,3 +8,8 @@ symbol is quoted:
 
 In this case, the jump address of 'foo is assigned to be the code address of 'bar. This works since the symbol's string data is encoded as a nop and will therefore be ignored by the processor.
 So technically, each 'inlined' = operation ends up adding two instructions of overhead -- but does not use any additional stack frames, making it a function alias from a space perspective.
+
+# Quoting
+
+Is quoting native to the syntax? It doesn't need to be; we can get a quoted symbol by taking the head of a single-element list: :h [foo] is equivalent to 'foo, for example. Maybe quotation is
+some form of prefix macro implemented within Canard itself.
