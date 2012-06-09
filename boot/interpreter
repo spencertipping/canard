@@ -792,15 +792,16 @@ caterwaul(':all')(function ($) {
                                                                -then- original.apply(this, arguments),
                                  where [original = it.execute]],
   when.false,
+  Number.prototype.is_cons() = false,
 
   process.argv.length > 2 && process.argv[2] !== '-i' -se [process.argv.shift(), when.it] ? start_from_file() : start_from_repl(),
-  Number.prototype.is_cons() = false,
 
   where [start_from_file() = $.canard(process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] -seq -re- it.join('\n\n')),
 
          stack             = null,
          bindings          = $.canard.default_bindings(),
          start_from_repl() = process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] *![stack = $.canard.parse(x).interpret(stack, bindings)] -seq
+                             -then- process.stderr.write('\033[1;33mwarning: nonempty stack after loading files: #{print_stack(stack)}\033[0;0m\n') /unless [stack === null]
                              -then- require('repl').start('canard> ', undefined, repl_function, undefined, true)
                              -where [repl_function(x, _1, _2, cc) = cc(stack -eq- $.canard.parse(filter(x)).interpret(stack, bindings) <then> undefined, rescue.e)
                                                                     -then- process.stderr.write('\033[s\033[80G\033[1;32m#{print_stack(stack)}\033[u\033[0;0m'),

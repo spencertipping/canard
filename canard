@@ -276,6 +276,7 @@ sh waul -e deps/regexp.js -e deps/parser.js -e src/boot.js -c :all
 
 __
 meta::alias('repl', 'sh boot/interpreter');
+meta::alias('sls', 'sh wc stdlib.canard');
 meta::alias('sr', 'srepl');
 meta::alias('srepl', <<'__');
 sh boot/interpreter -i stdlib.canard
@@ -2486,16 +2487,6 @@ Functions can be objectified (converted to anonymous list form) by using @ on an
 
 = '@: [? [] [@] :? %0]
 
-Recursive map.
-Like the regular map function, but distributes over sub-lists recursively. This is primarily useful for editing functions in their list form.
-
-| :** [f] :: x y -> :* [:** [f]] :: x y
-  :** [f] _      -> f _
-
-You can use it like this: :** [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6].
-
-= ':** [? [:* :: :: [] ':**] [.] :? %1]
-
 __
 meta::sdoc('canard::lib/iteration', <<'__');
 Canard iteration library | Spencer Tipping
@@ -2546,11 +2537,29 @@ Licensed under the terms of the MIT source code license
 Introduction.
 This library defines useful list functions, including map, flatmap, filter, append, etc. All traversal goes from right to left, as per the natural cons cell ordering.
 
+Recursive flatmap definition.
+This is the :** equivalent of flat-map. It gives you the flexibility to replace one item with many, even within a sublist. Behavior is this:
+
+| :~* [f] :: x y -> :: [] :~ [:~* [f]] :: x y   (lists are singly-mapped)
+  :~* [f] _      -> :! f _                      (item results are coerced into lists if not already)
+
+= ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %1]
+
 Flatmap definition.
 Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
 map function.
 
 = ':~ :** @o :/ ':* [':~] :/ ':: [':+] @ ':*
+
+Recursive map.
+Like the regular map function, but distributes over sub-lists recursively. This is primarily useful for editing functions in their list form.
+
+| :** [f] :: x y -> :* [:** [f]] :: x y
+  :** [f] _      -> f _
+
+You can use it like this: :** [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6]. Note that you cannot use this function until map (:*) has been defined.
+
+= ':** [? [:* :: [:**]] [.] :? %1]
 
 Map-function template.
 Here is the derivation for flatmap:
@@ -2581,8 +2590,9 @@ This is the usual recursive length function over lists.
 = ':# [? [+ 01 :# :t] [00 %v] :? %0]
 
 Cons accessors.
-These retrieve the individual pieces of a cons cell.
+These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons.
 
+= ':! [? [] [:: []] :? %0]
 = ':h [%v :^]
 = ':t [%% 02 [00] :^]
 
@@ -2594,21 +2604,24 @@ Licensed under the terms of the MIT source code license
 Introduction.
 This library implements some functions to make numeric manipulation more convenient. Functions provided include:
 
-| 1. Single-digit numeric aliases; e.g. 1 -> 01, 2 -> 02, ... 9 -> 09
-  2. Single-digit numeric adjustments: +1 -> [+ 01], -1 -> [- 01], ... +9 -> [+ 09] (same for * and /)
+| 1. Single-digit numeric aliases; e.g. 1 -> 01, 2 -> 02, ... 9 -> 09, ..., f -> 0f
+  2. Single-digit numeric adjustments: +1 -> [+ 01], -1 -> [- 01], ... +9 -> [+ 09], ..., +f -> [+ 0f] (same for * and /)
+  3. Single-digit shifts: >>1 >>2, <<1, <<2, ..., <<f, >>f
 
-#* 0a [= #d %s :: [] $+ '0 #d %0  =#:prefix-op '+ %0  =#:prefix-op '* %0
-                                  =#:prefix-op '- %0  =#:prefix-op '/ %0]
+#* 0a :~* :/ '#d [[$ + 30]]
+#* 06 :~* :/ '#d [[$ + 61]] %0
 
-= '=#:prefix-op [= $+ ^1 [#d ^1 [:: :: [] ^1 [$+ '0 #d]]] %% 02 [00 01 00 01]]
+      :~* @o :/ '=#d [[= #d %s :: [] $+ '0 #d %0]]
+             :/ '=#p [[= $+ ^1 [#d ^1 [:: :: [] ^1 [$+ '0 #d]]] %% 02 [00 01 00 01]]]
 
-| =#:prefix-op prefix n -> = $+ prefix #d n :: :: [] prefix $+ '0 n
+          [=#d  =#p '+ %0  =#p '* %0  =#p '<< %0
+                =#p '- %0  =#p '/ %0  =#p '>> %0]
+
+| =#p prefix n -> = $+ prefix #d n :: :: [] prefix $+ '0 n
   %% 2 [0 1 0 1]  prefix n                         = prefix n prefix n
   %^ 3 [$+ '0 #d] prefix n prefix n                = prefix n prefix $+ '0 #d n
   ^2 [:: :: []]   prefix n prefix $+ '0 n          = prefix n :: :: [] prefix $+ '0 #d n
   = $+ ^1 [#d]    prefix n :: :: [] prefix $+ '0 n = = $+ prefix #d n :: :: [] prefix $+ '0 #d n
-
-= '#d [$ + 30]
 
 __
 meta::sdoc('canard::lib/stack', <<'__');
@@ -2644,8 +2657,8 @@ This library provides a bunch of stack functions that prevent you from having to
 __
 meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/lexical
-- include sdoc-packed::canard::lib/lists
 - include sdoc-packed::canard::lib/numbers
+- include sdoc-packed::canard::lib/lists
 - include sdoc-packed::canard::lib/iteration
 - include sdoc-packed::canard::lib/functional
 - include sdoc-packed::canard::lib/stack
@@ -2669,15 +2682,16 @@ caterwaul(':all')(function ($) {
                                                                -then- original.apply(this, arguments),
                                  where [original = it.execute]],
   when.false,
+  Number.prototype.is_cons() = false,
 
   process.argv.length > 2 && process.argv[2] !== '-i' -se [process.argv.shift(), when.it] ? start_from_file() : start_from_repl(),
-  Number.prototype.is_cons() = false,
 
   where [start_from_file() = $.canard(process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] -seq -re- it.join('\n\n')),
 
          stack             = null,
          bindings          = $.canard.default_bindings(),
          start_from_repl() = process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] *![stack = $.canard.parse(x).interpret(stack, bindings)] -seq
+                             -then- process.stderr.write('\033[1;33mwarning: nonempty stack after loading files: #{print_stack(stack)}\033[0;0m\n') /unless [stack === null]
                              -then- require('repl').start('canard> ', undefined, repl_function, undefined, true)
                              -where [repl_function(x, _1, _2, cc) = cc(stack -eq- $.canard.parse(filter(x)).interpret(stack, bindings) <then> undefined, rescue.e)
                                                                     -then- process.stderr.write('\033[s\033[80G\033[1;32m#{print_stack(stack)}\033[u\033[0;0m'),
