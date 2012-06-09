@@ -6,15 +6,15 @@ Licensed under the terms of the MIT source code license
 This serves the purpose of something like 'where' in functional languages. The idea is to provide a series of local definitions that will be inlined into the form in question. This is done
 first by defining a substitution function, then deriving a recursive variant from that.
 
-    :/ symbol replacement -> [? :: replacement 'nb [] $= 'symbol %0]
+    :/ symbol replacement -> [? :: replacement '%v [] $= 'symbol %0]
     %s $:                     symbol replacement                      = replacement 'symbol
-    :: %s ''nb                replacement 'symbol                     = (:: replacement 'nb) 'symbol
-    ^1 [:: %s '%0 :: [[] $=]] (:: replacement 'nb) 'symbol            = (:: replacement 'nb) [[] $= 'symbol %0]
-    :+ [?] :+ :: []           (:: replacement 'nb) [[] $= 'symbol %0] = [? (:: replacement 'nb) [] $= 'symbol %0]
+    :: %s ''%v                replacement 'symbol                     = (:: replacement '%v) 'symbol
+    ^1 [:: %s '%0 :: [[] $=]] (:: replacement '%v) 'symbol            = (:: replacement '%v) [[] $= 'symbol %0]
+    :+ [?] :+ :: []           (:: replacement '%v) [[] $= 'symbol %0] = [? (:: replacement '%v) [] $= 'symbol %0]
 
-The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :* or :**.
+The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, or :**.
 
-    = ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s 'nb %s $:]
+    = ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
 
 # Composition
 

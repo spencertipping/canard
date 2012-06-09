@@ -373,6 +373,7 @@ meta::cache('parent-identification', <<'__');
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
 binary 93194ecf50e38f2adb6e273909e007b5
 canard-object 3d87f1a4b0694cfebcbfd589fa5ed5dd
+git-integration 9fabb9b6f2f374c35ddcc26549ac2b65
 notes a9e5975593ed5d90d943ad98405c71e5
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
@@ -506,6 +507,31 @@ my $name = pop @_;
 file::write($name, join "\n", retrieve(@_));
 __
 meta::function('extern', '&{$_[0]}(retrieve(@_[1 .. $#_]));');
+meta::function('gU', <<'__');
+sh("git push @_");
+
+__
+meta::function('ga', <<'__');
+sh("git add @_");
+
+__
+meta::function('gc', <<'__');
+around_hook('git-commit', @_, sub {
+  my $message = join ' ', @_;
+  $message =~ s/'/\\'/g;
+  enable();
+  sh("git commit -a -m '$message'");
+  disable()});
+
+__
+meta::function('gd', <<'__');
+sh('git diff');
+
+__
+meta::function('gl', <<'__');
+sh("git log @_");
+
+__
 meta::function('grep', <<'__');
 # Looks through attributes for a pattern. Usage is grep pattern [options], where
 # [options] is the format as provided to select_keys.
@@ -535,6 +561,14 @@ unless ($$options{'-C'}) {
   s/^/\033[1;32m/o && s/$/\033[0;0m/o for @m_line_numbers}
 
 table_display([@m_attributes], [@m_line_numbers], [@m_lines]);
+__
+meta::function('gs', <<'__');
+sh('git status');
+
+__
+meta::function('gu', <<'__');
+sh("git pull @_");
+
 __
 meta::function('hash', 'fast_hash(@_);');
 meta::function('hook', <<'__');
@@ -2005,11 +2039,11 @@ function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
 function::child                         f5764adf0b4e892f147a9b6b68d4816f
 function::clone                         bb42e04e10a8e54e88786b6fbc4fb213
 function::cp                            3fe69d1b58d90045ad520048977538c4
-function::create                        3010d55f4dfa59a998742e07823ed54d
+function::create                        d65deb895a848b32d3d7ed92e81e8cb0
 function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
 function::cwd                           fd9b58e76c474a8fe93dc3abdccb8857
 function::disable                       53b449708cc2ffdefa352e53bb7d847d
-function::edit                          5778be977436f7245cf990bf95b6da34
+function::edit                          735dbdece3998a4478bec3b7bdc04f03
 function::edit-self                     71790df00f941ed9b56e17f789b93871
 function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
 function::export                        2374cd1dbf7616cb38cafba4e171075d
@@ -2154,6 +2188,17 @@ parent::/home/spencertipping/conjectures/perl-objects/sdoc  4049d6a1b51e739f038d
 parent::preprocessor                                        88f8be6f851d5f9159d7996dd67ab875
 parent::text                                                727dd08e33498dacbaf10aff70d58487
 retriever::canard-pack                                      0752d53db63bb0fc6df5bfc16c3eac10
+
+__
+meta::parent('git-integration', <<'__');
+function::gU                             f15ab8170ea981dd7b216c75af5d3f63
+function::ga                             505b3d9a22ca7cf04c60bda01ff3f140
+function::gc                             0378d3a25fad4fa0feff9cb50c0c5d89
+function::gd                             cff1e868c7c69780a2263c8c7fd75f90
+function::gl                             492e2750409588f8b61a8b8e339e42c1
+function::gs                             4ea8aeccb36ab83702062e4359e8600b
+function::gu                             fdd2e61e0ea981dda6d407df63c0e47e
+parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
 
 __
 meta::parent('notes', <<'__');
@@ -2427,7 +2472,7 @@ first by defining a substitution function, then deriving a recursive variant fro
   ^1 [:: %s '%0 :: [[] $=]] (:: replacement '%v) 'symbol            = (:: replacement '%v) [[] $= 'symbol %0]
   :+ [?] :+ :: []           (:: replacement '%v) [[] $= 'symbol %0] = [? (:: replacement '%v) [] $= 'symbol %0]
 
-The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :* or :**.
+The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, or :**.
 
 = ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
 
