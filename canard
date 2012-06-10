@@ -2520,10 +2520,10 @@ Licensed under the terms of the MIT source code license
 Introduction.
 This library provides trivial functions to iterate over numeric quantities.
 
-= '#* [? [#* ^2 [.] %2abab - 01] [%2] %0a]
+= '#* [? [#* ^2 [.] %2baab - 01] [%2] %0a]
 
 | #* n [f] x -> #* (n-1) [f] f (n-1) x
-  %2abab - 1 n [f] x               = (n-1) [f] [f] (n-1) x
+  %2baab - 1 n [f] x               = (n-1) [f] [f] (n-1) x
   #* ^2 [.]  (n-1) [f] [f] (n-1) x = #* (n-1) [f] f (n-1) x
 
 | #* 0 [f] x -> x
@@ -2678,12 +2678,12 @@ hex codes fall into the range 30-39, and the other is a-f, whose hex codes fall 
              @/ '=#p :[= $+ ^1 [#d ^1 [:: : ^1 [$+ '0 #d]]] %2abab]
 
           [=#d  =#p '+ %0a  =#p '* %0a  =#p '<< %0a
-                =#p '- %0a  =#p '/ %0a  =#p '>> %0a]
+                =#p '- %0a  =#p '/ %0a  =#p '>> %0a  =#p '>>> %0a]
 
 __
 meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/lexical
-- include sdoc-packed::canard::lib/numbers
+- comment - include sdoc-packed::canard::lib/numbers
 - include sdoc-packed::canard::lib/lists
 - include sdoc-packed::canard::lib/iteration
 - include sdoc-packed::canard::lib/functional
@@ -2714,7 +2714,7 @@ caterwaul(':all')(function ($) {
   where [start_from_file() = $.canard(process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] -seq -re- it.join('\n\n')),
 
          stack             = null,
-         bindings          = $.canard.default_bindings(),
+         bindings          = $.canard.default_bindings() -se- console.log('#{it /keys -seq -re- it.length} bindings'),
          start_from_repl() = process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] *![stack = $.canard.parse(x).interpret(stack, bindings)] -seq
                              -then- process.stderr.write('\033[1;33mwarning: nonempty stack after loading files: #{print_stack(stack)}\033[0;0m\n') /unless [stack === null]
                              -then- require('repl').start('canard> ', undefined, repl_function, undefined, true)
@@ -2805,7 +2805,7 @@ These provide a very simple base language that should be sufficient to write the
                      /* symbol table */ '='(stack, bindings)  = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
                                         '@'(stack, bindings)  = {h: bindings[stack.h.name()], t: stack.t},
 
-                             /* repl */ ls(stack, bindings)   = process.stdout.write(bindings /keys /seq -re- it.join(' ') + '\n') -then- stack,
+                             /* repl */ ls(stack, bindings)   = process.stdout.write(bindings /keys /seq -re- it.sort().join(' ') + '\n') -then- stack,
                                         depth(stack)          = {h: $.canard.syntax.atom(stack_depth(stack)), t: stack},
                                         clear(stack)          = null,
 
@@ -2906,8 +2906,8 @@ syn match   canard_bracket              /:\?\[/
 syn match   canard_bracket              /]/
 syn match   canard_number               /\<[0-9a-f][0-9a-f]\>/
 
-syn match   canard_intrinsic            /\<%[01234][a-d]\{0,4\}\>/
-syn match   canard_intrinsic            /\<^[1234]\>/
+syn match   canard_stack_intrinsic      /\<%[01234][a-d]\{0,4\}\>/
+syn match   canard_stack_intrinsic      /\<^[1234]\>/
 
 syn keyword canard_def                  =
 syn keyword canard_intrinsic            $< $\| $# $ $^ $+ $: $. $= ? :? /? :: :^ . @ !
@@ -2920,6 +2920,7 @@ hi link canard_def                      Keyword
 hi link canard_bracket                  Special
 hi link canard_number                   Number
 hi link canard_intrinsic                Type
+hi link canard_stack_intrinsic          Operator
 
 __
 internal::main();

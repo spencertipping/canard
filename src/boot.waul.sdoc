@@ -76,7 +76,7 @@ These provide a very simple base language that should be sufficient to write the
                      /* symbol table */ '='(stack, bindings)  = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
                                         '@'(stack, bindings)  = {h: bindings[stack.h.name()], t: stack.t},
 
-                             /* repl */ ls(stack, bindings)   = process.stdout.write(bindings /keys /seq -re- it.join(' ') + '\n') -then- stack,
+                             /* repl */ ls(stack, bindings)   = process.stdout.write(bindings /keys /seq -re- it.sort().join(' ') + '\n') -then- stack,
                                         depth(stack)          = {h: $.canard.syntax.atom(stack_depth(stack)), t: stack},
                                         clear(stack)          = null,
 

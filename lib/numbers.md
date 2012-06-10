@@ -25,4 +25,4 @@ hex codes fall into the range 30-39, and the other is a-f, whose hex codes fall 
                  @/ '=#p :[= $+ ^1 [#d ^1 [:: : ^1 [$+ '0 #d]]] %2abab]
 
               [=#d  =#p '+ %0a  =#p '* %0a  =#p '<< %0a
-                    =#p '- %0a  =#p '/ %0a  =#p '>> %0a]
+                    =#p '- %0a  =#p '/ %0a  =#p '>> %0a  =#p '>>> %0a]

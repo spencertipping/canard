@@ -58,7 +58,7 @@ for(var k1 in xs)if(Object.prototype.hasOwnProperty.call(xs,k1) )x=xs[k1] ,xr[k1
 return xr} ) .call(this, { '=' :function(stack,bindings) {;
 return(bindings[stack.h.name() ] =stack.t.h,stack.t.t) } , '@' :function(stack,bindings) {;
 return{h:bindings[stack.h.name() ] ,t:stack.t} } ,ls:function(stack,bindings) {;
-return(process.stdout.write( (function(it) {return it.join( ' ' ) } ) .call(this, ( (function(o) {var ks= [] ;
+return(process.stdout.write( (function(it) {return it.sort() .join( ' ' ) } ) .call(this, ( (function(o) {var ks= [] ;
 for(var k in o)Object.prototype.hasOwnProperty.call(o,k) &&ks.push(k) ;
 return ks} ) .call(this, (bindings) ) ) ) + '\n' ) ,stack) } ,depth:function(stack) {;
 return{h:$.canard.syntax.atom(stack_depth(stack) ) ,t:stack} } ,clear:function(stack) {;
