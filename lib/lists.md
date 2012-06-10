@@ -14,15 +14,29 @@ This is the :** equivalent of flat-map. It gives you the flexibility to replace 
 
     = ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %1]
 
-# List folds
+# List fold
 
-These two functions fold up the elements of lists, passing them to a binary function. This function, presumably, returns one value for every two it consumes; but it is free to do other things
-as well.
+This function folds up the elements of a list, passing them to a binary function. The function, presumably, returns one value for every two it consumes; but it is free to do other things as
+well.
 
     :/ n [f] :: x y -> f :/ n [f] x y
     | :/ n [f] []     -> n
 
     = ':/ [? [. ^1 [:/] %1 ^2 [:^]] [^1 [%% 02 []]] :? %2]
+
+# List filter
+
+Expects a conditional argument for each element; this result is then given to ? to decide whether to keep or discard the element in question. The filter function should consume the element.
+
+    :% [f] :: x y -> ? [:: :% [f] x y] [:% [f] x] (f y)
+    ^1 [:^]          [f] :: x y         = [f] x y
+    %% 3 [0 1 0 2 2] [f] x y            = [f] x [f] y y
+    :% ^2 [.]        [f] x [f] y y      = (:% [f] x) (f y) y
+    ? [:: %s] [] %s  (:% [f] x) (f y) y = ? [:: (:% [f] x) y] [(:% [f] x)] (f y)
+
+    :% [f] []     -> []
+
+    = ':% [? [? [:: %s] [] %s :% ^2 [.] %% 03 [00 01 00 02 02] ^1 [:^]] [%v] :? %1]
 
 # Flatmap definition
 

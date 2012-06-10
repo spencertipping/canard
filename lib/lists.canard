@@ -12,14 +12,27 @@ nb[   :~* [f] _      -> :! f _                      (item results are coerced in
 
 = ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %1]
 
-nb[ List folds. ]
-nb[ These two functions fold up the elements of lists, passing them to a binary function. This function, presumably, returns one value for every two it consumes; but it is free to do other things ]
-nb[ as well. ]
+nb[ List fold. ]
+nb[ This function folds up the elements of a list, passing them to a binary function. The function, presumably, returns one value for every two it consumes; but it is free to do other things as ]
+nb[ well. ]
 
 nb[ | :/ n [f] :: x y -> f :/ n [f] x y ]
 nb[ | :/ n [f] []     -> n ]
 
 = ':/ [? [. ^1 [:/] %1 ^2 [:^]] [^1 [%% 02 []]] :? %2]
+
+nb[ List filter. ]
+nb[ Expects a conditional argument for each element; this result is then given to ? to decide whether to keep or discard the element in question. The filter function should consume the element. ]
+
+nb[ | :% [f] :: x y -> ? [:: :% [f] x y] [:% [f] x] (f y) ]
+nb[   ^1 [:^]          [f] :: x y         = [f] x y ]
+nb[   %% 3 [0 1 0 2 2] [f] x y            = [f] x [f] y y ]
+nb[   :% ^2 [.]        [f] x [f] y y      = (:% [f] x) (f y) y ]
+nb[   ? [:: %s] [] %s  (:% [f] x) (f y) y = ? [:: (:% [f] x) y] [(:% [f] x)] (f y) ]
+
+nb[ | :% [f] []     -> [] ]
+
+= ':% [? [? [:: %s] [] %s :% ^2 [.] %% 03 [00 01 00 02 02] ^1 [:^]] [%v] :? %1]
 
 nb[ Flatmap definition. ]
 nb[ Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the ]

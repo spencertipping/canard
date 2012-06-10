@@ -16,3 +16,24 @@ All forms of shuffling, dropping, and duplication can be generalized into a perm
 
 The idea is that the top n items would be dropped, then replaced by items at i1, i2, ..., ik in the original stack. For instance, swap would be defined as 'permute 2 [1 0]'. Drop is 'permute
 1 []'. Dup is 'permute 1 [0 0]'. Get is 'permute 0 cons []'.
+
+# A better idea
+
+There is no reason to make permutation general-purpose, since arguably the stack is used with fixed arity. Therefore, we can abbreviate by providing a series of stack transformations up-front,
+akin to the usual dup, swap, drop, etc. These are more compact, however:
+
+    %a     <- dup
+    %b     <- nip
+    %c     <- nip2
+    %2ba   <- swap
+    %3cba  <- swap2
+    %4badc <- swap pairs
+    ...
+
+Up to four stack items can be rearranged into any order. This requires about 300 predefined functions, but these functions can be assembled into a small algebra. Stashing also works by using
+predefined functions for up to four levels:
+
+    ^1 [f] x y z     = x f y z
+    ^2 [f] x y z     = x y f z
+    ^3 [f] x y z t   = x y z f t
+    ^4 [f] x y z t u = x y z t f u
