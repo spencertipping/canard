@@ -65,6 +65,15 @@ nb[ This is the usual recursive length function over lists. ]
 
 = ':# [? [+ 01 :# :t] [00 %v] :? %0]
 
+nb[ List access. ]
+nb[ This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, this function pushes [] onto the stack. ]
+
+nb[ | :@ n :: x y -> :@ (n-1) x ]
+nb[   :@ 0 :: x y -> y ]
+nb[   :@ n [] _   -> [] ]
+
+= ':@ [? [? [:@ - 01 ^1 [:t]] [:h %v] :? %0] [%v] %0]
+
 nb[ Cons accessors. ]
 nb[ These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons. ]
 

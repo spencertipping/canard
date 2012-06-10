@@ -119,6 +119,6 @@ These provide a very simple base language that should be sufficient to write the
 
               numeric_bindings()    = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
               arithmetic_bindings() = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
-                                      *[[x, {interpret: "function (stack) {return {h: stack.t.h #{x} stack.h, t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
+                                      *[[x, {interpret: "function (stack) {return {h: +(stack.t.h #{x} stack.h), t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
 
       -using- caterwaul.parser});

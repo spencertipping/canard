@@ -73,6 +73,16 @@ This is the usual recursive length function over lists.
 
     = ':# [? [+ 01 :# :t] [00 %v] :? %0]
 
+# List access
+
+This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, this function pushes [] onto the stack.
+
+    :@ n :: x y -> :@ (n-1) x
+    :@ 0 :: x y -> y
+    :@ n [] _   -> []
+
+    = ':@ [? [? [:@ - 01 ^1 [:t]] [:h %v] :? %0] [%v] %0]
+
 # Cons accessors
 
 These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons.

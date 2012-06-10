@@ -102,7 +102,7 @@ i<l;
 return r} ) .call(this, ( (function(xs) {var x,x0,xi,xl,xr;
 for(var xr=new xs.constructor() ,xi=0,xl=xs.length;
 xi<xl;
- ++xi)x=xs[xi] ,xr.push( ( [x, {interpret:$.compile($.parse( ( "function (stack) {return {h: stack.t.h " + (x) + " stack.h, t: stack.t.t}}" ) ) ) } ] ) ) ;
+ ++xi)x=xs[xi] ,xr.push( ( [x, {interpret:$.compile($.parse( ( "function (stack) {return {h: +(stack.t.h " + (x) + " stack.h), t: stack.t.t}}" ) ) ) } ] ) ) ;
 return xr} ) .call(this, [ '+' , '-' , '*' , '/' , '%' , '>>' , '<<' , '>>>' , '|' , '&' , '^' , '<' , '>' , '<=' , '>=' , '===' , '!==' , '==' , '!=' ] ) ) ) } ;
 return $.merge( ($.canard=function(source,stack,bindings) {;
 return $.canard.parse(source) .interpret(stack||null,$.merge( {} ,$.canard.default_bindings() ,bindings) ) } ) ,statics() ) } ) .call(this) } ) .call(this) } ) ;
