@@ -4,10 +4,10 @@ nb[ Licensed under the terms of the MIT source code license ]
 nb[ Introduction. ]
 nb[ This library provides trivial functions to iterate over numeric quantities. ]
 
-= '#* [? [#* ^2 [.] %2baab - 01] [%2] %0a]
+= '#* [? [#* ^2 [.] %2abba - 01] [%2] %0a]
 
 nb[ | #* n [f] x -> #* (n-1) [f] f (n-1) x ]
-nb[   %2baab - 1 n [f] x               = (n-1) [f] [f] (n-1) x ]
+nb[   %2abba - 1 n [f] x               = (n-1) [f] [f] (n-1) x ]
 nb[   #* ^2 [.]  (n-1) [f] [f] (n-1) x = #* (n-1) [f] f (n-1) x ]
 
 nb[ | #* 0 [f] x -> x ]
