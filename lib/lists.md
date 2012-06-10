@@ -75,13 +75,9 @@ This is the usual recursive length function over lists.
 
 # List access
 
-This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, this function pushes [] onto the stack.
+This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, an error occurs.
 
-    :@ n :: x y -> :@ (n-1) x
-    :@ 0 :: x y -> y
-    :@ n [] _   -> []
-
-    = ':@ [? [? [:@ - 01 ^1 [:t]] [:h %v] :? %0] [%v] %0]
+    = ':@ [:h #* %s [:t %v]]
 
 # Cons accessors
 

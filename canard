@@ -2599,13 +2599,9 @@ This is the usual recursive length function over lists.
 = ':# [? [+ 01 :# :t] [00 %v] :? %0]
 
 List access.
-This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, this function pushes [] onto the stack.
+This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, an error occurs.
 
-| :@ n :: x y -> :@ (n-1) x
-  :@ 0 :: x y -> y
-  :@ n [] _   -> []
-
-= ':@ [? [? [:@ - 01 ^1 [:t]] [:h %v] :? %0] [%v] %0]
+= ':@ [:h #* %s [:t %v]]
 
 Cons accessors.
 These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons. : is a unary 'return' function for the list monad.
@@ -2641,7 +2637,7 @@ hex codes fall into the range 30-39, and the other is a-f, whose hex codes fall 
 #* 06 :~* @/ '#d :[$ + 61] %0
 
       :~* @o @/ '=#d :[= #d %s :: [] $+ '0 #d %0]
-             @/ '=#p :[= $+ ^1 [#d] ^2 [:: :: []] %^ 03 [$+ '0 #d] %% 02 [00 01 00 01]]
+             @/ '=#p :[= $+ ^1 [#d ^1 [:: :: [] ^1 [$+ '0 #d]]] %% 02 [00 01 00 01]]
 
           [=#d  =#p '+ %0  =#p '* %0  =#p '<< %0
                 =#p '- %0  =#p '/ %0  =#p '>> %0]
