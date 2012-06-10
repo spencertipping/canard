@@ -11,7 +11,7 @@ nb[   :: %s ''%v                replacement 'symbol                     = (:: re
 nb[   ^1 [:: %s '%0 :: [[] $=]] (:: replacement '%v) 'symbol            = (:: replacement '%v) [[] $= 'symbol %0] ]
 nb[   :+ [?] :+ :: []           (:: replacement '%v) [[] $= 'symbol %0] = [? (:: replacement '%v) [] $= 'symbol %0] ]
 
-nb[ The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, or :**. ]
+nb[ The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, :**, or :~*. ]
 
 = ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
 

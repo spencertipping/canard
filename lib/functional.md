@@ -12,7 +12,7 @@ first by defining a substitution function, then deriving a recursive variant fro
     ^1 [:: %s '%0 :: [[] $=]] (:: replacement '%v) 'symbol            = (:: replacement '%v) [[] $= 'symbol %0]
     :+ [?] :+ :: []           (:: replacement '%v) [[] $= 'symbol %0] = [? (:: replacement '%v) [] $= 'symbol %0]
 
-The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, or :**.
+The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, :**, or :~*.
 
     = ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
 
