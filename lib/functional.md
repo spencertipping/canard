@@ -6,15 +6,15 @@ Licensed under the terms of the MIT source code license
 This serves the purpose of something like 'where' in functional languages. The idea is to provide a series of local definitions that will be inlined into the form in question. This is done
 first by defining a substitution function, then deriving a recursive variant from that.
 
-    @/ symbol replacement -> [? :: replacement '%v [] $= 'symbol %0]
-    %s $:                     symbol replacement                      = replacement 'symbol
-    :: %s ''%v                replacement 'symbol                     = (:: replacement '%v) 'symbol
-    ^1 [:: %s '%0 :: [[] $=]] (:: replacement '%v) 'symbol            = (:: replacement '%v) [[] $= 'symbol %0]
-    :+ [?] :+ :: []           (:: replacement '%v) [[] $= 'symbol %0] = [? (:: replacement '%v) [] $= 'symbol %0]
+    @/ symbol replacement -> [? :: replacement '%1 [] $= 'symbol %0a]
+    %2ba $:                      symbol replacement                       = replacement 'symbol
+    :: %2ba ''%1                 replacement 'symbol                      = (:: replacement '%1) 'symbol
+    ^1 [:: %2ba '%0a :: [[] $=]] (:: replacement '%1) 'symbol             = (:: replacement '%1) [[] $= 'symbol %0a]
+    :+ [?] :+ :: []              (:: replacement '%1) [[] $= 'symbol %0a] = [? (:: replacement '%1) [] $= 'symbol %0a]
 
 The @/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, :**, or :~*.
 
-    = '@/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
+    = '@/ [:+ [?] :+ :: [] ^1 [:: %2ba '%0a :: [[] $=]] :: %2ba '%1 %2ba $:]
 
 # Composition
 
@@ -26,4 +26,4 @@ Functions can be composed by appending their list forms. . @o f g x is the same 
 
 Functions can be objectified (converted to anonymous list form) by using @ on any symbols that are present. Lists pass through unmodified, since they are already functions.
 
-    = '@: [? [] [@] :? %0]
+    = '@: [? [] [@] :? %0a]

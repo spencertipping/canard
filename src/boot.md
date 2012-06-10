@@ -73,7 +73,6 @@ These provide a very simple base language that should be sufficient to write the
               up(stack, n)              = n ? up(stack.t, n - 1) : stack,
               append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
               stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
-
               stack_depth(s)            = s ? 1 + stack_depth(s.t) : 0,
 
               default_bindings() = capture [
@@ -101,9 +100,6 @@ These provide a very simple base language that should be sufficient to write the
                           /* conditional */ '?'(stack, bindings)  = +stack.t.t.h ? stack  .h.interpret(stack.t.t.t, bindings)
                                                                                  : stack.t.h.interpret(stack.t.t.t, bindings),
 
-                          /* permutation */ '%%'(stack)           = append_items_to(stack.t.t /-up/ +stack.h, stack.t.t, stack.t.h),
-                                            '%^'(stack, bindings) = stash_helper(+stack.h, stack.t.h, stack.t.t, bindings),
-
                         /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil(),  t: stack.t},
                                             ':?'(stack)           = {h: +stack.h.is_cons(), t: stack.t},
                                             '!'(stack)            = {h: +!stack.h,          t: stack.t},
@@ -114,11 +110,23 @@ These provide a very simple base language that should be sufficient to write the
 
                                  /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
 
+                                   /          stash_bindings()
+                                   /          permutation_bindings()
                                    /          numeric_bindings()
                                    /-$.merge/ arithmetic_bindings(),
 
-              numeric_bindings()    = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
-              arithmetic_bindings() = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
-                                      *[[x, {interpret: "function (stack) {return {h: +(stack.t.h #{x} stack.h), t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
+              stash_bindings()       = ni[1, 4] *[['^#{x}', {interpret: given.x [given [stack, bindings] in stash_helper(x, stack.h, stack.t, bindings)] (x)}]] -object -seq,
+
+              permutation_bindings() = permutation_names() *[['%#{x}', {interpret: given.x [given.stack in append_items_to(stack /-up/ +x.charAt(0),
+                                                                                                                           stack,
+                                                                                                                           permutation_list(x.substr(1)))] (x)}]] -object -seq,
+              a2d                    = n[97, 101] *String.fromCharCode + [''] -seq,
+              permutation_names()    = ni[0, 4] *~![a2d *~!a[a2d *~!b[a2d *~!c[a2d *d['#{x}#{a}#{b}#{c}#{d}'] -seq] -seq] -seq] -seq] -seq,
+              permutation_list(name) = name.length ? name.substr(0, name.length - 1) /!permutation_list /-$.canard.syntax.cons/ $.canard.syntax.atom(name.charCodeAt(name.length - 1) - 97)
+                                                   : $.canard.syntax.nil(),
+
+              numeric_bindings()     = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
+              arithmetic_bindings()  = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
+                                       *[[x, {interpret: "function (stack) {return {h: +(stack.t.h #{x} stack.h), t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
 
       -using- caterwaul.parser});

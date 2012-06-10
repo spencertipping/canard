@@ -1921,12 +1921,17 @@ A better idea.
 There is no reason to make permutation general-purpose, since arguably the stack is used with fixed arity. Therefore, we can abbreviate by providing a series of stack transformations up-front,
 akin to the usual dup, swap, drop, etc. These are more compact, however:
 
-| %a     <- dup
-  %b     <- nip
-  %c     <- nip2
+| %0     <- identity (not provided)
+  %0a    <- dup
+  %0b    <- nip
+  %0c    <- nip2
+  %1     <- drop
+  %1a    <- identity (not provided)
+  %2ab   <- identity (not provided)
   %2ba   <- swap
-  %3cba  <- swap2
-  %4badc <- swap pairs
+  %3cba  <- swap around middle item
+  %4badc <- swap two pairs, within each
+  %4cdab <- swap two pairs, each intact
   ...
 
 Up to four stack items can be rearranged into any order. This requires about 300 predefined functions, but these functions can be assembled into a small algebra. Stashing also works by using
@@ -2474,9 +2479,9 @@ to refer to a specific canard interpreter with an absolute path, you'll need to 
 
 | =interpreter '#!/usr/bin/my-canard
 
-= '=interpreter [= %s []]
+= '=interpreter [= %2ba []]
 = '#!/usr/bin/env [nb]
-= 'nb [%% 1 []]
+= 'nb [%1]
 
 __
 meta::sdoc('canard::lib/functional', <<'__');
@@ -2487,15 +2492,15 @@ Piecewise construction.
 This serves the purpose of something like 'where' in functional languages. The idea is to provide a series of local definitions that will be inlined into the form in question. This is done
 first by defining a substitution function, then deriving a recursive variant from that.
 
-| @/ symbol replacement -> [? :: replacement '%v [] $= 'symbol %0]
-  %s $:                     symbol replacement                      = replacement 'symbol
-  :: %s ''%v                replacement 'symbol                     = (:: replacement '%v) 'symbol
-  ^1 [:: %s '%0 :: [[] $=]] (:: replacement '%v) 'symbol            = (:: replacement '%v) [[] $= 'symbol %0]
-  :+ [?] :+ :: []           (:: replacement '%v) [[] $= 'symbol %0] = [? (:: replacement '%v) [] $= 'symbol %0]
+| @/ symbol replacement -> [? :: replacement '%1 [] $= 'symbol %0a]
+  %2ba $:                      symbol replacement                       = replacement 'symbol
+  :: %2ba ''%1                 replacement 'symbol                      = (:: replacement '%1) 'symbol
+  ^1 [:: %2ba '%0a :: [[] $=]] (:: replacement '%1) 'symbol             = (:: replacement '%1) [[] $= 'symbol %0a]
+  :+ [?] :+ :: []              (:: replacement '%1) [[] $= 'symbol %0a] = [? (:: replacement '%1) [] $= 'symbol %0a]
 
 The @/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, :**, or :~*.
 
-= '@/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
+= '@/ [:+ [?] :+ :: [] ^1 [:: %2ba '%0a :: [[] $=]] :: %2ba '%1 %2ba $:]
 
 Composition.
 Functions can be composed by appending their list forms. . @o f g x is the same as f g x.
@@ -2505,7 +2510,7 @@ Functions can be composed by appending their list forms. . @o f g x is the same 
 Objectification.
 Functions can be objectified (converted to anonymous list form) by using @ on any symbols that are present. Lists pass through unmodified, since they are already functions.
 
-= '@: [? [] [@] :? %0]
+= '@: [? [] [@] :? %0a]
 
 __
 meta::sdoc('canard::lib/iteration', <<'__');
@@ -2515,14 +2520,14 @@ Licensed under the terms of the MIT source code license
 Introduction.
 This library provides trivial functions to iterate over numeric quantities.
 
-= '#* [? [#* ^2 [.] %% 02 [00 01 01 00] - 01] [%% 02 []] %0]
+= '#* [? [#* ^2 [.] %2abab - 01] [%2] %0a]
 
 | #* n [f] x -> #* (n-1) [f] f (n-1) x
-  %% 2 [0 1 1 0] - 1 n [f] x               = (n-1) [f] [f] (n-1) x
-  #* ^2 [.]          (n-1) [f] [f] (n-1) x = #* (n-1) [f] f (n-1) x
+  %2abab - 1 n [f] x               = (n-1) [f] [f] (n-1) x
+  #* ^2 [.]  (n-1) [f] [f] (n-1) x = #* (n-1) [f] f (n-1) x
 
 | #* 0 [f] x -> x
-  %% 2 [] 0 [f] x = x
+  %2 0 [f] x = x
 
 __
 meta::sdoc('canard::lib/lexical', <<'__');
@@ -2563,7 +2568,7 @@ This is the :** equivalent of flat-map. It gives you the flexibility to replace 
 | :~* [f] :: x y -> :: [] :~ [:~* [f]] :: x y   (lists are singly-mapped)
   :~* [f] _      -> :! f _                      (item results are coerced into lists if not already)
 
-= ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %1]
+= ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %0b]
 
 List fold.
 This function folds up the elements of a list, passing them to a binary function. The function, presumably, returns one value for every two it consumes; but it is free to do other things as
@@ -2572,20 +2577,20 @@ well.
 | :/ n [f] :: x y -> f :/ n [f] x y
 | :/ n [f] []     -> n
 
-= ':/ [? [. ^1 [:/] %1 ^2 [:^]] [^1 [%% 02 []]] :? %2]
+= ':/ [? [. ^1 [:/] %0b ^2 [:^]] [^1 [%2]] :? %0b]
 
 List filter.
 Expects a conditional argument for each element; this result is then given to ? to decide whether to keep or discard the element in question. The filter function should consume the element.
 
 | :% [f] :: x y -> ? [:: :% [f] x y] [:% [f] x] (f y)
-  ^1 [:^]          [f] :: x y         = [f] x y
-  %% 3 [0 1 0 2 2] [f] x y            = [f] x [f] y y
-  :% ^2 [.]        [f] x [f] y y      = (:% [f] x) (f y) y
-  ? [:: %s] [] %s  (:% [f] x) (f y) y = ? [:: (:% [f] x) y] [(:% [f] x)] (f y)
+  ^1 [:^]             [f] :: x y         = [f] x y
+  %3aba ^2 [%0aa]     [f] x y            = [f] x [f] y y
+  :% ^2 [.]           [f] x [f] y y      = (:% [f] x) (f y) y
+  ? [:: %2ba] [] %2ba (:% [f] x) (f y) y = ? [:: (:% [f] x) y] [(:% [f] x)] (f y)
 
 | :% [f] []     -> []
 
-= ':% [? [? [:: %s] [] %s :% ^2 [.] %% 03 [00 01 00 02 02] ^1 [:^]] [%v] :? %1]
+= ':% [? [? [:: %2ba] [] %2ba :% ^2 [.] %3aba ^2 [%0aa] ^1 [:^]] [%1] :? %0b]
 
 Flatmap definition.
 Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
@@ -2601,22 +2606,22 @@ Like the regular map function, but distributes over sub-lists recursively. This 
 
 You can use it like this: :** [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6]. Note that you cannot use this function until map (:*) has been defined.
 
-= ':** [? [:* :: [:**]] [.] :? %1]
+= ':** [? [:* :: [:**]] [.] :? %0b]
 
 Map-function template.
 Here is the derivation for flatmap:
 
 | :~ [f] :: x y -> :+ :~ [f] x f y
-  ^1 [:^]      [f] :: x y  = [f] x y
-  %% 2 [0 1 0] [f] x y     = [f] x [f] y
-  ^2 [.]       [f] x [f] y = [f] x f y
-  :+ :~        [f] x f y   = :+ :~ [f] x f y
+  ^1 [:^] [f] :: x y  = [f] x y
+  %2aba   [f] x y     = [f] x [f] y
+  ^2 [.]  [f] x [f] y = [f] x f y
+  :+ :~   [f] x f y   = :+ :~ [f] x f y
 
 Notice, however, that a number of functions here can be replaced to do other things. For instance, the :+ invocation in flatmap can be replaced with ::, at which point the function will be a
 regular map. What we really have is a 'map template' that can be specialized in different ways. To leverage this, we first define the map function, then we write the map template, then we
 write flatmap as a substitution over the definition of 'map'.
 
-= ':* [? [:: :* ^2 [.] %% 02 [00 01 00] ^1 [:^]] [%v] :? %1]
+= ':* [? [:: :* ^2 [.] %2aba ^1 [:^]] [%1] :? %0b]
 
 List append.
 Appends each element from the second list to the first. The head of :+ x y is the head of y. Here are the cases:
@@ -2624,24 +2629,24 @@ Appends each element from the second list to the first. The head of :+ x y is th
 | :+ _ :: t h -> :: :+ _ t h
   :+ x []     -> x
 
-= ':+ [? [:: :+ ^1 [:^]] [%v %s] :? %1]
+= ':+ [? [:: :+ ^1 [:^]] [%1 %2ba] :? %0b]
 
 List length.
 This is the usual recursive length function over lists.
 
-= ':# [? [+ 01 :# :t] [00 %v] :? %0]
+= ':# [? [+ 01 :# :t] [00 %1] :? %0a]
 
 List access.
 This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, an error occurs.
 
-= ':@ [:h #* %s [:t %v]]
+= ':@ [:h #* %2ba [:t %1]]
 
 Cons accessors.
 These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons. : is a unary 'return' function for the list monad.
 
-= ':! [? [] [:] :? %0]
-= ':h [%v :^]
-= ':t [%% 02 [00] :^]
+= ':! [? [] [:] :? %0a]
+= ':h [%1 :^]
+= ':t [%2a :^]
 
 = ': [:: []]
 
@@ -2661,50 +2666,19 @@ The adjustments and shifts are generalized into a prefix-constructor function ca
 hex codes fall into the range 30-39, and the other is a-f, whose hex codes fall into the range 61-66.
 
 | =#p prefix n -> = $+ prefix #d n :: : prefix $+ '0 n
-  %% 2 [0 1 0 1]  prefix n                     = prefix n prefix n
-  %^ 3 [$+ '0 #d] prefix n prefix n            = prefix n prefix $+ '0 #d n
-  ^2 [:: :]       prefix n prefix $+ '0 n      = prefix n :: : prefix $+ '0 #d n
-  = $+ ^1 [#d]    prefix n :: : prefix $+ '0 n = = $+ prefix #d n :: : prefix $+ '0 #d n
+  %2abab        prefix n                     = prefix n prefix n
+  ^3 [$+ '0 #d] prefix n prefix n            = prefix n prefix $+ '0 #d n
+  ^2 [:: :]     prefix n prefix $+ '0 n      = prefix n :: : prefix $+ '0 #d n
+  = $+ ^1 [#d]  prefix n :: : prefix $+ '0 n = = $+ prefix #d n :: : prefix $+ '0 #d n
 
 #* 0a :~* @/ '#d :[$ + 30]
-#* 06 :~* @/ '#d :[$ + 61] %0
+#* 06 :~* @/ '#d :[$ + 61] %0a
 
-      :~* @o @/ '=#d :[= #d %s : $+ '0 #d %0]
-             @/ '=#p :[= $+ ^1 [#d ^1 [:: : ^1 [$+ '0 #d]]] %% 02 [00 01 00 01]]
+      :~* @o @/ '=#d :[= #d %s : $+ '0 #d %0a]
+             @/ '=#p :[= $+ ^1 [#d ^1 [:: : ^1 [$+ '0 #d]]] %2abab]
 
-          [=#d  =#p '+ %0  =#p '* %0  =#p '<< %0
-                =#p '- %0  =#p '/ %0  =#p '>> %0]
-
-__
-meta::sdoc('canard::lib/stack', <<'__');
-Canard standard library: stack functions | Spencer Tipping
-Licensed under the terms of the MIT source code license
-
-Introduction.
-This library provides a bunch of stack functions that prevent you from having to use the long forms of %% and %^ for common situations. The functions provided here are:
-
-| %0    dup x           = x x
-  %1    nip x y         = y x y
-  %2    nip2 x y z      = z x y z
-  %#    nth n x1 ... xn = xn x1 ... xn
-
-| %v    drop x y               = y
-  %v#   dropn n x1 ... xn xn+1 = xn+1
-
-| %s    swap x y = y x
-  %r3   rot3 x y z = y z x
-  %R3   Rot3 x y z = z x y
-
-| ^1    stash [f] x y = x f y
-  ^2    stash2 [f] x y z = x y f z
-
-= '%0  [%% 00 [00]]
-= '%1  [%% 00 [01]]   = '%s  [%% 02 [01 00]]
-= '%2  [%% 00 [02]]   = '%r3 [%% 03 [01 02 00]]
-= '%#  [%% 00 :: []]  = '%R3 [%% 03 [02 00 01]]
-
-= '%v  [%% 01 []]     = '^1  [%^ 01]
-= '%v# [%% %s []]     = '^2  [%^ 02]
+          [=#d  =#p '+ %0a  =#p '* %0a  =#p '<< %0a
+                =#p '- %0a  =#p '/ %0a  =#p '>> %0a]
 
 __
 meta::sdoc('canard::stdlib', <<'__');
@@ -2713,7 +2687,6 @@ meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/lists
 - include sdoc-packed::canard::lib/iteration
 - include sdoc-packed::canard::lib/functional
-- include sdoc-packed::canard::lib/stack
 - include sdoc-packed::canard::lib/comments
 
 __
@@ -2825,7 +2798,6 @@ These provide a very simple base language that should be sufficient to write the
           up(stack, n)              = n ? up(stack.t, n - 1) : stack,
           append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
           stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
-
           stack_depth(s)            = s ? 1 + stack_depth(s.t) : 0,
 
           default_bindings() = capture [
@@ -2853,9 +2825,6 @@ These provide a very simple base language that should be sufficient to write the
                       /* conditional */ '?'(stack, bindings)  = +stack.t.t.h ? stack  .h.interpret(stack.t.t.t, bindings)
                                                                              : stack.t.h.interpret(stack.t.t.t, bindings),
 
-                      /* permutation */ '%%'(stack)           = append_items_to(stack.t.t /-up/ +stack.h, stack.t.t, stack.t.h),
-                                        '%^'(stack, bindings) = stash_helper(+stack.h, stack.t.h, stack.t.t, bindings),
-
                     /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil(),  t: stack.t},
                                         ':?'(stack)           = {h: +stack.h.is_cons(), t: stack.t},
                                         '!'(stack)            = {h: +!stack.h,          t: stack.t},
@@ -2866,12 +2835,24 @@ These provide a very simple base language that should be sufficient to write the
 
                              /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
 
+                               /          stash_bindings()
+                               /          permutation_bindings()
                                /          numeric_bindings()
                                /-$.merge/ arithmetic_bindings(),
 
-          numeric_bindings()    = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
-          arithmetic_bindings() = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
-                                  *[[x, {interpret: "function (stack) {return {h: +(stack.t.h #{x} stack.h), t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
+          stash_bindings()       = ni[1, 4] *[['^#{x}', {interpret: given.x [given [stack, bindings] in stash_helper(x, stack.h, stack.t, bindings)] (x)}]] -object -seq,
+
+          permutation_bindings() = permutation_names() *[['%#{x}', {interpret: given.x [given.stack in append_items_to(stack /-up/ +x.charAt(0),
+                                                                                                                       stack,
+                                                                                                                       permutation_list(x.substr(1)))] (x)}]] -object -seq,
+          a2d                    = n[97, 101] *String.fromCharCode + [''] -seq,
+          permutation_names()    = ni[0, 4] *~![a2d *~!a[a2d *~!b[a2d *~!c[a2d *d['#{x}#{a}#{b}#{c}#{d}'] -seq] -seq] -seq] -seq] -seq,
+          permutation_list(name) = name.length ? name.substr(0, name.length - 1) /!permutation_list /-$.canard.syntax.cons/ $.canard.syntax.atom(name.charCodeAt(name.length - 1) - 97)
+                                               : $.canard.syntax.nil(),
+
+          numeric_bindings()     = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
+          arithmetic_bindings()  = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
+                                   *[[x, {interpret: "function (stack) {return {h: +(stack.t.h #{x} stack.h), t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
 
   -using- caterwaul.parser});
 
@@ -2925,8 +2906,11 @@ syn match   canard_bracket              /:\?\[/
 syn match   canard_bracket              /]/
 syn match   canard_number               /\<[0-9a-f][0-9a-f]\>/
 
+syn match   canard_intrinsic            /\<%[01234][a-d]\{0,4\}\>/
+syn match   canard_intrinsic            /\<^[1234]\>/
+
 syn keyword canard_def                  =
-syn keyword canard_intrinsic            $< $\| $# $ $^ $+ $: $. $= %% %^ ? :? /? :: :^ . @ !
+syn keyword canard_intrinsic            $< $\| $# $ $^ $+ $: $. $= ? :? /? :: :^ . @ !
 syn keyword canard_arithmetic           + - * / % << >> >>> \| & ^ < > <= >= == != === !==
 
 hi link canard_comment                  Comment

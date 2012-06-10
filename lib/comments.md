@@ -8,6 +8,6 @@ to refer to a specific canard interpreter with an absolute path, you'll need to 
 
     =interpreter '#!/usr/bin/my-canard
 
-    = '=interpreter [= %s []]
+    = '=interpreter [= %2ba []]
     = '#!/usr/bin/env [nb]
-    = 'nb [%% 1 []]
+    = 'nb [%1]

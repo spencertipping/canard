@@ -12,7 +12,7 @@ This is the :** equivalent of flat-map. It gives you the flexibility to replace 
     :~* [f] :: x y -> :: [] :~ [:~* [f]] :: x y   (lists are singly-mapped)
     :~* [f] _      -> :! f _                      (item results are coerced into lists if not already)
 
-    = ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %1]
+    = ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %0b]
 
 # List fold
 
@@ -22,21 +22,21 @@ well.
     :/ n [f] :: x y -> f :/ n [f] x y
     | :/ n [f] []     -> n
 
-    = ':/ [? [. ^1 [:/] %1 ^2 [:^]] [^1 [%% 02 []]] :? %2]
+    = ':/ [? [. ^1 [:/] %0b ^2 [:^]] [^1 [%2]] :? %0b]
 
 # List filter
 
 Expects a conditional argument for each element; this result is then given to ? to decide whether to keep or discard the element in question. The filter function should consume the element.
 
     :% [f] :: x y -> ? [:: :% [f] x y] [:% [f] x] (f y)
-    ^1 [:^]          [f] :: x y         = [f] x y
-    %% 3 [0 1 0 2 2] [f] x y            = [f] x [f] y y
-    :% ^2 [.]        [f] x [f] y y      = (:% [f] x) (f y) y
-    ? [:: %s] [] %s  (:% [f] x) (f y) y = ? [:: (:% [f] x) y] [(:% [f] x)] (f y)
+    ^1 [:^]             [f] :: x y         = [f] x y
+    %3aba ^2 [%0aa]     [f] x y            = [f] x [f] y y
+    :% ^2 [.]           [f] x [f] y y      = (:% [f] x) (f y) y
+    ? [:: %2ba] [] %2ba (:% [f] x) (f y) y = ? [:: (:% [f] x) y] [(:% [f] x)] (f y)
 
     :% [f] []     -> []
 
-    = ':% [? [? [:: %s] [] %s :% ^2 [.] %% 03 [00 01 00 02 02] ^1 [:^]] [%v] :? %1]
+    = ':% [? [? [:: %2ba] [] %2ba :% ^2 [.] %3aba ^2 [%0aa] ^1 [:^]] [%1] :? %0b]
 
 # Flatmap definition
 
@@ -54,23 +54,23 @@ Like the regular map function, but distributes over sub-lists recursively. This 
 
 You can use it like this: :** [+ 1] [1 2 [3 4] 5], yielding [2 3 [4 5] 6]. Note that you cannot use this function until map (:*) has been defined.
 
-    = ':** [? [:* :: [:**]] [.] :? %1]
+    = ':** [? [:* :: [:**]] [.] :? %0b]
 
 # Map-function template
 
 Here is the derivation for flatmap:
 
     :~ [f] :: x y -> :+ :~ [f] x f y
-    ^1 [:^]      [f] :: x y  = [f] x y
-    %% 2 [0 1 0] [f] x y     = [f] x [f] y
-    ^2 [.]       [f] x [f] y = [f] x f y
-    :+ :~        [f] x f y   = :+ :~ [f] x f y
+    ^1 [:^] [f] :: x y  = [f] x y
+    %2aba   [f] x y     = [f] x [f] y
+    ^2 [.]  [f] x [f] y = [f] x f y
+    :+ :~   [f] x f y   = :+ :~ [f] x f y
 
 Notice, however, that a number of functions here can be replaced to do other things. For instance, the :+ invocation in flatmap can be replaced with ::, at which point the function will be a
 regular map. What we really have is a 'map template' that can be specialized in different ways. To leverage this, we first define the map function, then we write the map template, then we
 write flatmap as a substitution over the definition of 'map'.
 
-    = ':* [? [:: :* ^2 [.] %% 02 [00 01 00] ^1 [:^]] [%v] :? %1]
+    = ':* [? [:: :* ^2 [.] %2aba ^1 [:^]] [%1] :? %0b]
 
 # List append
 
@@ -79,26 +79,26 @@ Appends each element from the second list to the first. The head of :+ x y is th
     :+ _ :: t h -> :: :+ _ t h
     :+ x []     -> x
 
-    = ':+ [? [:: :+ ^1 [:^]] [%v %s] :? %1]
+    = ':+ [? [:: :+ ^1 [:^]] [%1 %2ba] :? %0b]
 
 # List length
 
 This is the usual recursive length function over lists.
 
-    = ':# [? [+ 01 :# :t] [00 %v] :? %0]
+    = ':# [? [+ 01 :# :t] [00 %1] :? %0a]
 
 # List access
 
 This function gives you the nth element, where 0 is the head (last element) of the list. If you request something beyond the end of the list, an error occurs.
 
-    = ':@ [:h #* %s [:t %v]]
+    = ':@ [:h #* %2ba [:t %1]]
 
 # Cons accessors
 
 These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons. : is a unary 'return' function for the list monad.
 
-    = ':! [? [] [:] :? %0]
-    = ':h [%v :^]
-    = ':t [%% 02 [00] :^]
+    = ':! [? [] [:] :? %0a]
+    = ':h [%1 :^]
+    = ':t [%2a :^]
 
     = ': [:: []]

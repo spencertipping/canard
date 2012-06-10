@@ -22,12 +22,17 @@ The idea is that the top n items would be dropped, then replaced by items at i1,
 There is no reason to make permutation general-purpose, since arguably the stack is used with fixed arity. Therefore, we can abbreviate by providing a series of stack transformations up-front,
 akin to the usual dup, swap, drop, etc. These are more compact, however:
 
-    %a     <- dup
-    %b     <- nip
-    %c     <- nip2
+    %0     <- identity (not provided)
+    %0a    <- dup
+    %0b    <- nip
+    %0c    <- nip2
+    %1     <- drop
+    %1a    <- identity (not provided)
+    %2ab   <- identity (not provided)
     %2ba   <- swap
-    %3cba  <- swap2
-    %4badc <- swap pairs
+    %3cba  <- swap around middle item
+    %4badc <- swap two pairs, within each
+    %4cdab <- swap two pairs, each intact
     ...
 
 Up to four stack items can be rearranged into any order. This requires about 300 predefined functions, but these functions can be assembled into a small algebra. Stashing also works by using
