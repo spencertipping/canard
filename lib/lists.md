@@ -85,8 +85,10 @@ This function gives you the nth element, where 0 is the head (last element) of t
 
 # Cons accessors
 
-These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons.
+These retrieve the individual pieces of a cons cell. :! conses an object to nil if it is not already a cons. : is a unary 'return' function for the list monad.
 
-    = ':! [? [] [:: []] :? %0]
+    = ':! [? [] [:] :? %0]
     = ':h [%v :^]
     = ':t [%% 02 [00] :^]
+
+    = ': [:: []]
