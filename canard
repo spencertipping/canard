@@ -2681,7 +2681,7 @@ hex codes fall into the range 30-39, and the other is a-f, whose hex codes fall 
 __
 meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/lexical
-- comment - include sdoc-packed::canard::lib/numbers
+- include sdoc-packed::canard::lib/numbers
 - include sdoc-packed::canard::lib/lists
 - include sdoc-packed::canard::lib/iteration
 - include sdoc-packed::canard::lib/functional
