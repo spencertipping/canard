@@ -258,10 +258,6 @@ ad -c js::|waul::
 __
 meta::alias('cl', 'ad -c canard::lib');
 meta::alias('cn', 'ad -c note::');
-meta::alias('cr', <<'__');
-ad -c canard::boot
-
-__
 meta::alias('eb', 'edit sdoc::waul::boot');
 meta::alias('ebb', 'edit sdoc::canard::boot/binary');
 meta::alias('ebi', 'edit sdoc::js::boot-image');
