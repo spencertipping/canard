@@ -14,12 +14,22 @@ This is the :** equivalent of flat-map. It gives you the flexibility to replace 
 
     = ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %1]
 
+# List folds
+
+These two functions fold up the elements of lists, passing them to a binary function. This function, presumably, returns one value for every two it consumes; but it is free to do other things
+as well.
+
+    :/ n [f] :: x y -> f :/ n [f] x y
+    | :/ n [f] []     -> n
+
+    = ':/ [? [. ^1 [:/] %1 ^2 [:^]] [^1 [%% 02 []]] :? %2]
+
 # Flatmap definition
 
 Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the
 map function.
 
-    = ':~ :** @o :/ ':* [':~] :/ ':: [':+] @ ':*
+    = ':~ :** @o @/ ':* [':~] @/ ':: [':+] @ ':*
 
 # Recursive map
 

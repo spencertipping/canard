@@ -5,15 +5,15 @@ nb[ Piecewise construction. ]
 nb[ This serves the purpose of something like 'where' in functional languages. The idea is to provide a series of local definitions that will be inlined into the form in question. This is done ]
 nb[ first by defining a substitution function, then deriving a recursive variant from that. ]
 
-nb[ | :/ symbol replacement -> [? :: replacement '%v [] $= 'symbol %0] ]
+nb[ | @/ symbol replacement -> [? :: replacement '%v [] $= 'symbol %0] ]
 nb[   %s $:                     symbol replacement                      = replacement 'symbol ]
 nb[   :: %s ''%v                replacement 'symbol                     = (:: replacement '%v) 'symbol ]
 nb[   ^1 [:: %s '%0 :: [[] $=]] (:: replacement '%v) 'symbol            = (:: replacement '%v) [[] $= 'symbol %0] ]
 nb[   :+ [?] :+ :: []           (:: replacement '%v) [[] $= 'symbol %0] = [? (:: replacement '%v) [] $= 'symbol %0] ]
 
-nb[ The :/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, :**, or :~*. ]
+nb[ The @/ function constructs a closure, but does not actually perform substitution. To do that, you would use :*, :~, :**, or :~*. ]
 
-= ':/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
+= '@/ [:+ [?] :+ :: [] ^1 [:: %s '%0 :: [[] $=]] :: %s '%v %s $:]
 
 nb[ Composition. ]
 nb[ Functions can be composed by appending their list forms. . @o f g x is the same as f g x. ]

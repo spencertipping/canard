@@ -12,11 +12,20 @@ nb[   :~* [f] _      -> :! f _                      (item results are coerced in
 
 = ':~* [? [:: [] :~ :: [:~*]] [:! .] :? %1]
 
+nb[ List folds. ]
+nb[ These two functions fold up the elements of lists, passing them to a binary function. This function, presumably, returns one value for every two it consumes; but it is free to do other things ]
+nb[ as well. ]
+
+nb[ | :/ n [f] :: x y -> f :/ n [f] x y ]
+nb[ | :/ n [f] []     -> n ]
+
+= ':/ [? [. ^1 [:/] %1 ^2 [:^]] [^1 [%% 02 []]] :? %2]
+
 nb[ Flatmap definition. ]
 nb[ Flat-map is structured just like map. The only difference is that the intermediate results are appended rather than consed. Also, it needs to make a recursive call to itself rather than to the ]
 nb[ map function. ]
 
-= ':~ :** @o :/ ':* [':~] :/ ':: [':+] @ ':*
+= ':~ :** @o @/ ':* [':~] @/ ':: [':+] @ ':*
 
 nb[ Recursive map. ]
 nb[ Like the regular map function, but distributes over sub-lists recursively. This is primarily useful for editing functions in their list form. ]
