@@ -453,7 +453,7 @@ for (grep length, @_) {
 __
 meta::function('compile-binary', <<'__');
 # Compiles binary-text to binary output.
-my $text = join '', map split(/\s+/), split /#.*/m, retrieve($_[0]);
+my $text = join ' ', map split(/\s+/), split /#.*/m, retrieve($_[0]);
 my $hex_letters = '0123456789abcdef';
 
 my @output;
@@ -470,7 +470,7 @@ my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)"
 
 my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
 
-my @tokens = split m#(-[01]{8}|o[0-3][0-7]{2}|[0-9a-f]{2}|@!?[0-9a-f]{2}|/\d+/)#, $text;
+my @tokens = split m#(-[01]{8}|o[0-3][0-7]{2}|[0-9a-f]{2}|@!?[0-9a-f]+|/\d+/)#, $text;
 &$emit(/^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/ ? &$octal($1) :
        /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/     ? &$until($1) :
        /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/      ? &$hex($_)   : '') for @tokens;
@@ -2184,12 +2184,12 @@ retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
 meta::parent('binary', <<'__');
-function::compile-binary                 64be6a2279c81ce90e13f5a1411816eb
+function::compile-binary                 c7ad5bb1814250380dd474ad5231fdf3
 meta::type::binary                       3a80e9982dedb950aa1a9ae301670dc4
 parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
 parent::vim-highlighters                 f3bda418899ffc5cdeb6774b6b1477c7
 retriever::bin                           24b2382d3f002ee325963a5c652c53ff
-vim_highlighter::binary                  6757e47b07ebba9cf4d1067f1d055ef8
+vim_highlighter::binary                  ccfec7137d9315e7aa858bd427a9e4a6
 
 __
 meta::parent('canard-object', <<'__');
@@ -2480,57 +2480,57 @@ That's about it. The rest is just binary data written verbatim.
 ELF header.
 See elf(5) for details about what this is made of.
 
-# Elf64_Ehdr            # e_ident
-@!00 7f454c46           #   ELF magic
-@!04 02                 #   64-bit binary
-@!05 01                 #   Two's complement little-endian
-@!06 01                 #   Current ELF version
-@!07 00                 #   System V UNIX ABI
+# Elf64_Ehdr                    # e_ident
+@!00 7f454c46                   #   ELF magic
+@!04 02                         #   64-bit binary
+@!05 01                         #   Two's complement little-endian
+@!06 01                         #   Current ELF version
+@!07 00                         #   System V UNIX ABI
 
-@!08 00                 #   ABI version
+@!08 00                         #   ABI version
+@!09 /7/00                      # padding; end
 
-@!09 000000             #   Padding
-@!0c 00000000           # end of e_ident
+@!10 02 00                      # e_type    = Executable file
+@!12 3e 00                      # e_machine = x86-64
+@!14 01 00 00 00                # e_version = current version
+@!18 b0 00 40 00 /4/00          # e_entry
 
-@!10 0200               # e_type    = Executable file
-@!12 3e00               # e_machine = x86-64
-@!14 01000000           # e_version = current version
-@!18 00004000 00000000  # e_entry   = 0x400000
+@!20 40 00 00 00 /4/00          # e_phoff
+@!28 00 00 00 00 /4/00          # e_shoff
 
-@!20 40000000 00000000  # e_phoff = 64
-@!28 00000000 00000000  # e_shoff = 0
+@!30 /4/00                      # e_flags
+@!34 40 00                      # e_ehsize
+@!36 38 00                      # e_phentsize
+@!38 01 00                      # e_phnum
 
-@!30 00000000           # e_flags     = 0
-@!34 4000               # e_ehsize    = 64
-@!36 3800               # e_phentsize = 56
-@!38 0200               # e_phnum     = 2
-
-@!3a 4000               # e_shentsize = 64
-@!3c 0000               # e_shnum     = 0
-@!3e 0000               # e_shstrndx  = 0 (no symbol table)
+@!3a 0000                       # e_shentsize
+@!3c 0000                       # e_shnum
+@!3e 0000                       # e_shstrndx
 # end
 
-# Elf64_Phdr (rw data stack)
-@!40 01000000           # p_type   = PT_LOAD
-@!44 06000000           # p_flags  = PT_R | PT_W
-@!48 00000000 00000000  # p_offset = 0
-@!50 00003800 00000000  # p_vaddr  = 0x380000
-@!58 00000000 00000000  # p_paddr  = 0
-@!60 00000000 00000000  # p_filesz = 0
-@!68 00000800 00000000  # p_memsz  = 0x080000 (512KB)
-@!70 00000000 00000000  # p_align  = 0
-# end
+@!40
 
 # Elf64_Phdr (rwx image)
-@!78 01000000           # p_type   = PT_LOAD
-@!7c 07000000           # p_flags  = PT_R | PT_W | PT_X
-@!80 b0000000 00000000  # p_offset = 0xb0
-@!88 00004000 00000000  # p_vaddr  = 0x400000
-@!90 00000000 00000000  # p_paddr  = 0
-@!98 02000000 00000000  # p_filesz = 7
-@!a0 00000100 00000000  # p_memsz  = 0x080000 (512KB)
-@!a8 00000000 00000000  # p_align  = 0
-# end
+@!40 01 00 00 00                # p_type  = PT_LOAD
+     07 00 00 00                # p_flags = PT_R | PT_W | PT_X
+
+     b0 00 00 00 /4/00          # p_offset
+     b0 00 40 00 /4/00          # p_vaddr
+     b0 00 40 00 /4/00          # p_paddr
+     00 04 00 00 /4/00          # p_filesz
+     00 04 00 00 /4/00          # p_memsz
+     00 10 00 00 /4/00          # p_align
+
+# Elf64_Phdr (rw data stack)
+@!78 00 00 00 00                # p_type  = PT_NULL
+     06 00 00 00                # p_flags = PT_R | PT_W
+
+     00 00 00 00 /4/00          # p_offset
+     00 00 48 00 /4/00          # p_vaddr
+     00 00 48 00 /4/00          # p_paddr
+     00 00 00 00 /4/00          # p_filesz
+     00 00 08 00 /4/00          # p_memsz
+     00 10 00 00 /4/00          # p_align
 
 @!b0
 
@@ -2540,9 +2540,9 @@ text. This compromises its Turing-completeness, but greatly simplifies the
 implementation.
 
 @!b0 ebfe
-@!b2
+@!b2 ebfe ebfe ebfe
 
-# vim: set tw=80 :
+
 
 __
 meta::sdoc('canard::lib/canard-linux-x64', <<'__');
@@ -2782,6 +2782,7 @@ syn case match
 
 syn match bt_line_comment       /#.*/
 syn match bt_binary_octet       /-[01]\{8\}/
+syn match bt_octal_byte         /o[0-3][0-7]\{2\}/
 syn match bt_hex_octet          /[0-9a-f]\{2\}/
 syn match bt_repetition_prefix  -/\d\+/-
 syn match bt_address            -@[0-9a-f]\+-
@@ -2789,6 +2790,7 @@ syn match bt_place              -@![0-9a-f]\+-
 
 hi link bt_line_comment      Comment
 hi link bt_binary_octet      Keyword
+hi link bt_octal_byte        Keyword
 hi link bt_hex_octet         Type
 hi link bt_repetition_prefix Preproc
 hi link bt_address           Preproc
