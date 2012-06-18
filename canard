@@ -103,6 +103,10 @@ meta::define_form 'alias', sub {
   };
 };
 __
+meta::meta('type::binary', <<'__');
+meta::functor::editable 'binary', extension => '.binary', default => 'edit', inherit => 0;
+
+__
 meta::meta('type::bootstrap', <<'__');
 # Bootstrap attributes don't get executed. The reason for this is that because
 # they are serialized directly into the header of the file (and later duplicated
@@ -111,10 +115,6 @@ meta::meta('type::bootstrap', <<'__');
 
 meta::configure 'bootstrap', extension => '.pl', inherit => 1;
 meta::define_form 'bootstrap', sub {};
-__
-meta::meta('type::c', <<'__');
-meta::functor::editable 'c', extension => '.c', inherit => 1;
-
 __
 meta::meta('type::cache', <<'__');
 meta::configure 'cache', inherit => 0;
@@ -131,10 +131,6 @@ meta::define_form 'function', sub {
   my ($name, $value) = @_;
   meta::externalize $name, "function::$name", meta::eval_in("sub {\n$value\n}", "function::$name");
 };
-__
-meta::meta('type::h', <<'__');
-meta::functor::editable 'h', extension => '.h', inherit => 1;
-
 __
 meta::meta('type::hook', <<'__');
 meta::configure 'hook', extension => '.pl', inherit => 0;
@@ -257,14 +253,13 @@ meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
 meta::alias('cb', <<'__');
-ad -c sdoc::c::|sdoc::h::
+ad -c binary::
 
 __
 meta::alias('cl', 'ad -c canard::lib');
 meta::alias('cn', 'ad -c note::');
-meta::alias('eb', 'edit sdoc::waul::boot');
+meta::alias('eb', 'edit sdoc::binary::boot');
 meta::alias('ebb', 'edit sdoc::canard::boot/binary');
-meta::alias('ebi', 'edit sdoc::js::boot-image');
 meta::alias('er', 'edit sdoc::readme');
 meta::alias('erf', 'edit function::render');
 meta::alias('erwf', 'edit function::render-waul');
@@ -455,6 +450,30 @@ for (grep length, @_) {
       rm('data::permanent-identity');
       file::write($_, serialize(), noclobber => 1);
       chmod(0700, $_)})})}
+__
+meta::function('compile-binary', <<'__');
+# Compiles binary-text to binary output.
+my $text = join '', map split(/\s+/), split /#.*/m, retrieve($_[0]);
+my $hex_letters = '0123456789abcdef';
+
+my @output;
+
+my $offset     = 0;
+my $next       = 1;
+my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
+my $repetition = sub {my $count = $next; $next = 1; $count};
+my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
+my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
+my $until      = sub {my $address = hex $_[0]; "\0" x ($address - $offset)};
+my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)", hex $_[0], $offset unless $offset == hex $_[0]; ''};
+
+my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
+
+my @tokens = split m#(-[01]{8}|[0-9a-f]{2}|@!?[0-9a-f]{2}|/\d+/)#, $text;
+&$emit(/^-([01]{8})/ ? &$binary($1) : /^@!([0-9a-f]+)/ ? &$place($1) : /^@([0-9a-f]+)/ ? &$until($1) : /^\/(\d+)\// ? &$repeat($1) : /^[0-9a-f]{2}/ ? &$hex($_) : '') for @tokens;
+
+join '', @output;
+
 __
 meta::function('cp', <<'__');
 my $from = shift @_;
@@ -730,15 +749,8 @@ my ($options, @stuff) = separate_options(@_);
 # Commented out until I write an accurate readme
 # file::write('README.md', retrieve('markdown::readme'));
 
-file::write("src/$_.waul.sdoc", retrieve("sdoc::waul::$_"),     mkpath => 1),
-file::write("src/$_.md",        retrieve("markdown::waul::$_"), mkpath => 1) for qw/boot/;
-
-my @deps = map "-e deps/$_.js", qw/regexp parser/;
-terminal::info('waul-compiling bootstrap interpreter'),
-sh("waul @deps src/boot.waul.sdoc") unless $$options{-W};
-
-file::write('boot/interpreter', retrieve('pp::js::boot-image'), mkpath => 1),
-chmod 0700, 'boot/interpreter';
+file::write('boot', retrieve('bin::boot'));
+chmod 0700, 'boot';
 
 file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep s/^(sdoc::)?canard::lib\//lib\//, sort keys %data;
 file::write("$_.md",     retrieve("markdown::canard::$_"), mkpath => 1) for grep s/^sdoc::canard::lib\//lib\//,    sort keys %data;
@@ -784,6 +796,10 @@ render('-W');
 srepl();
 
 __
+meta::function('run', <<'__');
+sh('./boot');
+
+__
 meta::function('run-example', <<'__');
 sh("boot/interpreter examples/$_[0].canard");
 
@@ -820,19 +836,18 @@ sub is_code    {map /^\s*[^A-Z\|\s]/o, @_}
 sub is_blank   {map /^\n/o, @_}
 sub comment    {my ($text, $s, $e) = @_; join "\n", map("$s $_" . (length $e ? " $e" : ''), split /\n/, $text)}
 
-sub paragraphs {map split(/((?:\n\h*){2,})/, $_), @_}
+sub paragraphs {map split(/(\n(?:\h*\n)+)/, $_), @_}
 
 my ($filename, $specified_extension) = @_;
+my $logical_filename = $filename =~ /^sdoc::(.*)$/ ? $1 : $filename;
 
 # Two possibilities here. One is that the filename is an attribute, in which case
 # we want to look up the extension in the transients table. The other is that
 # it's a real filename.
-my ($extension)       = $specified_extension || ($filename =~ /\.sdoc$/io ? $filename =~ /\.(\w+)\.sdoc$/igo : $filename =~ /\.(\w+)$/igo);
-my ($other_extension) = extension_for($filename);
-$other_extension =~ s/\.sdoc$//io;
-$other_extension =~ s/^\.//o;
+my $extension = $specified_extension || extension_for($logical_filename) || ($filename =~ /\.sdoc$/io ? $filename =~ /\.(\w+)\.sdoc$/igo : $filename =~ /\.(\w+)$/igo)[0];
+$extension =~ s/^\.//o;
 
-my ($start, $end) = split /,/o, $comments_for_extension{lc($other_extension || $extension)} // $comments_for_extension{''} // '#';
+my ($start, $end) = split /,/o, $comments_for_extension{lc $extension} // $comments_for_extension{''} // '#';
 
 join '', map(is_code($_) || is_blank($_) ? ($_ =~ /^\s*c\n(.*)$/so ? $1 : $_) : comment($_, $start, $end), paragraphs retrieve($filename)),
          "\n" . comment($generated_string, $start, $end) . "\n";
@@ -1012,6 +1027,12 @@ my @keys = grep !is($_, '-v'), sort keys %data;
 my $hash = fast_hash(fast_hash(scalar @keys) . join '|', @keys);
 $hash = fast_hash("$data{$_}|$hash") for @keys;
 fast_hash("$global_data|$hash");
+
+__
+meta::function('test', <<'__');
+render();
+sh('file boot');
+sh('readelf -h boot');
 
 __
 meta::function('touch', 'associate($_, \'\') for @_;');
@@ -2147,7 +2168,7 @@ retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
 
 __
 meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__');
-function::sdoc                           9d019a0b391ccb5fb849a2bd354385b5
+function::sdoc                           71fa4ee3ae6283a87706e74f9de1de40
 function::sdoc-html                      b23152b3f5be696e5bae842ec43fc5a4
 function::sdoc-markdown                  a35a6441dd750466f2d0e636bee2b382
 function::sdoc-packed                    8ec4975fca7228708baae6ccd241bdbf
@@ -2158,15 +2179,18 @@ parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
 retriever::code-sdoc                     03b87ff8d1ecf7594db9ca0669fc69a1
 retriever::html-sdoc                     8ab7705d03276945b23a71677153233c
 retriever::markdown-sdoc                 67c34ba8223ec36a3ae018e411354db2
-retriever::sdoc                          662061e9e41491e2a1debd6862ccf1e7
+retriever::sdoc                          75181c270d3a3de6500e5ccdb8208f65
 retriever::sdoc-packed                   f7116f96adf2c748ac1991f4d7c1792b
 retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
-meta::parent('c', <<'__');
-meta::type::c                            3620b980d1214437d4ed43f65fbd2088
-meta::type::h                            d00bc801128b6e15bad2438c0a7b19f6
+meta::parent('binary', <<'__');
+function::compile-binary                 0ce3d3292a6abebd3324e16c180c3eea
+meta::type::binary                       3a80e9982dedb950aa1a9ae301670dc4
 parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
+parent::vim-highlighters                 f3bda418899ffc5cdeb6774b6b1477c7
+retriever::bin                           24b2382d3f002ee325963a5c652c53ff
+vim_highlighter::binary                  6757e47b07ebba9cf4d1067f1d055ef8
 
 __
 meta::parent('canard-object', <<'__');
@@ -2354,6 +2378,19 @@ parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
 retriever::wrapped-near                  1b00aeef9dbd19633a1fedc443b846e8
 
 __
+meta::parent('vim-highlighters', <<'__');
+function::vim                cf9e37026f6cd1499a6dd258fbbcd060
+meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
+parent::object               58367e4fe7322b745f8597c9015780e4
+
+__
+meta::retriever('bin', <<'__');
+# Compiles a binary text file.
+my $name = $_[0];
+return undef unless $name =~ s/^bin::/binary::/ && defined retrieve($name);
+compile_binary($name);
+
+__
 meta::retriever('canard-pack', <<'__');
 return undef unless $_[0] =~ /^canard-pack::(.*)$/;
 defined retrieve($1) ? canard_pack($1) : undef;
@@ -2403,7 +2440,10 @@ return undef unless namespace($_[0]) eq 'pp';
 my $attr = retrieve(attribute($_[0]));
 defined $attr ? preprocess($attr) : undef;
 __
-meta::retriever('sdoc', 'exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]") : undef;');
+meta::retriever('sdoc', <<'__');
+exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]", extension_for($_[0])) : undef;
+
+__
 meta::retriever('sdoc-packed', <<'__');
 return undef unless $_[0] =~ /^sdoc-packed::(.*)$/;
 exists $data{"sdoc::$1"} ? sdoc_packed("sdoc::$1") : undef;
@@ -2417,6 +2457,69 @@ __
 meta::retriever('wrapped-near', <<'__');
 return undef unless $_[0] =~ /^wrapped-near\.(\d+)::(.*)$/;
 defined retrieve($2) ? wrapped_near(retrieve($2), $1) : undef;
+
+__
+meta::sdoc('binary::boot', <<'__');
+Canard bootstrap interpreter | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This file defines a binary ELF image that contains a bootstrap canard
+interpreter. The implementation is heavily influenced by jonesforth, though the
+compiler uses a different output format. Like jonesforth, however, %rsp is used
+for the data stack and %rbp is used for the return stack.
+
+ELF header.
+See elf(5) for details about what this is made of.
+
+# Elf64_Ehdr            # e_ident
+@!00 7f454c46           #   ELF magic
+@!04 02                 #   64-bit binary
+@!05 01                 #   Two's complement little-endian
+@!06 01                 #   Current ELF version
+@!07 03                 #   Linux ABI
+
+@!08 00                 #   ABI version
+
+@!09 000000             #   Padding
+@!0c 00000000           # end of e_ident
+
+@!10 0200               # e_type = Executable file
+@!12 3e00               # e_machine = X86-64
+@!14 01000000           # e_version = current version
+@!18 00004000 00000000  # e_entry = 0x400000
+
+@!20 40000000 00000000  # e_phoff = 64
+@!28 00000000 00000000  # e_shoff = 0
+
+@!30 00000000           # e_flags     = 0
+@!34 4000               # e_ehsize    = 64
+@!36 3800               # e_phentsize = 56
+@!38 0100               # e_phnum     = 1
+
+@!3a 4000               # e_shentsize = 64
+@!3c 0000               # e_shnum     = 0
+@!3e 0000               # e_shstrndx  = 0 (undefined symbol table)
+# end
+
+# Elf64_Phdr (rwx image/heap/everything)
+@!40 01000000           # p_type   = PT_LOAD
+@!44 07000000           # p_flags  = PT_R | PT_W | PT_X
+@!48 78000000 00000000  # p_offset = 0x78
+@!50 00004000 00000000  # p_vaddr  = 0x400000
+@!58 00000000 00000000  # p_paddr  = 0
+@!60 02000000 00000000  # p_filesz = 2
+@!68 02000000 00000000  # p_memsz  = 0x010000 (64KB)
+@!70 00000000 00000000  # p_align  = 0
+# end
+
+@!78
+
+Canard interpreter entry point.
+
+eb fe   # jmp -2 (loop forever)
+
+# vim: set tw=80 :
 
 __
 meta::sdoc('canard::lib/canard-linux-x64', <<'__');
@@ -2646,6 +2749,28 @@ my ($commands) = @_;
 return '' if template::failing_conditional($commands);
 my $text = join "\n\n", map retrieve($_), split /\s+/, $commands;
 "\n\n$text\n\n";
+__
+meta::vim_highlighter('binary', <<'__');
+" Language: Binary text
+" Creator:  Spencer Tipping <spencer@spencertipping.com>
+" License:  MIT source code license
+
+syn case match
+
+syn match bt_line_comment       /#.*/
+syn match bt_binary_octet       /-[01]\{8\}/
+syn match bt_hex_octet          /[0-9a-f]\{2\}/
+syn match bt_repetition_prefix  -/\d\+/-
+syn match bt_address            -@[0-9a-f]\+-
+syn match bt_place              -@![0-9a-f]\+-
+
+hi link bt_line_comment      Comment
+hi link bt_binary_octet      Keyword
+hi link bt_hex_octet         Type
+hi link bt_repetition_prefix Preproc
+hi link bt_address           Preproc
+hi link bt_place             Identifier
+
 __
 meta::vim_highlighter('canard', <<'__');
 " Canard language highlighter | Spencer Tipping
