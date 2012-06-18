@@ -112,6 +112,10 @@ meta::meta('type::bootstrap', <<'__');
 meta::configure 'bootstrap', extension => '.pl', inherit => 1;
 meta::define_form 'bootstrap', sub {};
 __
+meta::meta('type::c', <<'__');
+meta::functor::editable 'c', extension => '.c', inherit => 1;
+
+__
 meta::meta('type::cache', <<'__');
 meta::configure 'cache', inherit => 0;
 meta::define_form 'cache', \&meta::bootstrap::implementation;
@@ -127,6 +131,10 @@ meta::define_form 'function', sub {
   my ($name, $value) = @_;
   meta::externalize $name, "function::$name", meta::eval_in("sub {\n$value\n}", "function::$name");
 };
+__
+meta::meta('type::h', <<'__');
+meta::functor::editable 'h', extension => '.h', inherit => 1;
+
 __
 meta::meta('type::hook', <<'__');
 meta::configure 'hook', extension => '.pl', inherit => 0;
@@ -248,12 +256,8 @@ meta::configure 'vim_highlighter', extension => '.vim', inherit => 1;
 meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
-meta::meta('type::waul', <<'__');
-meta::functor::editable 'waul', inherit => 1, extension => '.waul', default => 'edit';
-
-__
 meta::alias('cb', <<'__');
-ad -c js::|waul::
+ad -c c::
 
 __
 meta::alias('cl', 'ad -c canard::lib');
@@ -369,6 +373,7 @@ meta::cache('parent-identification', <<'__');
 /home/spencertipping/conjectures/perl-objects/js 246bc56c88e8e8daae3737dbb16a2a2c
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
 binary 93194ecf50e38f2adb6e273909e007b5
+c 8118b5c1b0aa08bce7e839df4ab80199
 canard-object 3d87f1a4b0694cfebcbfd589fa5ed5dd
 git-integration 9fabb9b6f2f374c35ddcc26549ac2b65
 notes a9e5975593ed5d90d943ad98405c71e5
@@ -631,21 +636,6 @@ my @parent_hashes = map $inherited{$_} || '-', @definitions if $parent_hashes;
 
 join "\n", map strip($_), split /\n/, table_display($external ? [grep length, @externals] : [@definitions],
                                                     $sizes ? ([@sizes]) : (), $flags ? ([@flags]) : (), $hashes ? ([@hashes]) : (), $parent_hashes ? ([@parent_hashes]) : ());
-
-__
-meta::function('minify-yui', <<'__');
-# Minify using YUI compressor
-my ($options, @filenames) = separate_options(@_);
-my $nomunge   = $$options{-m} ? '' : '--nomunge';
-my $linebreak = $$options{-B} ? '' : '--line-break 160';
-
-for my $filename (@filenames) {
-  my $minified = $filename;
-  $minified =~ s/\.js$/.min.js/;
-
-  terminal::info("minifying $filename");
-  file::write($minified, join '', qx(yuicompressor $nomunge $linebreak "$filename"));
-}
 
 __
 meta::function('mv', <<'__');
@@ -1111,20 +1101,6 @@ __
 meta::function('vim', <<'__');
 # Installs VIM highlighters.
 file::write("$ENV{'HOME'}/.vim/syntax/$_.vim", retrieve("vim_highlighter::$_")) for grep s/^vim_highlighter:://o, keys %data;
-__
-meta::function('waul', <<'__');
-my ($name, %options) = @_;
-$name =~ s/^waul:://;
-my $output     = $options{output} || "$name.js";
-my $extensions = $options{extensions} ? join(' ', map "--extension '$_'", split /\s+/, $options{extensions}) : '';
-my $waul       = retrieve("waul::$name") =~ m-^#!/usr/bin/env (\S+)- ? $1 : 'waul';
-
-terminal::info("compiling waul::$name using $waul ($extensions)");
-
-with_exported("waul::$name", sub {
-  my ($exported) = @_;
-  sh("$waul --output '$output' $extensions $exported")});
-
 __
 meta::function('wrapped-near', <<'__');
 my ($text, $approximate_margin) = @_;
@@ -2170,20 +2146,6 @@ retriever::object                       c7633990b4e01bdc783da7e545799f4f
 retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
 
 __
-meta::parent('/home/spencertipping/bin/waul-object', <<'__');
-function::minify-yui                                        6374d98eda8642e5cdebe4fb34f5419b
-function::waul                                              66b92f55d5db498934b487188a04b16d
-meta::type::waul                                            869b5820cd79178b94c3ccdd47dff9df
-parent::/home/spencertipping/conjectures/perl-objects/js    7ed4609019fe7e1b716582f46eb02e13
-parent::/home/spencertipping/conjectures/perl-objects/sdoc  083058e61853465525f6e9b70ee1ef0c
-parent::preprocessor                                        88f8be6f851d5f9159d7996dd67ab875
-
-__
-meta::parent('/home/spencertipping/conjectures/perl-objects/js', <<'__');
-meta::type::js                           0377fcc438f3af85ec87d4770b8cd307
-parent::/home/spencertipping/bin/object  208e4b12afe64a14bfd8cacf04181e14
-
-__
 meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__');
 function::sdoc                           9d019a0b391ccb5fb849a2bd354385b5
 function::sdoc-html                      b23152b3f5be696e5bae842ec43fc5a4
@@ -2199,6 +2161,12 @@ retriever::markdown-sdoc                 67c34ba8223ec36a3ae018e411354db2
 retriever::sdoc                          662061e9e41491e2a1debd6862ccf1e7
 retriever::sdoc-packed                   f7116f96adf2c748ac1991f4d7c1792b
 retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
+
+__
+meta::parent('c', <<'__');
+meta::type::c                            3620b980d1214437d4ed43f65fbd2088
+meta::type::h                            d00bc801128b6e15bad2438c0a7b19f6
+parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
 
 __
 meta::parent('canard-object', <<'__');
@@ -2651,173 +2619,6 @@ meta::sdoc('canard::stdlib', <<'__');
 - include sdoc-packed::canard::lib/iteration
 - include sdoc-packed::canard::lib/functional
 - include sdoc-packed::canard::lib/comments
-
-__
-meta::sdoc('js::boot-image', <<'__');
-#!/usr/bin/env node
-
-Canard bootstrap interpreter image | Spencer Tipping
-Licensed under the terms of the MIT source code license
-
-- include deps/caterwaul.min.js
-- include deps/caterwaul.std.min.js
-- include deps/regexp.js
-- include deps/parser.js
-- include src/boot.js
-
-caterwaul(':all')(function ($) {
-  $.canard.syntax.prototype -se [it.execute(stack, bindings) = process.stderr.write('\033[1;30m#{this.is_cons() ? "[" + this + "]" : this} \033[40G\033[1;32m#{print_stack(stack)}\033[0;0m\n')
-                                                               -then- original.apply(this, arguments),
-                                 where [original = it.execute]],
-  when.false,
-  Number.prototype.is_cons() = false,
-
-  process.argv.length > 2 && process.argv[2] !== '-i' -se [process.argv.shift(), when.it] ? start_from_file() : start_from_repl(),
-
-  where [start_from_file() = $.canard(process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] -seq -re- it.join('\n\n')),
-
-         stack             = null,
-         bindings          = $.canard.default_bindings() -se- console.log('#{it /keys -seq -re- it.length} bindings'),
-         start_from_repl() = process.argv.slice(2) *[require('fs').readFileSync(x, 'utf8')] *![stack = $.canard.parse(x).interpret(stack, bindings)] -seq
-                             -then- process.stderr.write('\033[1;33mwarning: nonempty stack after loading files: #{print_stack(stack)}\033[0;0m\n') /unless [stack === null]
-                             -then- require('repl').start('canard> ', undefined, repl_function, undefined, true)
-                             -where [repl_function(x, _1, _2, cc) = cc(stack -eq- $.canard.parse(filter(x)).interpret(stack, bindings) <then> undefined, rescue.e)
-                                                                    -then- process.stderr.write('\033[s\033[80G\033[1;32m#{print_stack(stack)}\033[u\033[0;0m'),
-                                     filter(code)                 = code.replace(/^\s*\(\s*|\s*\)\s*$/g, '')],
-
-         print_stack(s)    = s !== null ? s.h.is_cons() ? '[#{s.h}] #{print_stack(s.t)}'
-                                                        : '#{s.h} #{print_stack(s.t)}' : '']}, {require: require})(caterwaul);
-
-__
-meta::sdoc('waul::boot', <<'__');
-Bootstrap interpreter | Spencer Tipping
-Licensed under the terms of the MIT source code license
-
-Introduction.
-This interpreter parses and interprets Canard programs. It provides a set of primitives sufficient to generate the file that will contain the reference Canard compiler. This interpreter
-provides no comment syntax; comments can be written as 'nb [stuff]'.
-
-caterwaul.module('canard', ':all', function ($) {
-  ($.canard(source, stack, bindings) = $.canard.parse(source).interpret(stack || null, {} / $.canard.default_bindings() /-$.merge/ bindings)) /-$.merge/ statics()
-
-  -where [statics() = capture [syntax             = tree_ctor() /-$.syntax_subclass/ tree_methods() /-$.merge/ tree_statics(),
-                               default_bindings() = default_bindings(),
-                               parse              = parser()],
-
-Parsing logic.
-The parser is really simple; it just handles juxtaposition (treated as cons), list encapsulation, and atom parsing.
-
-          parser() = "toplevel([new linear_string_state(_)])[0].value()".qf
-                     -where [toplevel(xs) = toplevel(xs), toplevel = annotate(toplevel, 'toplevel', []),
-                             term(xs)     = term(xs),     term     = annotate(term,     'term',     []),
-
-                             maybe_ws(p)  = linear_regexp(/\s+/) /-bfs/ p /-alt/ p /-bfc/ optional(linear_regexp(/\s+/)) /-map/ "_[0]".qf,
-                             cons         = maybe_ws(term) /!manyc /-map/ "_ /[$.canard.syntax.nil()][x0 /-$.canard.syntax.cons/ x] -seq".qf,
-                             atom         = linear_regexp(/([^ \n\r\t\[\]]+)/) /-map/ "_[1] /!$.canard.syntax.atom".qf,
-                             list         = linear_regexp(/\[/) / cons /-bfc/ linear_regexp(/\]/) /-map/ "_[1]".qf,
-                             term         = atom /-alt/ list,
-                             toplevel     = cons],
-
-Syntax trees and interpreter.
-The interpreter is just a tree-walker that acts as a nondestructive function from stack to stack. It carries a binding table that the program can modify.
-
-          tree_ctor()(d, c1, c2) = d instanceof this.constructor ? this -se [it.data = d.data, it.length = 0]
-                                                                 : this -se [it.data = d, it.length = c1 && c2 ? 2 : 0, it[0] /eq.c1 /when.c1, it[1] /eq.c2 /when.c2],
-
-          tree_statics()         = capture [nil()      = new $.canard.syntax('[]'),
-                                            atom(data) = new $.canard.syntax(data),
-                                            cons(t, h) = new $.canard.syntax('cons', t, h)],
-
-          tree_methods()         = capture [is_cons()  = this.length === 2 && this.data === 'cons',  h()    = this[1],
-                                            is_atom()  = !this.length,                               t()    = this[0],
-                                            is_quote() = this.is_atom() && /^'/.test(this.data),     name() = this.data.replace(/^'/, ''),
-                                            is_nil()   = this.is_atom() && this.data === '[]',
-
-                                            unquote()  = this.is_atom() && /^'/.test(this.data) ? $.canard.syntax.atom(this.data /~substr/ 1) : this,
-                                            quote()    = this.is_atom()                         ? $.canard.syntax.atom("'#{this.data}")       : this,
-
-                                            toString() = this.is_nil()                                              ? '[]'
-                                                       : this.is_cons() && !this.t().is_nil() && this.h().is_cons() ? '#{this.t()} [#{this.h()}]'
-                                                       : this.is_cons() &&  this.t().is_nil()                       ? this.h().toString()
-                                                       : this.is_cons()                                             ? '#{this.t()} #{this.h()}'
-                                                                                                                    : this.data]
-                                   /-$.merge/ interpreter_methods(),
-
-          interpreter_methods()  = capture [should_run()               = !this.is_nil() && this.is_atom() && !this.is_quote(),
-
-                                            execute(stack, bindings)   = rescue ['#{this}:[e]\n#{e}' /raise]
-                                                                       [ this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                                           : {h: this.unquote(), t: stack}],
-
-                                            interpret(stack, bindings) = rescue ['#{this}:[i]\n#{e}' /raise]
-                                                                       [ this.is_cons()    ? this.t().interpret(this.h().execute(stack, bindings), bindings)
-                                                                       : this.is_nil()     ? stack
-                                                                       : this.should_run() ? bindings[this.name()].interpret(stack, bindings)
-                                                                                           : {h: this.unquote(), t: stack}]],
-
-Default bindings.
-These provide a very simple base language that should be sufficient to write the abstractions necessary to generate the reference compiler.
-
-          up(stack, n)              = n ? up(stack.t, n - 1) : stack,
-          append_items_to(s, o, l)  = l.is_cons() ? append_items_to({t: s, h: up(o, +l.h().data).h}, o, l.t()) : s,
-          stash_helper(n, b, s, bs) = n ? {h: s.h, t: stash_helper(n - 1, b, s.t, bs)} : b.interpret(s, bs),
-          stack_depth(s)            = s ? 1 + stack_depth(s.t) : 0,
-
-          default_bindings() = capture [
-
-                     /* symbol table */ '='(stack, bindings)  = bindings[stack.h.name()] -eq- stack.t.h -then- stack.t.t,
-                                        '@'(stack, bindings)  = {h: bindings[stack.h.name()], t: stack.t},
-
-                             /* repl */ ls(stack, bindings)   = process.stdout.write(bindings /keys /seq -re- it.sort().join(' ') + '\n') -then- stack,
-                                        depth(stack)          = {h: $.canard.syntax.atom(stack_depth(stack)), t: stack},
-                                        clear(stack)          = null,
-
-                  /* logging/tracing */ '$<'(stack)           = console.log(stack.h.toString())                              -then- stack.t,
-                                        '$|'(stack)           = console.log('\033[1;32m#{stack.h}\033[0;0m')                 -then- stack,
-                                        '#<'(stack)           = process.stdout.write(new Buffer(1) <se> it[0] -eq- +stack.h) -then- stack.t,
-
-              /* symbol manipulation */ '$#'(stack)           = {h: $.canard.syntax.atom(stack.h.data.length),                t: stack.t},
-                                        '$'(stack)            = {h: $.canard.syntax.atom(String.fromCharCode(+stack.h)),      t: stack.t},
-                                        '$^'(stack)           = {h: stack.t.h.data.charCodeAt(+stack.h.data),                 t: stack.t.t},
-                                        '$+'(stack)           = {h: $.canard.syntax.atom(stack.h.data + stack.t.h.data),      t: stack.t.t},
-                                        '$:'(stack)           = {h: stack.h.quote(),                                          t: stack.t},
-                                        '$.'(stack)           = {h: stack.h.unquote(),                                        t: stack.t},
-
-                                        '$='(stack)           = {h: +(stack.h.data === stack.t.h.data), t: stack.t.t},
-
-                      /* conditional */ '?'(stack, bindings)  = +stack.t.t.h ? stack  .h.interpret(stack.t.t.t, bindings)
-                                                                             : stack.t.h.interpret(stack.t.t.t, bindings),
-
-                    /* type checking */ '/?'(stack)           = {h: +stack.h.is_nil(),  t: stack.t},
-                                        ':?'(stack)           = {h: +stack.h.is_cons(), t: stack.t},
-                                        '!'(stack)            = {h: +!stack.h,          t: stack.t},
-
-                      /* cons/uncons */ '::'(stack)           = {h: $.canard.syntax.cons(stack.h, stack.t.h), t: stack.t.t},
-                                        ':^'(stack)           = new Error('#{stack.h} is not a cons cell') /raise /unless [stack.h.is_cons()]
-                                                                -then- {h: stack.h.t(), t: {h: stack.h.h(), t: stack.t}},
-
-                             /* eval */ '.'(stack, bindings)  = stack.h.interpret(stack.t, bindings)] %v*[{interpret: x}] /seq
-
-                               /          stash_bindings()
-                               /          permutation_bindings()
-                               /          numeric_bindings()
-                               /-$.merge/ arithmetic_bindings(),
-
-          stash_bindings()       = ni[1, 4] *[['^#{x}', {interpret: given.x [given [stack, bindings] in stash_helper(x, stack.h, stack.t, bindings)] (x)}]] -object -seq,
-
-          permutation_bindings() = permutation_names() *[['%#{x}', {interpret: given.x [given.stack in append_items_to(stack /-up/ +x.charAt(0),
-                                                                                                                       stack,
-                                                                                                                       permutation_list(x.substr(1)))] (x)}]] -object -seq,
-          a2d                    = n[97, 101] *String.fromCharCode + [''] -seq,
-          permutation_names()    = ni[0, 4] *~![a2d *~!a[a2d *~!b[a2d *~!c[a2d *d['#{x}#{a}#{b}#{c}#{d}'] -seq] -seq] -seq] -seq] -seq,
-          permutation_list(name) = name.length ? name.substr(0, name.length - 1) /!permutation_list /-$.canard.syntax.cons/ $.canard.syntax.atom(name.charCodeAt(name.length - 1) - 97)
-                                               : $.canard.syntax.nil(),
-
-          numeric_bindings()     = n[256] *[['0123456789abcdef'.charAt(x >>> 4) + '0123456789abcdef'.charAt(x & 15), {interpret: given.x [given.stack in {h: x, t: stack}] (x)}]] -object -seq,
-          arithmetic_bindings()  = '+ - * / % >> << >>> | & ^ < > <= >= === !== == !='.qw
-                                   *[[x, {interpret: "function (stack) {return {h: +(stack.t.h #{x} stack.h), t: stack.t.t}}" /!$.parse /!$.compile}]] -object -seq]
-
-  -using- caterwaul.parser});
 
 __
 meta::template('comment', '\'\';     # A mechanism for line or block comments.');
