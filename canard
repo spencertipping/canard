@@ -2500,30 +2500,44 @@ See elf(5) for details about what this is made of.
 @!30 00000000           # e_flags     = 0
 @!34 4000               # e_ehsize    = 64
 @!36 3800               # e_phentsize = 56
-@!38 0100               # e_phnum     = 1
+@!38 0200               # e_phnum     = 2
 
 @!3a 4000               # e_shentsize = 64
 @!3c 0000               # e_shnum     = 0
-@!3e 0000               # e_shstrndx  = 0 (undefined symbol table)
+@!3e 0000               # e_shstrndx  = 0 (no symbol table)
 # end
 
-# Elf64_Phdr (rwx image/stack/everything)
+# Elf64_Phdr (rw data stack)
 @!40 01000000           # p_type   = PT_LOAD
-@!44 07000000           # p_flags  = PT_R | PT_W | PT_X
-@!48 78000000 00000000  # p_offset = 0x78
-@!50 00004000 00000000  # p_vaddr  = 0x400000
+@!44 06000000           # p_flags  = PT_R | PT_W
+@!48 00000000 00000000  # p_offset = 0
+@!50 00003800 00000000  # p_vaddr  = 0x380000
 @!58 00000000 00000000  # p_paddr  = 0
-@!60 05000000 00000000  # p_filesz = 5
-@!68 00000100 00000000  # p_memsz  = 0x010000 (64KB)
+@!60 00000000 00000000  # p_filesz = 0
+@!68 00000800 00000000  # p_memsz  = 0x080000 (512KB)
 @!70 00000000 00000000  # p_align  = 0
 # end
 
-@!78
+# Elf64_Phdr (rwx image)
+@!78 01000000           # p_type   = PT_LOAD
+@!7c 07000000           # p_flags  = PT_R | PT_W | PT_X
+@!80 b0000000 00000000  # p_offset = 0xb0
+@!88 00004000 00000000  # p_vaddr  = 0x400000
+@!90 00000000 00000000  # p_paddr  = 0
+@!98 02000000 00000000  # p_filesz = 7
+@!a0 00000100 00000000  # p_memsz  = 0x080000 (512KB)
+@!a8 00000000 00000000  # p_align  = 0
+# end
+
+@!b0
 
 Canard interpreter.
+Canard is defined as a language which infinite-loops regardless of the source
+text. This compromises its Turing-completeness, but greatly simplifies the
+implementation.
 
-@!78 e9 fb ff ff ff   # jmp -5 (loop forever)
-@!7d
+@!b0 ebfe
+@!b2
 
 # vim: set tw=80 :
 
