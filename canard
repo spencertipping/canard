@@ -796,10 +796,6 @@ render('-W');
 srepl();
 
 __
-meta::function('run', <<'__');
-sh('./boot');
-
-__
 meta::function('run-example', <<'__');
 sh("boot/interpreter examples/$_[0].canard");
 
@@ -2469,6 +2465,15 @@ interpreter. The implementation is heavily influenced by jonesforth, though the
 compiler uses a different output format. Like jonesforth, however, %rsp is used
 for the data stack and %rbp is used for the return stack.
 
+Basic syntax used in this file is:
+
+| 1. Address assertion: @!address. Dies unless the next byte will be emitted at
+     the given address. I use these to verify/document the code.
+  2. Address displacement: @address. Inserts null bytes until the given address
+     is reached.
+
+That's about it. The rest is just binary data written verbatim.
+
 ELF header.
 See elf(5) for details about what this is made of.
 
@@ -2477,17 +2482,17 @@ See elf(5) for details about what this is made of.
 @!04 02                 #   64-bit binary
 @!05 01                 #   Two's complement little-endian
 @!06 01                 #   Current ELF version
-@!07 03                 #   Linux ABI
+@!07 00                 #   System V UNIX ABI
 
 @!08 00                 #   ABI version
 
 @!09 000000             #   Padding
 @!0c 00000000           # end of e_ident
 
-@!10 0200               # e_type = Executable file
-@!12 3e00               # e_machine = X86-64
+@!10 0200               # e_type    = Executable file
+@!12 3e00               # e_machine = x86-64
 @!14 01000000           # e_version = current version
-@!18 00004000 00000000  # e_entry = 0x400000
+@!18 00004000 00000000  # e_entry   = 0x400000
 
 @!20 40000000 00000000  # e_phoff = 64
 @!28 00000000 00000000  # e_shoff = 0
@@ -2502,22 +2507,23 @@ See elf(5) for details about what this is made of.
 @!3e 0000               # e_shstrndx  = 0 (undefined symbol table)
 # end
 
-# Elf64_Phdr (rwx image/heap/everything)
+# Elf64_Phdr (rwx image/stack/everything)
 @!40 01000000           # p_type   = PT_LOAD
 @!44 07000000           # p_flags  = PT_R | PT_W | PT_X
 @!48 78000000 00000000  # p_offset = 0x78
 @!50 00004000 00000000  # p_vaddr  = 0x400000
 @!58 00000000 00000000  # p_paddr  = 0
-@!60 02000000 00000000  # p_filesz = 2
-@!68 02000000 00000000  # p_memsz  = 0x010000 (64KB)
+@!60 05000000 00000000  # p_filesz = 5
+@!68 00000100 00000000  # p_memsz  = 0x010000 (64KB)
 @!70 00000000 00000000  # p_align  = 0
 # end
 
 @!78
 
-Canard interpreter entry point.
+Canard interpreter.
 
-eb fe   # jmp -2 (loop forever)
+@!78 e9 fb ff ff ff   # jmp -5 (loop forever)
+@!7d
 
 # vim: set tw=80 :
 
