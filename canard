@@ -257,7 +257,7 @@ meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
 meta::alias('cb', <<'__');
-ad -c c::
+ad -c sdoc::c::|sdoc::h::
 
 __
 meta::alias('cl', 'ad -c canard::lib');
