@@ -2514,9 +2514,9 @@ See elf(5) for details about what this is made of.
 @!40 01 00 00 00                # p_type  = PT_LOAD
      07 00 00 00                # p_flags = PT_R | PT_W | PT_X
 
-     b0 00 00 00 /4/00          # p_offset
-     b0 00 40 00 /4/00          # p_vaddr
-     b0 00 40 00 /4/00          # p_paddr
+     00 00 00 00 /4/00          # p_offset (includes ELF header)
+     00 00 40 00 /4/00          # p_vaddr
+     00 00 00 00 /4/00          # p_paddr
      00 04 00 00 /4/00          # p_filesz
      00 04 00 00 /4/00          # p_memsz
      00 10 00 00 /4/00          # p_align
@@ -2533,7 +2533,15 @@ See elf(5) for details about what this is made of.
      00 10 00 00 /4/00          # p_align
 
 Canard interpreter.
-Exit immediately with a zero status code.
+The interpreter structure is heavily inspired by jonesforth, but with some
+significant differences as well. The biggest difference is that Canard makes
+code generally isomorphic to data; therefore, the interpreter code is itself a
+data structure that appears in the memory image.
+
+Unlike jonesforth, this interpreter is indirect-threaded through the symbol
+table. This allows you to use symbols in recursive definitions:
+
+| = [foo] [? [foo] [] > 1]
 
 @!b0 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0
