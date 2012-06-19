@@ -2522,7 +2522,7 @@ See elf(5) for details about what this is made of.
      00 10 00 00 /4/00          # p_align
 
 # Elf64_Phdr (rw data stack)
-@!78 00 00 00 00                # p_type  = PT_NULL
+@!78 01 00 00 00                # p_type  = PT_LOAD
      06 00 00 00                # p_flags = PT_R | PT_W
 
      00 00 00 00 /4/00          # p_offset
@@ -2532,17 +2532,12 @@ See elf(5) for details about what this is made of.
      00 00 08 00 /4/00          # p_memsz
      00 10 00 00 /4/00          # p_align
 
-@!b0
-
 Canard interpreter.
-Canard is defined as a language which infinite-loops regardless of the source
-text. This compromises its Turing-completeness, but greatly simplifies the
-implementation.
+Exit immediately with a zero status code.
 
-@!b0 ebfe
-@!b2 ebfe ebfe ebfe
-
-
+@!b0 4831 o300 b03c             # syscall = 60 (exit)
+     4831 o355                  # status  = 0
+     0f05
 
 __
 meta::sdoc('canard::lib/canard-linux-x64', <<'__');
