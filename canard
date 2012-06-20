@@ -752,7 +752,9 @@ my ($options, @stuff) = separate_options(@_);
 # Commented out until I write an accurate readme
 # file::write('README.md', retrieve('markdown::readme'));
 
-file::write('boot', retrieve('bin::boot'));
+file::write('boot.binary', retrieve('binary::boot'));
+file::write('boot.md',     retrieve('markdown::binary::boot'));
+file::write('boot',        retrieve('bin::boot'));
 chmod 0700, 'boot';
 
 file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep s/^(sdoc::)?canard::lib\//lib\//, sort keys %data;
