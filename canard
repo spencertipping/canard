@@ -1986,6 +1986,19 @@ The whole point behind the E/I distinction is that lists are quoted when in the 
 two separate functions to handle this case.
 
 __
+meta::note('self-defining-symbols', <<'__');
+Self-defining symbols.
+It's tempting to have symbols be self-defining; that is, no quotation form is
+used during definitions:
+
+| foo [bar]             <- if 'foo' is unbound, binds 'foo' to [bar]
+  foo                   <- since 'foo' is now bound, evaluates to [bar]
+
+The problem with this approach is that it makes analysis difficult, but it's
+unclear how much of a problem this is considering that analysis is difficult
+with the usual quote-define model as well.
+
+__
 meta::note('self-hosting', <<'__');
 Self-hosting.
 The execution model as implemented in the bootstrap compiler is too high-level. Here's the definition of the evaluation function, assuming two functions r< and r> from Forth:
@@ -2541,7 +2554,7 @@ data structure that appears in the memory image.
 Unlike jonesforth, this interpreter is indirect-threaded through the symbol
 table. This allows you to use symbols in recursive definitions:
 
-| = [foo] [? [foo] [] > 1]
+| foo [? [foo] [] > 1]
 
 Lists and symbols.
 Like Joy, Canard is made up of lists and symbols. Everything, including numbers,
@@ -2590,12 +2603,11 @@ This has an interesting effect on the resulting code in the code-as-data model.
 The symbols will end up being erased and lists will refer back to each other
 directly rather than going through the symbol table:
 
-| = [fact] [? [* fact - 1 %0] [1 %v] %0]
-  [? [* [...] - 1 %0] [1 %v] %0]
-  ^     v
-  +--<--+
+| fact [? [* fact - 1 %0] [1 %v] %0]
+       ^     v
+       +--<--+
 
-Notice that we've now lost information: we don't know why the list refers to
+Notice that we've now lost information [1]: we don't know why the list refers to
 itself, just that it does. We arguably shouldn't make this transformation
 lightly, since the user will see the difference between the initial abstract
 list and the resulting resolved one. This transformation becomes particularly
@@ -2603,8 +2615,20 @@ apparent when taken to its logical limit: every primitive operation will end up
 being replaced by its definition until the whole list is rewritten into fully
 executable machine code.
 
-| Question: Is this all invalid due to immutability assumptions about cons
-            cells?
+| [1] Technically, the information is still there, though only due to a
+      counterintuitive property of the mechanism. Lists preserve their identity
+      across this transformation and we know that every list might have an
+      associated symbol. Therefore, we can easily enough go backwards from
+      list-address to symbol name in the event that lists must be printed. Code
+      that inspects the lists will still need to manually invert the symbol
+      lookup.
+
+Symbols.
+The symbol table stores the mapping between symbols and lists. Because lists are
+executable machine code, we can just use the ELF symbol table rather than
+defining our own format. ELF symbols point to code-modifiers as described above.
+This has the desirable property that the ELF symbol table is persistent and can
+be inspected externally.
 
 @!b0 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0
