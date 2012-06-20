@@ -103,6 +103,10 @@ meta::define_form 'alias', sub {
   };
 };
 __
+meta::meta('type::binary', <<'__');
+meta::functor::editable 'binary', extension => '.binary', default => 'edit', inherit => 0;
+
+__
 meta::meta('type::bootstrap', <<'__');
 # Bootstrap attributes don't get executed. The reason for this is that because
 # they are serialized directly into the header of the file (and later duplicated
@@ -326,9 +330,11 @@ __
 meta::cache('parent-identification', <<'__');
 /home/spencertipping/bin/object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
+binary 93194ecf50e38f2adb6e273909e007b5
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
 text ffe5790f4c605b3bd73283f7c5e57dc5
+
 __
 meta::data('author', <<'__');
 Spencer Tipping <spencer@spencertipping.com>
@@ -402,6 +408,33 @@ for (grep length, @_) {
       rm('data::permanent-identity');
       file::write($_, serialize(), noclobber => 1);
       chmod(0700, $_)})})}
+__
+meta::function('compile-binary', <<'__');
+# Compiles binary-text to binary output.
+my $text = join ' ', map split(/\s+/), split /#.*/m, retrieve($_[0]);
+my $hex_letters = '0123456789abcdef';
+
+my @output;
+
+my $offset     = 0;
+my $next       = 1;
+my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
+my $repetition = sub {my $count = $next; $next = 1; $count};
+my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
+my $octal      = sub {my $total = 0; $total = ($total << 3) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 2; chr($total) x &$repetition()};
+my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
+my $until      = sub {my $address = hex $_[0]; "\0" x ($address - $offset)};
+my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)", hex $_[0], $offset unless $offset == hex $_[0]; ''};
+
+my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
+
+my @tokens = split m#(-[01]{8}|o[0-3][0-7]{2}|[0-9a-f]{2}|@!?[0-9a-f]+|/\d+/)#, $text;
+&$emit(/^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/ ? &$octal($1) :
+       /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/     ? &$until($1) :
+       /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/      ? &$hex($_)   : '') for @tokens;
+
+join '', @output;
+
 __
 meta::function('cp', <<'__');
 my $from = shift @_;
@@ -1532,6 +1565,15 @@ retriever::sdoc-packed                   f7116f96adf2c748ac1991f4d7c1792b
 retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
+meta::parent('binary', <<'__');
+function::compile-binary                 c7ad5bb1814250380dd474ad5231fdf3
+meta::type::binary                       3a80e9982dedb950aa1a9ae301670dc4
+parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
+parent::vim-highlighters                 f3bda418899ffc5cdeb6774b6b1477c7
+retriever::bin                           24b2382d3f002ee325963a5c652c53ff
+vim_highlighter::binary                  ccfec7137d9315e7aa858bd427a9e4a6
+
+__
 meta::parent('object', <<'__');
 bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
 bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
@@ -1671,6 +1713,19 @@ meta::parent('text', <<'__');
 function::wrapped-near                   b34731b33db1a4b56c724b1aa5c97f6d
 parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
 retriever::wrapped-near                  1b00aeef9dbd19633a1fedc443b846e8
+
+__
+meta::parent('vim-highlighters', <<'__');
+function::vim                cf9e37026f6cd1499a6dd258fbbcd060
+meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
+parent::object               208e4b12afe64a14bfd8cacf04181e14
+
+__
+meta::retriever('bin', <<'__');
+# Compiles a binary text file.
+my $name = $_[0];
+return undef unless $name =~ s/^bin::/binary::/ && defined retrieve($name);
+compile_binary($name);
 
 __
 meta::retriever('canard-pack', <<'__');
