@@ -146,6 +146,9 @@ apparent when taken to its logical limit: every primitive operation will end up
 being replaced by its definition until the whole list is rewritten into fully
 executable machine code.
 
+Note that this has the added benefit that tail calls propagate through symbol
+dereferencing. (I think this is true; need to verify in all cases.)
+
     [1] Technically, the information is still there, though only due to a
         counterintuitive property of the mechanism. Lists preserve their identity
         across this transformation and we know that every list might have an
@@ -156,11 +159,13 @@ executable machine code.
 
 # Symbols
 
-The symbol table stores the mapping between symbols and lists. Because lists are
-executable machine code, we can just use the ELF symbol table rather than
-defining our own format. ELF symbols point to code-modifiers as described above.
-This has the desirable property that the ELF symbol table is persistent and can
-be inspected externally.
+The symbol table contains executable code that looks up symbols, returning the
+default 'define-this-symbol' function if the mapping doesn't exist. The initial
+symbol table is a part of this bootstrap image and is one of the few things
+about Canard that isn't written in the language itself.
+
+Once defined, symbols are fairly straightforward. The symbol table maps each
+symbol to a caller-modifying function as described above.
 
     @!b0 4831 o300 b03c             # syscall = 60 (exit)
          4831 o355                  # status  = 0
