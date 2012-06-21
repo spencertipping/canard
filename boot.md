@@ -34,7 +34,7 @@ See elf(5) for details about what this is made of.
     @!10 02 00                      # e_type    = Executable file
     @!12 3e 00                      # e_machine = x86-64
     @!14 01 00 00 00                # e_version = current version
-    @!18 b0 00 40 00 /4/00          # e_entry
+    @!18 78 00 40 00 /4/00          # e_entry
 
     @!20 40 00 00 00 /4/00          # e_phoff
     @!28 00 00 00 00 /4/00          # e_shoff
@@ -60,17 +60,6 @@ See elf(5) for details about what this is made of.
          00 00 00 00 /4/00          # p_paddr
          00 04 00 00 /4/00          # p_filesz
          00 04 00 00 /4/00          # p_memsz
-         00 10 00 00 /4/00          # p_align
-
-    # Elf64_Phdr (rw data stack)
-    @!78 01 00 00 00                # p_type  = PT_LOAD
-         06 00 00 00                # p_flags = PT_R | PT_W
-
-         00 00 00 00 /4/00          # p_offset
-         00 00 48 00 /4/00          # p_vaddr
-         00 00 48 00 /4/00          # p_paddr
-         00 00 00 00 /4/00          # p_filesz
-         00 00 08 00 /4/00          # p_memsz
          00 10 00 00 /4/00          # p_align
 
 # Canard interpreter
@@ -167,6 +156,6 @@ about Canard that isn't written in the language itself.
 Once defined, symbols are fairly straightforward. The symbol table maps each
 symbol to a caller-modifying function as described above.
 
-    @!b0 4831 o300 b03c             # syscall = 60 (exit)
+    @!78 4831 o300 b03c             # syscall = 60 (exit)
          4831 o355                  # status  = 0
          0f05
