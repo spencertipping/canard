@@ -2528,7 +2528,7 @@ ELF header.
 See elf(5) for details about what this is made of.
 
 # Elf64_Ehdr                    # e_ident
-@!00 7f454c46                   #   ELF magic
+@!00 7f 'ELF                    #   ELF magic
 @!04 02                         #   64-bit binary
 @!05 01                         #   Two's complement little-endian
 @!06 01                         #   Current ELF version
