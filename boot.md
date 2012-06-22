@@ -14,15 +14,17 @@ Basic syntax used in this file is:
        the given address. I use these to verify/document the code.
     2. Address displacement: @address. Inserts null bytes until the given address
        is reached.
+    3. /n/byte - byte repeated n times.
 
-That's about it. The rest is just binary data written verbatim.
+That's about it. The rest is just binary data written verbatim in hex (no
+prefix), octal (o prefix), or binary (- prefix).
 
 # ELF header
 
 See elf(5) for details about what this is made of.
 
     # Elf64_Ehdr                    # e_ident
-    @!00 7f454c46                   #   ELF magic
+    @!00 7f 'ELF                    #   ELF magic
     @!04 02                         #   64-bit binary
     @!05 01                         #   Two's complement little-endian
     @!06 01                         #   Current ELF version
@@ -51,7 +53,7 @@ See elf(5) for details about what this is made of.
 
     @!40
 
-    # Elf64_Phdr (rwx image)
+    # Elf64_Phdr (rwx image -- this contains code and definitions)
     @!40 01 00 00 00                # p_type  = PT_LOAD
          07 00 00 00                # p_flags = PT_R | PT_W | PT_X
 
@@ -61,6 +63,7 @@ See elf(5) for details about what this is made of.
          00 04 00 00 /4/00          # p_filesz
          00 04 00 00 /4/00          # p_memsz
          00 10 00 00 /4/00          # p_align
+    # end
 
 # Canard interpreter
 
@@ -109,12 +112,12 @@ symbols before they have been defined.
 At the same time, however, we want to avoid the overhead that comes with the
 second layer of indirection intrinsic to indirect threading. The easiest way to
 do this, assuming that we're willing to be arbitrarily hackish (which I am), is
-to simply update the calling address to remove the indirection. So we end up
+to simply update the calling address to remove the indirection [1]. So we end up
 with code that looks like this:
 
     e8 xx xx xx xx                <- xx xx xx xx points to the symbol table entry
     xx xx xx xx:
-      movl $yy yy yy yy, %eax     <- absolute address of yy yy yy yy
+      movzxl $yy yy yy yy, %eax   <- absolute address of yy yy yy yy
       subq (%rsp), %rax           <- make it relative to the calling address
       movl %eax, -4(%rsp)         <- go back and fix up the address
       jmp -5(%rsp)                <- and use the new and improved jump
@@ -127,18 +130,24 @@ directly rather than going through the symbol table:
          ^     v
          +--<--+
 
-Notice that we've now lost information [1]: we don't know why the list refers to
+Notice that we've now lost information [2]: we don't know why the list refers to
 itself, just that it does. We arguably shouldn't make this transformation
 lightly, since the user will see the difference between the initial abstract
 list and the resulting resolved one. This transformation becomes particularly
 apparent when taken to its logical limit: every primitive operation will end up
 being replaced by its definition until the whole list is rewritten into fully
-executable machine code.
+executable machine code and will contain no intermediate symbol indirection at
+all.
 
 Note that this has the added benefit that tail calls propagate through symbol
 dereferencing. (I think this is true; need to verify in all cases.)
 
-    [1] Technically, the information is still there, though only due to a
+    [1] This could be a problem because it makes it impractical to generalize the
+        calling convention to any form of CPS. (Specifically, you can't invoke a
+        piece of code with a different continuation without seriously borking
+        things.) I'm going to need to put a lot of thought into this...
+
+    [2] Technically, the information is still there, though only due to a
         counterintuitive property of the mechanism. Lists preserve their identity
         across this transformation and we know that every list might have an
         associated symbol. Therefore, we can easily enough go backwards from

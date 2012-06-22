@@ -463,6 +463,7 @@ my $offset     = 0;
 my $next       = 1;
 my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
 my $repetition = sub {my $count = $next; $next = 1; $count};
+my $ascii      = sub {$_[0]};
 my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
 my $octal      = sub {my $total = 0; $total = ($total << 3) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 2; chr($total) x &$repetition()};
 my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
@@ -471,8 +472,9 @@ my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)"
 
 my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
 
-my @tokens = split m#(-[01]{8}|o[0-3][0-7]{2}|[0-9a-f]{2}|@!?[0-9a-f]+|/\d+/)#, $text;
-&$emit(/^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/ ? &$octal($1) :
+my @tokens = split m#('\S+|-[01]{8}|o[0-3][0-7]{2}|[0-9a-f]{2}|@!?[0-9a-f]+|/\d+/)#, $text;
+&$emit(/^'(\S+)/        ? &$ascii($1)  :
+       /^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/ ? &$octal($1) :
        /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/     ? &$until($1) :
        /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/      ? &$hex($_)   : '') for @tokens;
 
@@ -2243,6 +2245,7 @@ meta::parent('canard-object', <<'__');
 function::canard-pack                                       1baa1b17104517b0670946e937df3e78
 meta::type::canard                                          ee0b958db0f8b728c95edf7a27132ef2
 parent::/home/spencertipping/conjectures/perl-objects/sdoc  dd60d7a663741e1c0b4487ab5ed84e24
+parent::binary                                              8201b1911477a07fc80810896391a0f2
 parent::preprocessor                                        0ee19aa9729c5c6f94a4703fd2fac347
 parent::text                                                f21c7772bd3841408cbc2d79f58163bd
 retriever::canard-pack                                      0752d53db63bb0fc6df5bfc16c3eac10
@@ -2521,8 +2524,10 @@ Basic syntax used in this file is:
      the given address. I use these to verify/document the code.
   2. Address displacement: @address. Inserts null bytes until the given address
      is reached.
+  3. /n/byte - byte repeated n times.
 
-That's about it. The rest is just binary data written verbatim.
+That's about it. The rest is just binary data written verbatim in hex (no
+prefix), octal (o prefix), or binary (- prefix).
 
 ELF header.
 See elf(5) for details about what this is made of.
@@ -2557,7 +2562,7 @@ See elf(5) for details about what this is made of.
 
 @!40
 
-# Elf64_Phdr (rwx image)
+# Elf64_Phdr (rwx image -- this contains code and definitions)
 @!40 01 00 00 00                # p_type  = PT_LOAD
      07 00 00 00                # p_flags = PT_R | PT_W | PT_X
 
@@ -2567,6 +2572,7 @@ See elf(5) for details about what this is made of.
      00 04 00 00 /4/00          # p_filesz
      00 04 00 00 /4/00          # p_memsz
      00 10 00 00 /4/00          # p_align
+# end
 
 Canard interpreter.
 The interpreter structure is heavily inspired by jonesforth, but with some
@@ -2612,12 +2618,12 @@ symbols before they have been defined.
 At the same time, however, we want to avoid the overhead that comes with the
 second layer of indirection intrinsic to indirect threading. The easiest way to
 do this, assuming that we're willing to be arbitrarily hackish (which I am), is
-to simply update the calling address to remove the indirection. So we end up
+to simply update the calling address to remove the indirection [1]. So we end up
 with code that looks like this:
 
 | e8 xx xx xx xx                <- xx xx xx xx points to the symbol table entry
   xx xx xx xx:
-    movl $yy yy yy yy, %eax     <- absolute address of yy yy yy yy
+    movzxl $yy yy yy yy, %eax   <- absolute address of yy yy yy yy
     subq (%rsp), %rax           <- make it relative to the calling address
     movl %eax, -4(%rsp)         <- go back and fix up the address
     jmp -5(%rsp)                <- and use the new and improved jump
@@ -2630,18 +2636,24 @@ directly rather than going through the symbol table:
        ^     v
        +--<--+
 
-Notice that we've now lost information [1]: we don't know why the list refers to
+Notice that we've now lost information [2]: we don't know why the list refers to
 itself, just that it does. We arguably shouldn't make this transformation
 lightly, since the user will see the difference between the initial abstract
 list and the resulting resolved one. This transformation becomes particularly
 apparent when taken to its logical limit: every primitive operation will end up
 being replaced by its definition until the whole list is rewritten into fully
-executable machine code.
+executable machine code and will contain no intermediate symbol indirection at
+all.
 
 Note that this has the added benefit that tail calls propagate through symbol
 dereferencing. (I think this is true; need to verify in all cases.)
 
-| [1] Technically, the information is still there, though only due to a
+| [1] This could be a problem because it makes it impractical to generalize the
+      calling convention to any form of CPS. (Specifically, you can't invoke a
+      piece of code with a different continuation without seriously borking
+      things.) I'm going to need to put a lot of thought into this...
+
+| [2] Technically, the information is still there, though only due to a
       counterintuitive property of the mechanism. Lists preserve their identity
       across this transformation and we know that every list might have an
       associated symbol. Therefore, we can easily enough go backwards from
@@ -2905,6 +2917,7 @@ syn match bt_hex_octet          /[0-9a-f]\{2\}/
 syn match bt_repetition_prefix  -/\d\+/-
 syn match bt_address            -@[0-9a-f]\+-
 syn match bt_place              -@![0-9a-f]\+-
+syn match bt_ascii              -'\S\+-
 
 hi link bt_line_comment      Comment
 hi link bt_binary_octet      Keyword
@@ -2913,6 +2926,7 @@ hi link bt_hex_octet         Type
 hi link bt_repetition_prefix Preproc
 hi link bt_address           Preproc
 hi link bt_place             Identifier
+hi link bt_ascii             String
 
 __
 meta::vim_highlighter('canard', <<'__');
