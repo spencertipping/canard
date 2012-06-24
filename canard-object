@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
+# state:  0aa2a6233b6078d2948520bbaaf1c0f7
+# istate: 9469592311241e39ef506ffa4c9dc127
+# id:     3d87f1a4b0694cfebcbfd589fa5ed5dd
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
 # really gnarly). If you're curious what it's made of, I recommend reading
@@ -9,7 +12,7 @@
 # it to spencer@spencertipping.com and I'll see if I can figure out what it
 # does.
 
-# For the benefit of HTML viewers (this is hack):
+# For the benefit of HTML viewers (this is a hack):
 # <div id='cover' style='position: absolute; left: 0; top: 0; width: 10000px; height: 10000px; background: white'></div>
 
 $|++;
@@ -242,6 +245,11 @@ meta::define_form 'template', sub {
   meta::externalize "template::$name", "template::$name", meta::eval_in("sub {\n$value\n}", "template::$name");
 };
 __
+meta::meta('type::vim_highlighter', <<'__');
+meta::configure 'vim_highlighter', extension => '.vim', inherit => 1;
+meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
+
+__
 meta::bootstrap('html', <<'__');
 <html>
   <head>
@@ -261,6 +269,9 @@ __
 meta::bootstrap('initialization', <<'__');
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
+# state:  __state
+# istate: __istate
+# id:     __id
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
 # really gnarly). If you're curious what it's made of, I recommend reading
@@ -270,7 +281,7 @@ meta::bootstrap('initialization', <<'__');
 # it to spencer@spencertipping.com and I'll see if I can figure out what it
 # does.
 
-# For the benefit of HTML viewers (this is hack):
+# For the benefit of HTML viewers (this is a hack):
 # <div id='cover' style='position: absolute; left: 0; top: 0; width: 10000px; height: 10000px; background: white'></div>
 
 $|++;
@@ -328,13 +339,21 @@ run this script with the 'usage' argument.
 
 __
 meta::cache('parent-identification', <<'__');
-/home/spencertipping/bin/object 99aeabc9ec7fe80b1b39f5e53dc7e49e
-/home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
 binary 93194ecf50e38f2adb6e273909e007b5
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 preprocessor 70dae4b46eb4e06798ec6f38d17d4c7b
-text ffe5790f4c605b3bd73283f7c5e57dc5
-
+sdoc a1e8480e579614c01dabeecf0f963bcc
+text 3df9de24bc973010ed0e255636d90f3c
+vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
+__
+meta::cache('parent-state', <<'__');
+3df9de24bc973010ed0e255636d90f3c ee5ef58962cd12c10b11e1c09123e97e
+70dae4b46eb4e06798ec6f38d17d4c7b 581d5d1dad75f13bebc3e2a9b79c1bcd
+902333a0bd6ed90ff919fe8477cb4e69 537fe84a9d2ecdcc99fb85b30af459c1
+93194ecf50e38f2adb6e273909e007b5 0e2d5b0e931506488d873acc9fd2fe6c
+99aeabc9ec7fe80b1b39f5e53dc7e49e ec7516883f304201f36ea640e51d6bec
+a1e8480e579614c01dabeecf0f963bcc 0f60bbddcd3f574cc94738d991b6c2ac
+ffe5790f4c605b3bd73283f7c5e57dc5 ee5ef58962cd12c10b11e1c09123e97e
 __
 meta::data('author', <<'__');
 Spencer Tipping <spencer@spencertipping.com>
@@ -398,8 +417,10 @@ around_hook('child', @_, sub {
   my ($child_name) = @_;
   clone($child_name);
   enable();
-  qx($child_name update-from $0 -n);
+  qx($child_name update-from $0);
+  terminal::info("$child_name\'s identity is " . join '', qx($child_name identity));
   disable()});
+
 __
 meta::function('clone', <<'__');
 for (grep length, @_) {
@@ -420,16 +441,19 @@ my $offset     = 0;
 my $next       = 1;
 my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
 my $repetition = sub {my $count = $next; $next = 1; $count};
+my $ascii      = sub {$_[0]};
 my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
 my $octal      = sub {my $total = 0; $total = ($total << 3) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 2; chr($total) x &$repetition()};
 my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
 my $until      = sub {my $address = hex $_[0]; "\0" x ($address - $offset)};
+my $debug      = sub {printf STDERR "%s: 0x%x\n", $_[0], $offset; ''};
 my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)", hex $_[0], $offset unless $offset == hex $_[0]; ''};
 
 my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
 
-my @tokens = split m#(-[01]{8}|o[0-3][0-7]{2}|[0-9a-f]{2}|@!?[0-9a-f]+|/\d+/)#, $text;
-&$emit(/^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/ ? &$octal($1) :
+my @tokens = split m#('\S+|-[01]{8}|o[0-3][0-7]{2}|[0-9a-f]{2}|@\?\S+|@!?[0-9a-f]+|/\d+/)#, $text;
+&$emit(/^'(\S+)/        ? &$ascii($1)  : /^@\?(\S+)/         ? &$debug($1) :
+       /^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/ ? &$octal($1) :
        /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/     ? &$until($1) :
        /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/      ? &$hex($_)   : '') for @tokens;
 
@@ -479,6 +503,19 @@ save();
 
 __
 meta::function('enable', 'hook(\'enable\', chmod_self(sub {$_[0] | $_[0] >> 2}));');
+meta::function('expanded-bootstrap', <<'__');
+my $bootstrap_text = retrieve('bootstrap::initialization');
+my $state          = state();
+my $istate         = state('-iG');
+my $object_id      = identity();
+
+$bootstrap_text =~ s/__state/$state/g;
+$bootstrap_text =~ s/__istate/$istate/g;
+$bootstrap_text =~ s/__id/$object_id/g;
+
+$bootstrap_text;
+
+__
 meta::function('export', <<'__');
 # Exports data into a text file.
 #   export attr1 attr2 attr3 ... file.txt
@@ -579,6 +616,21 @@ my @parent_hashes = map $inherited{$_} || '-', @definitions if $parent_hashes;
 
 join "\n", map strip($_), split /\n/, table_display($external ? [grep length, @externals] : [@definitions],
                                                     $sizes ? ([@sizes]) : (), $flags ? ([@flags]) : (), $hashes ? ([@hashes]) : (), $parent_hashes ? ([@parent_hashes]) : ());
+
+__
+meta::function('metadata-from', <<'__');
+my ($filename) = @_;
+my %metadata;
+
+# Not using file::read because we only need the first few lines.
+open my($fh), '<', $filename or return {};
+while (<$fh>) {
+  /^#\s*(\w+):\s*(.*)$/ and $metadata{$1} = $2;
+  last unless /^#/;
+}
+close $fh;
+
+\%metadata;
 
 __
 meta::function('mv', <<'__');
@@ -724,19 +776,18 @@ sub is_code    {map /^\s*[^A-Z\|\s]/o, @_}
 sub is_blank   {map /^\n/o, @_}
 sub comment    {my ($text, $s, $e) = @_; join "\n", map("$s $_" . (length $e ? " $e" : ''), split /\n/, $text)}
 
-sub paragraphs {map split(/((?:\n\h*){2,})/, $_), @_}
+sub paragraphs {map split(/(\n(?:\h*\n)+)/, $_), @_}
 
 my ($filename, $specified_extension) = @_;
+my $logical_filename = $filename =~ /^sdoc::(.*)$/ ? $1 : $filename;
 
 # Two possibilities here. One is that the filename is an attribute, in which case
 # we want to look up the extension in the transients table. The other is that
 # it's a real filename.
-my ($extension)       = $specified_extension || ($filename =~ /\.sdoc$/io ? $filename =~ /\.(\w+)\.sdoc$/igo : $filename =~ /\.(\w+)$/igo);
-my ($other_extension) = extension_for($filename);
-$other_extension =~ s/\.sdoc$//io;
-$other_extension =~ s/^\.//o;
+my $extension = $specified_extension || extension_for($logical_filename) || ($filename =~ /\.sdoc$/io ? $filename =~ /\.(\w+)\.sdoc$/igo : $filename =~ /\.(\w+)$/igo)[0];
+$extension =~ s/^\.//o;
 
-my ($start, $end) = split /,/o, $comments_for_extension{lc($other_extension || $extension)} // $comments_for_extension{''} // '#';
+my ($start, $end) = split /,/o, $comments_for_extension{lc $extension} // $comments_for_extension{''} // '#';
 
 join '', map(is_code($_) || is_blank($_) ? ($_ =~ /^\s*c\n(.*)$/so ? $1 : $_) : comment($_, $start, $end), paragraphs retrieve($filename)),
          "\n" . comment($generated_string, $start, $end) . "\n";
@@ -859,7 +910,7 @@ my ($options, @criteria) = separate_options(@_);
 my $partial     = $$options{'-p'};
 my $criteria    = join '|', @criteria;
 my @attributes  = map serialize_single($_), select_keys(%$options, '-m' => 1, '--criteria' => $criteria), select_keys(%$options, '-M' => 1, '--criteria' => $criteria);
-my @final_array = @{$partial ? \@attributes : [retrieve('bootstrap::initialization'), @attributes, 'internal::main();', '', '__DATA__', $global_data]};
+my @final_array = @{$partial ? \@attributes : [expanded_bootstrap(), @attributes, 'internal::main();', '', '__DATA__', $global_data]};
 join "\n", @final_array;
 
 __
@@ -912,10 +963,14 @@ chmod 0700, $finalname;
 hook('snapshot', $finalname);
 __
 meta::function('state', <<'__');
-my @keys = grep !is($_, '-v'), sort keys %data;
-my $hash = fast_hash(fast_hash(scalar @keys) . join '|', @keys);
-$hash = fast_hash("$data{$_}|$hash") for @keys;
-fast_hash("$global_data|$hash");
+my ($options, @attributes) = separate_options(@_);
+@attributes = grep !is($_, '-v'), sort keys %data unless @attributes;
+@attributes = grep is($_, '-iu'), @attributes if $$options{'-i'};
+
+my $hash = fast_hash(fast_hash(scalar @attributes) . join '|', @attributes);
+$hash = fast_hash("$data{$_}|$hash") for @attributes;
+
+$$options{'-G'} ? $hash : fast_hash("$global_data|$hash");
 
 __
 meta::function('touch', 'associate($_, \'\') for @_;');
@@ -932,7 +987,8 @@ meta::function('update-from', <<'__');
 
 around_hook('update-from-invocation', separate_options(@_), sub {
   my ($options, @targets) = @_;
-  my %parent_id_cache = cache('parent-identification');
+  my %parent_id_cache    = cache('parent-identification');
+  my %parent_state_cache = cache('parent-state');
   my %already_seen;
 
   @targets or return;
@@ -942,22 +998,32 @@ around_hook('update-from-invocation', separate_options(@_), sub {
   @targets = (@known_targets, @unknown_targets);
 
   my $save_state        = $$options{'-s'} || $$options{'--save'};
+  my $no_state          = $$options{'-S'} || $$options{'--no-state'};
+  my $no_verify         = $$options{'-V'} || $$options{'--no-verify'};
   my $no_parents        = $$options{'-P'} || $$options{'--no-parent'} || $$options{'--no-parents'};
   my $force             = $$options{'-f'} || $$options{'--force'};
   my $clobber_divergent = $$options{'-D'} || $$options{'--clobber-divergent'};
 
-  save_state('before-update');
+  save_state('before-update') unless $no_state;
 
   for my $target (@targets) {
     dangerous("updating from $target", sub {
     around_hook('update-from', $target, sub {
-      my $identity = $parent_id_cache{$target} ||= join '', qx($target identity);
-      next if $already_seen{$identity};
-      $already_seen{$identity} = 1;
+      my $target_filename = strip(qx(which $target)) || $target;
+      my %parent_metadata = %{metadata_from($target_filename)};
+      terminal::warning("$target_filename has no externally visible metadata (makes updating slower)") unless $parent_metadata{id};
+
+      my $identity = $parent_id_cache{$target} ||= $parent_metadata{id} || join '', qx($target identity);
+      next if $already_seen{$identity} || $parent_state_cache{$identity} eq $parent_metadata{istate};
 
       my $attributes = join '', qx($target ls -ahiu);
       my %divergent;
       die "skipping unreachable $target" unless $attributes;
+
+      # These need to come after the reachability check so that we retry against
+      # other copies in case something fails.
+      ++$already_seen{$identity};
+      $parent_state_cache{$identity} = $parent_metadata{istate} || join '', qx($target state -iG);
 
       for my $to_rm (split /\n/, retrieve("parent::$target")) {
         my ($name, $hash) = split(/\s+/, $to_rm);
@@ -978,13 +1044,17 @@ around_hook('update-from-invocation', separate_options(@_), sub {
       reload()})})}
 
   cache('parent-identification', %parent_id_cache);
+  cache('parent-state',          %parent_state_cache);
 
-  if (verify()) {hook('update-from-succeeded', $options, @targets);
-                 terminal::info("Successfully updated. Run 'load-state before-update' to undo this change.") if $save_state;
-                 rm('state::before-update') unless $save_state}
-  elsif ($force) {hook('update-from-failed', $options, @targets);
-                  terminal::warning('Failed to verify: at this point your object will not save properly, though backup copies will be created.',
-                                    'Run "load-state before-update" to undo the update and return to a working state.')}
+  if ($no_verify) {hook('update-from-presumably-succeeded', $options, @targets);
+                   rm('state::before-update') unless $no_state || $save_state}
+  elsif (verify()) {hook('update-from-succeeded', $options, @targets);
+                    terminal::info("Successfully updated. Run 'load-state before-update' to undo this change.") if $save_state;
+                    rm('state::before-update') unless $no_state || $save_state}
+  elsif ($force || $no_state) {hook('update-from-failed', $options, @targets);
+                               terminal::warning('Failed to verify: at this point your object will not save properly, though backup copies will be created.',
+                                                 $no_state ? 'You should attempt to repair this object since no prior state was saved.'
+                                                           : 'Run "load-state before-update" to undo the update and return to a working state.')}
   else {hook('update-from-failed', $options, @targets);
         terminal::error('Verification failed after the upgrade was complete.');
         terminal::info("$0 has been reverted to its pre-upgrade state.", "If you want to upgrade and keep the failure state, then run 'update-from $target --force'.");
@@ -1001,6 +1071,10 @@ unlink $other if my $result = $observed eq (my $state = state());
 terminal::error("Verification failed; expected $state but got $observed from $other") unless $result;
 hook('after-verify', $result, observed => $observed, expected => $state);
 $result;
+__
+meta::function('vim', <<'__');
+# Installs VIM highlighters.
+file::write("$ENV{'HOME'}/.vim/syntax/$_.vim", retrieve("vim_highlighter::$_")) for grep s/^vim_highlighter:://o, keys %data;
 __
 meta::function('wrapped-near', <<'__');
 my ($text, $approximate_margin) = @_;
@@ -1035,9 +1109,10 @@ my $hook = shift @_;
 my $f    = pop @_;
 
 hook("before-$hook", @_);
-my $result = &$f(@_);
+my @result = &$f(@_);
 hook("after-$hook", @_);
-$result;
+wantarray ? @result : $result[0];
+
 __
 meta::internal_function('associate', <<'__');
 my ($name, $value, %options) = @_;
@@ -1189,8 +1264,8 @@ unshift @effective_argv, $function_name and $function_name = 'method_missing' un
 
 around_hook('main-function', $function_name, @effective_argv, sub {
   dangerous('', sub {
-    chomp(my $result = &$function_name(@effective_argv));
-    print "$result\n" if $result})});
+    chomp(my @result = &$function_name(@effective_argv));
+    print join("\n", @result), "\n" if @result})});
 
 save() unless state() eq $transient{initial};
 
@@ -1287,7 +1362,7 @@ my %options;
 /^([^=]+)=(.*)$/ and $options{$1} = $2 for @longs;
 ++$options{$_} for grep ! /=/, @singles, @longs;
 
-({%options}, @others, @_);
+({%options}, grep length, @others, @_);
 
 __
 meta::internal_function('strip', 'wantarray ? map {s/^\\s*|\\s*$//g; $_} @_ : $_[0] =~ /^\\s*(.*?)\\s*$/ && $1;');
@@ -1425,165 +1500,24 @@ __
 meta::message_color('cc', '36');
 meta::message_color('state', 'purple');
 meta::message_color('states', 'yellow');
-meta::parent('/home/spencertipping/bin/object', <<'__');
-bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
-bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
-bootstrap::perldoc                      5793df44bdd2526bb461272924abfd4b
-function::ad                            9220b9dc131f8f79878a6209adfe8ef2
-function::alias                         8eeeeb4e064ef3aba7edf8f254427bc2
-function::cat                           f684de6c8776617a437b76009114f52e
-function::cc                            12ea9176e388400704d823433c209b7a
-function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
-function::child                         f5764adf0b4e892f147a9b6b68d4816f
-function::clone                         bb42e04e10a8e54e88786b6fbc4fb213
-function::cp                            3fe69d1b58d90045ad520048977538c4
-function::create                        d65deb895a848b32d3d7ed92e81e8cb0
-function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
-function::cwd                           fd9b58e76c474a8fe93dc3abdccb8857
-function::disable                       53b449708cc2ffdefa352e53bb7d847d
-function::edit                          735dbdece3998a4478bec3b7bdc04f03
-function::edit-self                     71790df00f941ed9b56e17f789b93871
-function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
-function::export                        2374cd1dbf7616cb38cafba4e171075d
-function::extern                        1290a5223e2824763eecfb3a54961eff
-function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
-function::hash                          6ee131d093e95b80039b4df9c7c84a02
-function::hook                          675cdb98b5dd8567bdd5a02ead6184b5
-function::hooks                         3d989899c616f7440429a2d9bf1cc44b
-function::identity                      6523885762fcc2f354fc25cf6ed126ce
-function::import                        5d0f0634cbd01274f2237717507198a2
-function::initial-state                 03d8ed608855a723124e79ca184d8e73
-function::is                            41564c8f21b12ab80824ac825266d805
-function::load-state                    b6cf278a1f351f316fa6e070359b6081
-function::lock                          5d8db258704e6a8623fac796f62fac02
-function::ls                            01a23d51d5b529e03943bd57e33f92df
-function::mv                            ccd000960db4cf627d9246c43d87ba4c
-function::name                          955ba2d1fe1d67cd78651a4042283b00
-function::parents                       3da9e63b5aae9e2f5dcc946a86d166aa
-function::perl                          9f9fd744f0ed225ad8fb3b79fa53dd9a
-function::rd                            2adb16d7e819d2e87a27201744a581e7
-function::reload                        1589f4cf8374e0011991cb8907afca3e
-function::rm                            6f6fd7a6c25558eb469d78ea888f8551
-function::rmparent                      fc2884910a6939a47898a778f277332c
-function::save                          3cbe5c3735ee4ff99cb60ccf68bc8b91
-function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
-function::serialize                     a97c7391c635a93b0a710d10eb8cb3cd
-function::serialize-single              8bac97e94a1162947d274421053387b0
-function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
-function::shb                           21139548efb79500d9c999dba024ab32
-function::shell                         a87f389b94713e5855e62241d649d01d
-function::size                          69f6ab4a100c6ef05d4d41510004d645
-function::snapshot                      56939a47f2758421669641e15ebd66eb
-function::state                         88bc24e732c55aac68a103eab96b9e48
-function::touch                         3991b1b7c7187566f50e5e58ce01fa06
-function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
-function::update                        ac391dc90e507e7586c81850e7c2ecdd
-function::update-from                   06fef658374d482adb2e62fbeed9efb4
-function::usage                         5bdd370f5a56cfbf199e08d398091444
-function::verify                        0c0cc1dfeab7d705919df122f7850a4f
-indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
-indicator::locked                       fc2b4f4ca0d6a334b9ac423d06c8f18c
-indicator::path                         b5e2cb524caa0283f713a0ddf9f4c162
-internal_function::around_hook          7cc876e7c5f78c34654337fc95255587
-internal_function::associate            55f202ffdbc6b9005e53d3e82f5f9bfe
-internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
-internal_function::attribute_is         d28ac825b3937029386372c560a65775
-internal_function::cache                eb9da45580a9ac0882baf98acd2ecd60
-internal_function::chmod_self           2035e861eedab55ba0a9f6f5a068ca70
-internal_function::dangerous            46c4baaa214ab3d05af43e28083d5141
-internal_function::debug_trace          0faf9d9f4159d72dfe4481f6f3607ce1
-internal_function::execute              f0924e087d978ff2ab1e117124db3042
-internal_function::exported             ae35afef7d4762f2818aee5872c75be0
-internal_function::extension_for        9de8261d69cc93e9b92072b89c89befd
-internal_function::fast_hash            ee5eba48f837fda0fe472645fdd8899a
-internal_function::file::read           e647752332c8e05e81646a3ff98f9a8e
-internal_function::file::write          460e2343283eb9fd0e1815389f4e07e6
-internal_function::fnv_hash             c36d56f1e13a60ae427afc43ba025afc
-internal_function::hypothetically       b83e3f894a6df8623ccd370515dfd976
-internal_function::internal::main       12c18f86d766ffb67b8dc0572985bf98
-internal_function::invoke_editor_on     5eb976796f0ec172d6ec036116a2f41e
-internal_function::is_locked            da12ced6aa38295251f7e748ffd22925
-internal_function::namespace            784d2e96003550681a4ae02b8d6d0a27
-internal_function::parent_attributes    f6ccfaa982ab1a4d066043981aaca277
-internal_function::parent_ordering      57b6da88f76b59f3fed9abfa61280e5e
-internal_function::retrieve             721a6800f328da05047fd7392758f55d
-internal_function::retrieve_with_hooks  0f1b0220ccd973d57a2e96ff00458cf2
-internal_function::select_keys          a5e3532ec6d58151d0ee24416ea1e2b5
-internal_function::separate_options     34ec41a6edaa15adde607a0db3ccfa36
-internal_function::strip                14f490b10ebd519e829d8ae20ea4d536
-internal_function::table_display        d575f4dc873b2e0be5bd7352047fd904
-internal_function::temporary_name       6f548d101fc68356515ffd0fc9ae0c93
-internal_function::translate_backtrace  d77a56d608473b3cd8a3c6cb84185e10
-internal_function::with_cwd             928bae9caa3cb212f0c5c977ba55166c
-internal_function::with_exported        df345d5095d5ed13328ddd07ea922b36
-internal_function::with_fork            b252464d1efd12dc4a5ee6890076b6a9
-library::process                        9fe4e2320eae9f6661a6eb6e777fb6ca
-library::shell                          f561500cf223df1bf6daf43af93577a5
-library::terminal                       7e2d045782405934a9614fe04bcfe559
-message_color::cc                       2218ef0f7425de5c717762ffb100eb43
-message_color::state                    03621cd6ac0b1a40d703f41e26c5807f
-message_color::states                   ac66eeeff487b5f43f88a78ea18b3d56
-meta::configure                         69c2e727c124521d074fde21f8bbc4db
-meta::externalize                       aa44e27e0bbee6f0ca4de25d603a1fc7
-meta::functor::editable                 48246c608f363de66511400e00b26164
-meta::type::alias                       889d26d2df385e9ff8e2da7de4e48374
-meta::type::bootstrap                   51108ab2ddb8d966e927c8f62d9ef3e5
-meta::type::cache                       9267171f2eace476f64a1a670eaaf2c7
-meta::type::data                        120e1649a468d3b3fd3fb783b4168499
-meta::type::function                    8ea626198861dc59dd7f303eecb5ff88
-meta::type::hook                        ff92aef328b6bdc6f87ddd0821f3e42f
-meta::type::inc                         78e0375b6725487cb1f0deca41e96bbe
-meta::type::indicator                   feb54a2624e6983617685047c717427f
-meta::type::internal_function           eff3cf31e2635f51c83836f116c99d2f
-meta::type::library                     7622e8d65e03066668bade74715d65ad
-meta::type::message_color               557a1b44979cbf77a7251fbdc4c5b82c
-meta::type::meta                        c6250056816b58a9608dd1b2614246f8
-meta::type::parent                      09d1d03379e4e0b262e06939f4e00464
-meta::type::retriever                   71a29050bf9f20f6c71afddff83addc9
-meta::type::state                       84da7d5220471307f1f990c5057d3319
-retriever::file                         3bbc9d8a887a536044bafff1d54def7e
-retriever::global                       4fe8df0cca548075169968772843a156
-retriever::id                           4da6080168d32445150cc4200af7af6e
-retriever::object                       c7633990b4e01bdc783da7e545799f4f
-retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
-
-__
-meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__');
-function::sdoc                           9d019a0b391ccb5fb849a2bd354385b5
-function::sdoc-html                      b23152b3f5be696e5bae842ec43fc5a4
-function::sdoc-markdown                  a35a6441dd750466f2d0e636bee2b382
-function::sdoc-packed                    8ec4975fca7228708baae6ccd241bdbf
-function::sdocp                          c3d738d982ba87418a298ff58478a85b
-meta::type::sdoc                         22cd7315641d38c9d536344e83c36bed
-meta::type::slibrary                     95474943c4a5f8ff17d3cf66ddb7c386
-parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
-retriever::code-sdoc                     03b87ff8d1ecf7594db9ca0669fc69a1
-retriever::html-sdoc                     8ab7705d03276945b23a71677153233c
-retriever::markdown-sdoc                 67c34ba8223ec36a3ae018e411354db2
-retriever::sdoc                          662061e9e41491e2a1debd6862ccf1e7
-retriever::sdoc-packed                   f7116f96adf2c748ac1991f4d7c1792b
-retriever::sdocp                         fcfcf3a7de79d7d863402b9ccfcac3c4
-
-__
 meta::parent('binary', <<'__');
-function::compile-binary                 c7ad5bb1814250380dd474ad5231fdf3
-meta::type::binary                       3a80e9982dedb950aa1a9ae301670dc4
-parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
-parent::vim-highlighters                 f3bda418899ffc5cdeb6774b6b1477c7
-retriever::bin                           24b2382d3f002ee325963a5c652c53ff
-vim_highlighter::binary                  ccfec7137d9315e7aa858bd427a9e4a6
+function::compile-binary  15c3a0dcde65f6244f8f474c1c6ce95c
+meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
+parent::vim-highlighters  344f35750b4c851157b4cba75d05adf6
+retriever::bin            24b2382d3f002ee325963a5c652c53ff
+vim_highlighter::binary   8603da089ca7db891109715911bfe0d1
 
 __
 meta::parent('object', <<'__');
 bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
-bootstrap::initialization               d22fafa2938ecb0d4728e2958b54ed3d
+bootstrap::initialization               170e6ce82d2db886e908918cb132bb4e
 bootstrap::perldoc                      5793df44bdd2526bb461272924abfd4b
 function::ad                            9220b9dc131f8f79878a6209adfe8ef2
 function::alias                         8eeeeb4e064ef3aba7edf8f254427bc2
 function::cat                           f684de6c8776617a437b76009114f52e
 function::cc                            12ea9176e388400704d823433c209b7a
 function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
-function::child                         f5764adf0b4e892f147a9b6b68d4816f
+function::child                         957c1bd528bbe7046442ec15ad9e2095
 function::clone                         bb42e04e10a8e54e88786b6fbc4fb213
 function::cp                            3fe69d1b58d90045ad520048977538c4
 function::create                        d65deb895a848b32d3d7ed92e81e8cb0
@@ -1593,6 +1527,7 @@ function::disable                       53b449708cc2ffdefa352e53bb7d847d
 function::edit                          735dbdece3998a4478bec3b7bdc04f03
 function::edit-self                     71790df00f941ed9b56e17f789b93871
 function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
+function::expanded-bootstrap            7ea5eb3e6a715cddcdfd85ae688286e1
 function::export                        2374cd1dbf7616cb38cafba4e171075d
 function::extern                        1290a5223e2824763eecfb3a54961eff
 function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
@@ -1606,6 +1541,7 @@ function::is                            41564c8f21b12ab80824ac825266d805
 function::load-state                    b6cf278a1f351f316fa6e070359b6081
 function::lock                          5d8db258704e6a8623fac796f62fac02
 function::ls                            01a23d51d5b529e03943bd57e33f92df
+function::metadata-from                 51f238bfe3d4a0e98df376da46f1f70e
 function::mv                            ccd000960db4cf627d9246c43d87ba4c
 function::name                          955ba2d1fe1d67cd78651a4042283b00
 function::parents                       3da9e63b5aae9e2f5dcc946a86d166aa
@@ -1616,24 +1552,24 @@ function::rm                            6f6fd7a6c25558eb469d78ea888f8551
 function::rmparent                      fc2884910a6939a47898a778f277332c
 function::save                          3cbe5c3735ee4ff99cb60ccf68bc8b91
 function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
-function::serialize                     a97c7391c635a93b0a710d10eb8cb3cd
+function::serialize                     a6513c3e0724f9a1d85847d7002910f1
 function::serialize-single              8bac97e94a1162947d274421053387b0
 function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
 function::shb                           21139548efb79500d9c999dba024ab32
 function::shell                         a87f389b94713e5855e62241d649d01d
 function::size                          69f6ab4a100c6ef05d4d41510004d645
 function::snapshot                      56939a47f2758421669641e15ebd66eb
-function::state                         88bc24e732c55aac68a103eab96b9e48
+function::state                         ef2051d9fe0684044d0f3df752e0c949
 function::touch                         3991b1b7c7187566f50e5e58ce01fa06
 function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
 function::update                        ac391dc90e507e7586c81850e7c2ecdd
-function::update-from                   06fef658374d482adb2e62fbeed9efb4
+function::update-from                   6d72dd26078dd6ef11dbb021bd3d4997
 function::usage                         5bdd370f5a56cfbf199e08d398091444
 function::verify                        0c0cc1dfeab7d705919df122f7850a4f
 indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
 indicator::locked                       fc2b4f4ca0d6a334b9ac423d06c8f18c
 indicator::path                         b5e2cb524caa0283f713a0ddf9f4c162
-internal_function::around_hook          7cc876e7c5f78c34654337fc95255587
+internal_function::around_hook          129aaec0550d3de6c00208104c0fdcef
 internal_function::associate            55f202ffdbc6b9005e53d3e82f5f9bfe
 internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
 internal_function::attribute_is         d28ac825b3937029386372c560a65775
@@ -1649,7 +1585,7 @@ internal_function::file::read           e647752332c8e05e81646a3ff98f9a8e
 internal_function::file::write          460e2343283eb9fd0e1815389f4e07e6
 internal_function::fnv_hash             c36d56f1e13a60ae427afc43ba025afc
 internal_function::hypothetically       b83e3f894a6df8623ccd370515dfd976
-internal_function::internal::main       12c18f86d766ffb67b8dc0572985bf98
+internal_function::internal::main       4bd4381e1e63689984066485ae399f91
 internal_function::invoke_editor_on     5eb976796f0ec172d6ec036116a2f41e
 internal_function::is_locked            da12ced6aa38295251f7e748ffd22925
 internal_function::namespace            784d2e96003550681a4ae02b8d6d0a27
@@ -1658,7 +1594,7 @@ internal_function::parent_ordering      57b6da88f76b59f3fed9abfa61280e5e
 internal_function::retrieve             721a6800f328da05047fd7392758f55d
 internal_function::retrieve_with_hooks  0f1b0220ccd973d57a2e96ff00458cf2
 internal_function::select_keys          a5e3532ec6d58151d0ee24416ea1e2b5
-internal_function::separate_options     34ec41a6edaa15adde607a0db3ccfa36
+internal_function::separate_options     2dd1026a0f157c7c65bb9f3d18936206
 internal_function::strip                14f490b10ebd519e829d8ae20ea4d536
 internal_function::table_display        d575f4dc873b2e0be5bd7352047fd904
 internal_function::temporary_name       6f548d101fc68356515ffd0fc9ae0c93
@@ -1700,7 +1636,7 @@ __
 meta::parent('preprocessor', <<'__');
 function::preprocess           ab5526a02ff417d4c162357dc327e7c4
 meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
-parent::object                 58367e4fe7322b745f8597c9015780e4
+parent::object                 8f920c8ec38cb39e732cbdcc3abc7f93
 retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
 template::comment              dfe273d2dad3d8159b847545e4e5c309
 template::eval                 1a0e2124a05056be4abc11803883c294
@@ -1709,16 +1645,33 @@ template::include              47b5552d609d97fe7f2522d5c1027014
 template::pinclude             c07ff79bf8d642cceaa9ef844bfcb189
 
 __
+meta::parent('sdoc', <<'__');
+function::sdoc            71fa4ee3ae6283a87706e74f9de1de40
+function::sdoc-html       b23152b3f5be696e5bae842ec43fc5a4
+function::sdoc-markdown   a35a6441dd750466f2d0e636bee2b382
+function::sdoc-packed     8ec4975fca7228708baae6ccd241bdbf
+function::sdocp           c3d738d982ba87418a298ff58478a85b
+meta::type::sdoc          22cd7315641d38c9d536344e83c36bed
+meta::type::slibrary      95474943c4a5f8ff17d3cf66ddb7c386
+parent::object            8f920c8ec38cb39e732cbdcc3abc7f93
+retriever::code-sdoc      03b87ff8d1ecf7594db9ca0669fc69a1
+retriever::html-sdoc      8ab7705d03276945b23a71677153233c
+retriever::markdown-sdoc  67c34ba8223ec36a3ae018e411354db2
+retriever::sdoc           75181c270d3a3de6500e5ccdb8208f65
+retriever::sdoc-packed    f7116f96adf2c748ac1991f4d7c1792b
+retriever::sdocp          fcfcf3a7de79d7d863402b9ccfcac3c4
+
+__
 meta::parent('text', <<'__');
-function::wrapped-near                   b34731b33db1a4b56c724b1aa5c97f6d
-parent::/home/spencertipping/bin/object  58367e4fe7322b745f8597c9015780e4
-retriever::wrapped-near                  1b00aeef9dbd19633a1fedc443b846e8
+function::wrapped-near   b34731b33db1a4b56c724b1aa5c97f6d
+parent::object           8f920c8ec38cb39e732cbdcc3abc7f93
+retriever::wrapped-near  1b00aeef9dbd19633a1fedc443b846e8
 
 __
 meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
 meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
-parent::object               208e4b12afe64a14bfd8cacf04181e14
+parent::object               8f920c8ec38cb39e732cbdcc3abc7f93
 
 __
 meta::retriever('bin', <<'__');
@@ -1777,7 +1730,10 @@ return undef unless namespace($_[0]) eq 'pp';
 my $attr = retrieve(attribute($_[0]));
 defined $attr ? preprocess($attr) : undef;
 __
-meta::retriever('sdoc', 'exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]") : undef;');
+meta::retriever('sdoc', <<'__');
+exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]", extension_for($_[0])) : undef;
+
+__
 meta::retriever('sdoc-packed', <<'__');
 return undef unless $_[0] =~ /^sdoc-packed::(.*)$/;
 exists $data{"sdoc::$1"} ? sdoc_packed("sdoc::$1") : undef;
@@ -1818,6 +1774,34 @@ my ($commands) = @_;
 return '' if template::failing_conditional($commands);
 my $text = join "\n\n", map retrieve($_), split /\s+/, $commands;
 "\n\n$text\n\n";
+__
+meta::vim_highlighter('binary', <<'__');
+" Language: Binary text
+" Creator:  Spencer Tipping <spencer@spencertipping.com>
+" License:  MIT source code license
+
+syn case match
+
+syn match bt_line_comment       /#.*/
+syn match bt_binary_octet       /-[01]\{8\}/
+syn match bt_octal_byte         /o[0-3][0-7]\{2\}/
+syn match bt_hex_octet          /[0-9a-f]\{2\}/
+syn match bt_repetition_prefix  -/\d\+/-
+syn match bt_address            -@[0-9a-f]\+-
+syn match bt_place              -@![0-9a-f]\+-
+syn match bt_debug              -@?\w\+-
+syn match bt_ascii              -'\S\+-
+
+hi link bt_line_comment      Comment
+hi link bt_binary_octet      Keyword
+hi link bt_octal_byte        Keyword
+hi link bt_hex_octet         Type
+hi link bt_repetition_prefix Preproc
+hi link bt_address           Preproc
+hi link bt_place             Identifier
+hi link bt_debug             Comment
+hi link bt_ascii             String
+
 __
 internal::main();
 

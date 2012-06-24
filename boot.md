@@ -65,6 +65,16 @@ See elf(5) for details about what this is made of.
          00 10 00 00 /4/00          # p_align
     # end
 
+    @!78
+
+# Symbol table
+
+Canard consists primarily of a symbol table that contains global bindings. Any
+undefined symbol is mapped to a function that defines it with the stack top;
+that is, if 's' is undefined then 's [x ...]' is a definition, not an
+invocation; both are popped from the stack and from then on, 's' is equivalent
+to 'x ...'.
+
     @!78 4831 o300 b03c             # syscall = 60 (exit)
          4831 o355                  # status  = 0
          0f05
