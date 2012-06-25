@@ -73,7 +73,7 @@ Canard consists primarily of a symbol table that contains global bindings. Any
 undefined symbol is mapped to a function that defines it with the stack top;
 that is, if 's' is undefined then 's [x ...]' is a definition, not an
 invocation; both are popped from the stack and from then on, 's' is equivalent
-to 'x ...'.
+to 'x ...'. Definitions do not patch the caller.
 
     @!78 4831 o300 b03c             # syscall = 60 (exit)
          4831 o355                  # status  = 0

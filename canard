@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  580fae01367db1751ae625a3be88819c
-# istate: 8db80a89fc5fea59873e49899bfce77f
+# state:  a1499aac5e70d1451d582f957fdd390f
+# istate: 5231f41efc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -385,7 +385,7 @@ text ffe5790f4c605b3bd73283f7c5e57dc5
 vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
 __
 meta::cache('parent-state', <<'__');
-3d87f1a4b0694cfebcbfd589fa5ed5dd be296116037733a93ea607c39281d2ee
+3d87f1a4b0694cfebcbfd589fa5ed5dd 9469592311241e39ef506ffa4c9dc127
 70dae4b46eb4e06798ec6f38d17d4c7b 581d5d1dad75f13bebc3e2a9b79c1bcd
 902333a0bd6ed90ff919fe8477cb4e69 537fe84a9d2ecdcc99fb85b30af459c1
 93194ecf50e38f2adb6e273909e007b5 0e2d5b0e931506488d873acc9fd2fe6c
@@ -2371,7 +2371,7 @@ __
 meta::parent('canard-object', <<'__');
 function::canard-pack   1baa1b17104517b0670946e937df3e78
 meta::type::canard      ee0b958db0f8b728c95edf7a27132ef2
-parent::binary          b93664a4edf466e236e6158ecdde2a12
+parent::binary          2cf60f408a1b102ff73f42e9ee512bf8
 parent::preprocessor    1747f6ad3b08e7601164fcbefc875ae2
 parent::sdoc            d259fdfd586717fbf7013de5aad7d5bd
 parent::text            32bb29e56ac162391040f886c8a64281
@@ -2710,7 +2710,7 @@ Canard consists primarily of a symbol table that contains global bindings. Any
 undefined symbol is mapped to a function that defines it with the stack top;
 that is, if 's' is undefined then 's [x ...]' is a definition, not an
 invocation; both are popped from the stack and from then on, 's' is equivalent
-to 'x ...'.
+to 'x ...'. Definitions do not patch the caller.
 
 @!78 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0
