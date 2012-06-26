@@ -47,9 +47,9 @@
 @!3a 0000                       # e_shentsize
 @!3c 0000                       # e_shnum
 @!3e 0000                       # e_shstrndx
-# end
 
 @!40
+# end
 
 # Elf64_Phdr (rwx image -- this contains code and definitions)
 @!40 01 00 00 00                # p_type  = PT_LOAD
@@ -61,16 +61,9 @@
      00 04 00 00 /4/00          # p_filesz
      00 04 00 00 /4/00          # p_memsz
      00 10 00 00 /4/00          # p_align
-# end
 
 @!78
-
-# Symbol table.
-# Canard consists primarily of a symbol table that contains global bindings. Any
-# undefined symbol is mapped to a function that defines it with the stack top;
-# that is, if 's' is undefined then 's [x ...]' is a definition, not an
-# invocation; both are popped from the stack and from then on, 's' is equivalent
-# to 'x ...'. Definitions do not patch the caller.
+# end
 
 @!78 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0

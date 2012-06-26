@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  74a438fc98b65fb8c6e8b25cebb84882
-# istate: 8fb15dcffc5fea59873e49899bfce77f
+# state:  cbba0fc416bf7db3db4e76d17abf84f9
+# istate: 7fddc711fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2687,9 +2687,9 @@ See elf(5) for details about what this is made of.
 @!3a 0000                       # e_shentsize
 @!3c 0000                       # e_shnum
 @!3e 0000                       # e_shstrndx
-# end
 
 @!40
+# end
 
 # Elf64_Phdr (rwx image -- this contains code and definitions)
 @!40 01 00 00 00                # p_type  = PT_LOAD
@@ -2701,22 +2701,9 @@ See elf(5) for details about what this is made of.
      00 04 00 00 /4/00          # p_filesz
      00 04 00 00 /4/00          # p_memsz
      00 10 00 00 /4/00          # p_align
-# end
 
 @!78
-
-Symbol table.
-Canard consists primarily of a symbol table that contains global bindings. Any
-undefined symbol is mapped to a function that defines it with the stack top;
-that is, if 's' is undefined then 's [x ...]' is a definition, not an
-invocation; both are popped from the stack and from then on, 's' is equivalent
-to 'x ...'. Definitions do not patch the caller, since the symbol is not
-actually being used.
-
-  Implementation.
-  The symbol table is an executable data structure. When interpreted as machine
-  code, it resolves and defines symbols; when inspected as data, it appears to
-  be a cons structure. (Think about this...)
+# end
 
 @!78 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0
