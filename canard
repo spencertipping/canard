@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  2e963b499b9f50683ce5d296f9c04280
+# state:  2143c2cae6785e719a6c17fad728def9
 # istate: 7fddc711fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1825,6 +1825,16 @@ other instructions.
 Mutability vs immutability.
 Any recursive calls will need to be indirect, so it seems reasonable enough to just make the global table mutable. But it's fine if modifying it is expensive, since this should be an uncommon
 case. Modifying a global symbol could invalidate arbitrarily much code, or it could even fail to be reflected in already-compiled functions.
+
+__
+meta::note('interpreter-constraints', <<'__');
+Interpreter constraints.
+| 1. The interpreter should impose little overhead.
+  2. Its data should be polymorphic (symbols, conses, nil).
+  3. It must provide a representation for tail calls.
+
+All of this is achieved if lists are made of executable code, but as discussed
+elsewhere this has its own disadvantages.
 
 __
 meta::note('interpreter-internals', <<'__');
