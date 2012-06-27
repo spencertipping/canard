@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  cbba0fc416bf7db3db4e76d17abf84f9
+# state:  afe6600330770aead78eedfbdc750289
 # istate: 7fddc711fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -2092,6 +2092,16 @@ managed heaps on top of this.
 
 There's a lot to recommend this approach. The problem is that the main environment is likely to have a representation that differs from list-based environments, which means that potentially
 more code is required to work with it.
+
+__
+meta::note('no-need-for-callcc', <<'__');
+No need for callcc.
+r< and r> serve the same purpose that callcc normally would. The reason is
+simple: every function call is a callcc operation, since the program is
+implicitly CPS-converted by return jumping. This is more intuitive in
+concatenative than in applicative style (though it's also true in the latter: a
+function call involves consuming and producing stack values and symmetrically
+jumping into and out of the function).
 
 __
 meta::note('numbers', <<'__');
