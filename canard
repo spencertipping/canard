@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  43f1335872c1c6bb6dc8b364886b7fcd
-# istate: 7fddc711fc5fea59873e49899bfce77f
+# state:  35af193b24d2b443a6fc53be6c5b13ec
+# istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -385,15 +385,15 @@ text ffe5790f4c605b3bd73283f7c5e57dc5
 vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
 __
 meta::cache('parent-state', <<'__');
-3d87f1a4b0694cfebcbfd589fa5ed5dd 9469592311241e39ef506ffa4c9dc127
-70dae4b46eb4e06798ec6f38d17d4c7b 581d5d1dad75f13bebc3e2a9b79c1bcd
-902333a0bd6ed90ff919fe8477cb4e69 537fe84a9d2ecdcc99fb85b30af459c1
-93194ecf50e38f2adb6e273909e007b5 0e2d5b0e931506488d873acc9fd2fe6c
-99aeabc9ec7fe80b1b39f5e53dc7e49e ec7516883f304201f36ea640e51d6bec
-9fabb9b6f2f374c35ddcc26549ac2b65 ce47543daad2a2af2398e6f60aa30391
-a1e8480e579614c01dabeecf0f963bcc 0f60bbddcd3f574cc94738d991b6c2ac
-a9e5975593ed5d90d943ad98405c71e5 25722e1192a8029ee7b36f261517f7bc
-ffe5790f4c605b3bd73283f7c5e57dc5 ee5ef58962cd12c10b11e1c09123e97e
+3d87f1a4b0694cfebcbfd589fa5ed5dd 78cdd08d39e47d528e0fb86ce291782d
+70dae4b46eb4e06798ec6f38d17d4c7b cdb1e173c2cda2da981cf29863a0beeb
+902333a0bd6ed90ff919fe8477cb4e69 a60202000f88d34a7672f049a9c52e05
+93194ecf50e38f2adb6e273909e007b5 aee8217336a8219d9ed2cd4d53d30cbf
+99aeabc9ec7fe80b1b39f5e53dc7e49e d5bcbc2df886ce170ecfd4a1d2abc812
+9fabb9b6f2f374c35ddcc26549ac2b65 bf263208d5aa817e0c81ebcd8d81d0de
+a1e8480e579614c01dabeecf0f963bcc afb8e7eb4524c014262c84b5ede7ab52
+a9e5975593ed5d90d943ad98405c71e5 5b08a7836cda563678fff8659df70df2
+ffe5790f4c605b3bd73283f7c5e57dc5 940d3967fa9c2e8821f2d14e2738f9c7
 __
 meta::data('author', 'Spencer Tipping');
 meta::data('default-action', 'shell');
@@ -534,7 +534,7 @@ my $extension = extension_for($name);
 around_hook('edit', @_, sub {
   associate($name, invoke_editor_on($data{$name} // '', %$options, attribute => $name, extension => $extension), execute => 1)});
 
-save() unless $data{'data::edit::no-save'};
+save() unless $data{'data::edit::no-save'} or state() eq $transient{initial};
 '';
 
 __
@@ -2475,7 +2475,7 @@ __
 meta::parent('binary', <<'__');
 function::compile-binary  15c3a0dcde65f6244f8f474c1c6ce95c
 meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
-parent::vim-highlighters  344f35750b4c851157b4cba75d05adf6
+parent::vim-highlighters  8078e5ca5df7d57111c89bd271da2be3
 retriever::bin            24b2382d3f002ee325963a5c652c53ff
 vim_highlighter::binary   8603da089ca7db891109715911bfe0d1
 
@@ -2483,10 +2483,10 @@ __
 meta::parent('canard-object', <<'__');
 function::canard-pack   1baa1b17104517b0670946e937df3e78
 meta::type::canard      ee0b958db0f8b728c95edf7a27132ef2
-parent::binary          2cf60f408a1b102ff73f42e9ee512bf8
-parent::preprocessor    1747f6ad3b08e7601164fcbefc875ae2
-parent::sdoc            d259fdfd586717fbf7013de5aad7d5bd
-parent::text            32bb29e56ac162391040f886c8a64281
+parent::binary          e850caa55334c3a62f8f9fc6843dea4a
+parent::preprocessor    2567b838746513aebb0157d34f3ca461
+parent::sdoc            cc6d4d782f4baa6303bf278e3f5c40f8
+parent::text            2144c9c5c3fed3d2968d2c4880bfb825
 retriever::canard-pack  0752d53db63bb0fc6df5bfc16c3eac10
 
 __
@@ -2498,14 +2498,14 @@ function::gd    cff1e868c7c69780a2263c8c7fd75f90
 function::gl    492e2750409588f8b61a8b8e339e42c1
 function::gs    4ea8aeccb36ab83702062e4359e8600b
 function::gu    fdd2e61e0ea981dda6d407df63c0e47e
-parent::object  8f920c8ec38cb39e732cbdcc3abc7f93
+parent::object  3dc7a5b337ee134dc2212bfd380760f0
 
 __
 meta::parent('notes', <<'__');
 function::note    c6d52ffe73cd48cd95fdc561c59d9f63
 function::notes   7229b326ac8686b2db6de98496bc7527
 meta::type::note  f81bea58841a438e4ee34608ab4f54c0
-parent::object    8f920c8ec38cb39e732cbdcc3abc7f93
+parent::object    3dc7a5b337ee134dc2212bfd380760f0
 
 __
 meta::parent('object', <<'__');
@@ -2524,7 +2524,7 @@ function::create                        d65deb895a848b32d3d7ed92e81e8cb0
 function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
 function::cwd                           fd9b58e76c474a8fe93dc3abdccb8857
 function::disable                       53b449708cc2ffdefa352e53bb7d847d
-function::edit                          735dbdece3998a4478bec3b7bdc04f03
+function::edit                          6e5bd5f35ff9cf66edd2d2d9943a7b4e
 function::edit-self                     71790df00f941ed9b56e17f789b93871
 function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
 function::expanded-bootstrap            7ea5eb3e6a715cddcdfd85ae688286e1
@@ -2636,7 +2636,7 @@ __
 meta::parent('preprocessor', <<'__');
 function::preprocess           ab5526a02ff417d4c162357dc327e7c4
 meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
-parent::object                 8f920c8ec38cb39e732cbdcc3abc7f93
+parent::object                 3dc7a5b337ee134dc2212bfd380760f0
 retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
 template::comment              dfe273d2dad3d8159b847545e4e5c309
 template::eval                 1a0e2124a05056be4abc11803883c294
@@ -2653,7 +2653,7 @@ function::sdoc-packed     8ec4975fca7228708baae6ccd241bdbf
 function::sdocp           c3d738d982ba87418a298ff58478a85b
 meta::type::sdoc          22cd7315641d38c9d536344e83c36bed
 meta::type::slibrary      95474943c4a5f8ff17d3cf66ddb7c386
-parent::object            8f920c8ec38cb39e732cbdcc3abc7f93
+parent::object            3dc7a5b337ee134dc2212bfd380760f0
 retriever::code-sdoc      03b87ff8d1ecf7594db9ca0669fc69a1
 retriever::html-sdoc      8ab7705d03276945b23a71677153233c
 retriever::markdown-sdoc  67c34ba8223ec36a3ae018e411354db2
@@ -2664,14 +2664,14 @@ retriever::sdocp          fcfcf3a7de79d7d863402b9ccfcac3c4
 __
 meta::parent('text', <<'__');
 function::wrapped-near   b34731b33db1a4b56c724b1aa5c97f6d
-parent::object           8f920c8ec38cb39e732cbdcc3abc7f93
+parent::object           3dc7a5b337ee134dc2212bfd380760f0
 retriever::wrapped-near  1b00aeef9dbd19633a1fedc443b846e8
 
 __
 meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
 meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
-parent::object               8f920c8ec38cb39e732cbdcc3abc7f93
+parent::object               3dc7a5b337ee134dc2212bfd380760f0
 
 __
 meta::retriever('bin', <<'__');
