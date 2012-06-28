@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  470c5f0553b736692a0fabe2006284e8
+# state:  fdbb68f6d0a378a5033051770ed4948d
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1837,6 +1837,44 @@ Here, [foo bar] will tail-call to the outer continuation; however, this is not
 always the case:
 
 | . [foo bar]
+
+__
+meta::note('dynamic-tail-call-optimization', <<'__');
+Dynamic tail call optimization.
+Now that tail calls are not automatically generated, we have the flexibility to
+rewrite all calling addresses (except those used with call/cc, but that is a
+different matter). Here's the code:
+
+| popq %rax                     <- continuation
+  testb (%rax), $0xc3           <- is the continuation opcode RET?
+  je rewrite_caller
+  ...
+  rewrite_caller:
+    movb $0xe9, -5(%rax)        <- rewrite CALL to JMP
+  ...
+
+Here's the transformation in action:
+
+| e8 xx | AA: c3                %rsp -> | ...
+  (execute e8)                  %rsp -> | AA | ...
+  popq %rax                     %rsp -> | ...           %rax = AA
+  testb (%rax), $0x93           %rsp -> | ...           %rax = AA
+  je rewrite_caller             (branch taken)
+  movb $0xe9, -5(%rax)          -> e9 xx | AA: c3
+
+Next time this code executes:
+
+| e9 xx | AA: c3                %rsp -> | cc1 | ...
+  (execute e9)                  %rsp -> | cc1 | ...
+  popq %rax                     %rsp -> | ...           %rax = cc1
+  testb (%rax), $0x93           %rsp -> | ...
+  je rewrite_caller             (branch maybe taken)
+
+Oops. This is a problem. We can't always control the two-level calling context
+of a function; it's possible that we don't want to transitively tail-call
+optimize. (Actually, it's fine to do this, but only for static call sites.)
+
+Therefore, we need to know whether a call site is static or dynamic.
 
 __
 meta::note('frequency-vs-cost', <<'__');
