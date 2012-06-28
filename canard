@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  6165d00611bfa2944e8ab59cba352cb1
+# state:  9738a57740778490a57a787c6684be6c
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1918,6 +1918,21 @@ optimization removed from a very regular quasi-monadic form:
                  = f [x r> y r< r> z r<]
                  = f [r> return r< r> x r< r> y r< r> z r<]
 
+Update.
+Since lists are no longer tail-encoded, we need to wrap each call uniformly with
+r> and r<. So:
+
+| f [x y z]     -> f [r> x y z r<]
+
+Alternatively, something like this:
+
+| f [x y z]     -> f [call-without-current-continuation [x y z]]
+
+It might be nice to bake the without-current-continuation stuff into the calling
+convention. It's a little silly to be moving the values around twice like this.
+(However, it is convenient to be able to use the single-byte e8 and e9 to
+address lists.)
+
 __
 meta::note('gc', <<'__');
 Garbage collection.
@@ -2607,6 +2622,22 @@ No dynamic rewriting needs to happen at all if we can avoid a linear-time
 lookup. I don't mind using one extra jump per function call; this is a constant
 overhead and is relatively trivial. We just can't search the symbol table on
 every occurrence.
+
+__
+meta::note('symbol-rewriting', <<'__');
+Symbol rewriting.
+Now that all symbols within a list share a calling convention, we can look again
+at dynamic symbol-resolution rewriting. Specifically, can we reliably identify
+monomorphic call sites and rewrite them?
+
+A monomorphic call site is defined as one that, regardless of inputs, always
+calls the same block of code (or, in this case, symbol). We don't want to
+complexify the base layer too much, but anything goes if it makes the difference
+between tail call optimization and stack overflows.
+
+We can't just rewrite the location five bytes before the return address, since
+the return address might be a tail call proxy. Instead, we need to explicitly
+invoke a patchup function that fixes the invocation site.
 
 __
 meta::note('symbols', <<'__');

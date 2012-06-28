@@ -25,3 +25,19 @@ optimization removed from a very regular quasi-monadic form:
     f [x y z]     -> f [x r> y z r<]
                    = f [x r> y r< r> z r<]
                    = f [r> return r< r> x r< r> y r< r> z r<]
+
+# Update
+
+Since lists are no longer tail-encoded, we need to wrap each call uniformly with
+r> and r<. So:
+
+    f [x y z]     -> f [r> x y z r<]
+
+Alternatively, something like this:
+
+    f [x y z]     -> f [call-without-current-continuation [x y z]]
+
+It might be nice to bake the without-current-continuation stuff into the calling
+convention. It's a little silly to be moving the values around twice like this.
+(However, it is convenient to be able to use the single-byte e8 and e9 to
+address lists.)
