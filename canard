@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  35af193b24d2b443a6fc53be6c5b13ec
+# state:  470c5f0553b736692a0fabe2006284e8
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1632,6 +1632,14 @@ Unlike Lisp, cons is left-associative and lists are generated in reverse. That i
 would in Lisp or Scheme.
 
 __
+meta::note('bootstrapping', <<'__');
+Bootstrapping.
+There isn't much need to write a binary Canard image in itself. The reason is
+that this will be just as platform-specific as the original bootstrap
+interpreter. The interpreter allows you to inspect all of its internals, so you
+could conceivably create a copy of it at another location in memory.
+
+__
 meta::note('callcc-examples', <<'__');
 Call/cc examples.
 It makes sense to implement continuations in terms of a function analogous to call/cc. For example:
@@ -1660,6 +1668,46 @@ library.
 The compilation process is fairly simple; it's just about converting the text into a list image. This is doable because all pointers are relative; this makes the resulting memory image
 position-independent. Compiled images contain no mutable static data references; any such references will need to be pushed onto the stack at runtime. Immutable static data is encoded into
 instructions as immediate data.
+
+__
+meta::note('cons-cell-allocator', <<'__');
+Cons cell allocator.
+Allocating cons cells efficiently should be straightforward. I think this
+algorithm will work:
+
+| pop %rax                      <- continuation
+  pop %rbx                      <- tail element pointer
+  pop %rcx                      <- head element pointer
+  testq %rbx, %rbx              <- are we consing onto nil?
+  jz encode_tail_call           <- if so, do a JMP instead of a CALL
+  testq %rbx, %rsi              <- are we consing onto the last cell?
+  je after_tail                 <- if so, don't cons the tail
+    subq %rsi, %rbx             <- absolute to relative address
+    movl %ebx, -4(%rsi)         <- copy 32-bit displacement into place
+    lea -5(%rsi), %rsi          <- subtract to finish the tail allocation
+    movb $0xe9, (%rsi)          <- encode JMP instruction
+  after_tail:
+    subq %rsi, %rcx             <- absolute to relative address
+    movl %ecx, -4(%rsi)         <- copy 32-bit displacement into place
+    lea -5(%rsi), %rsi          <- allocate head of cons cell
+    movb $0xe8, (%rsi)          <- encode CALL instruction
+  jmp *%rax                     <- invoke continuation
+  encode_tail_call:
+    subq %rsi, %rcx             <- absolute to relative address
+    movl %ecx, -4(%rsi)         <- copy 32-bit displacement
+    lea -5(%rsi), %rsi          <- allocate head
+    movb $0xe9, (%rsi)          <- encode JMP instruction (tail call)
+  jmp *%rax                     <- invoke continuation
+
+Notice that we use %rsi as the heap allocation pointer (and that it grows
+downwards). This means that %rsi must be preserved across things like syscalls.
+
+Here are the cases (... indicates the original position of %rsi):
+
+| cons x []             %rsi -> | e9 xx xx xx xx | ...
+  cons x y              %rsi -> | e8 xx xx xx xx | e9 yy yy yy yy | ...
+  cons x cons y z       %rsi -> | e8 xx xx xx xx | e8 yy yy yy yy |
+                                                   e9 zz zz zz zz | ...
 
 __
 meta::note('continuations', <<'__');
@@ -1807,6 +1855,34 @@ I think that means this issue is closed: executable data structures are a win
 here. (The performance win comes from delegating dispatch to the processor's
 decoder rather than using soft decoding, which would be necessary provided that
 we also need RTTI and polymorphism.)
+
+__
+meta::note('function-continuation-management', <<'__');
+Function continuation management.
+Normal functions will want to immediately stash their continuations onto the
+return stack, then reload that continuation just prior to their last instruction
+(which will be a tail call). So they will generally look like this:
+
+| f [x y z]     -> f [x r> y z r<]              (defining f)
+  g [x]         -> g [x]                        (defining g)
+  h []          -> []                           (defining h)
+
+The same is true of anonymous functions, including those inside conditionals:
+
+| f [? [x r> y r<] [z r> t r<] r> g r<]
+
+This is, quite frankly, miserable and hackish. What's worse is that we can't
+realistically get rid of the inconvenience using metaprogramming, since
+anonymous functions are indistinguishable from data lists. (Adding a marker
+would be adding syntax, which is lame.)
+
+Underlying algebra.
+The apparent irregularity of the above r< and r> invocations is actually one
+optimization removed from a very regular quasi-monadic form:
+
+| f [x y z]     -> f [x r> y z r<]
+                 = f [x r> y r< r> z r<]
+                 = f [r> return r< r> x r< r> y r< r> z r<]
 
 __
 meta::note('gc', <<'__');
@@ -2036,6 +2112,25 @@ applicative notation (though it is fundamentally different). However, it creates
 
 So ultimately, the only stage at which the cons tree is reversed is in the initial parse phase -- this is a little counterintuitive, but otherwise fine. Trees are probably also serialized in
 reverse, so that the parser can be treated as a projection into list-space. For now, the reverse-consing notation is fine.
+
+__
+meta::note('list-ambiguity', <<'__');
+List ambiguity.
+Does tail call optimization make lists ambiguous? Consider:
+
+| [x y z]               <- e8 zz e8 yy e9 xx
+  cons [x y] :< [z]     <- e8 zz e9 AA ... AA: e8 yy e9 xx
+  cons [[w x] y] <: [z] <- e8 zz e9 AA ... AA: e8 yy e9 BB
+                                       ... BB: e8 xx e9 ww
+
+The third case is identical to this:
+
+| cons [w x y] <: [z]   <- e8 zz e9 AA ... AA: e8 yy e8 xx e9 ww
+
+The only difference is prefused consing, but this is not a reliable indicator
+since it depends on the ordering of potentially unrelated cons operations.
+
+Therefore, we cannot encode tail calls as a reader optimization.
 
 __
 meta::note('list-machine-homomorphism', <<'__');
@@ -2367,6 +2462,39 @@ There are some strange things happening around quoted symbols. Here are the spec
 
 The whole point behind the E/I distinction is that lists are quoted when in the head position. We want evaluation to distribute only across list tails, not heads. Therefore, we need to define
 two separate functions to handle this case.
+
+__
+meta::note('return-stack-operators', <<'__');
+Return stack operators.
+Note: This design is incomplete; calling conventions need to deal with the
+return continuation more explicitly than this.
+
+Return stack values are manipulated using r< and r>. However, there is some
+subtlety to think about here. The reason is that each one of these is a function
+call; therefore, here's what happens when you use one:
+
+| continuation r< x y ... =[1] (definition of r<) [continuation] x y ...
+                          =[2] [continuation] y ...
+                          =[3] continuation y ...
+
+The transition from [1] to [2] above involved putting x onto the return stack.
+Here's what r< looks like in assembly language:
+
+| pop %rbx      <- continuation
+  pop %rax      <- data to push onto return stack
+  stosq         <- push onto return stack
+  jmp *%rbx     <- invoke continuation
+
+The definition of r> is similar:
+
+| pop %rbx              <- continuation
+  movq -8(%rdi), %rax   <- load value from return stack into %rax
+  lea  -8(%rdi), %rdi
+  pushq %rax            <- push onto data stack
+  jmp *%rbx             <- invoke continuation
+
+So far so good. The problem is that the enclosing function has its own
+continuation that needs to be dealt with.
 
 __
 meta::note('self-defining-symbols', <<'__');
