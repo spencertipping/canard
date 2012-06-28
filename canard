@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  9738a57740778490a57a787c6684be6c
+# state:  63c2d70cd7cbbfeb144f130183e21a6d
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1618,56 +1618,12 @@ __
 meta::message_color('cc', '36');
 meta::message_color('state', 'purple');
 meta::message_color('states', 'yellow');
-meta::note('binary-encoding', <<'__');
-Binary encoding.
-The reader conses up the initial program, and it needs some kind of native binary representation for cons cells and symbols. Each value with pointers needs to indicate whether or not it has
-been marked in the current GC cycle. This tag information can be encoded in the low three bits of a machine word, eliminating the need for boxing in some cases. Here are the suffixes:
-
-| 000   cons (32-bit tail pointer, 32-bit head pointer)
-  001   symbol/string (32-bit length, 32-bit data pointer)
-
-The rest are available for compiler libraries to use as they would like. The special symbol 0|0|000 represents nil; you can easily determine whether you have nil by checking the zero flag.
-
-Unlike Lisp, cons is left-associative and lists are generated in reverse. That is, [a b c] creates the structure (cons (cons (cons nil 'a) 'b) 'c), not (cons 'a (cons 'b (cons 'c nil))) as it
-would in Lisp or Scheme.
-
-__
 meta::note('bootstrapping', <<'__');
 Bootstrapping.
 There isn't much need to write a binary Canard image in itself. The reason is
 that this will be just as platform-specific as the original bootstrap
 interpreter. The interpreter allows you to inspect all of its internals, so you
 could conceivably create a copy of it at another location in memory.
-
-__
-meta::note('callcc-examples', <<'__');
-Call/cc examples.
-It makes sense to implement continuations in terms of a function analogous to call/cc. For example:
-
-| call/cc [. %s 5]              <- the same thing as 5
-  call/cc [.]                   <- the same thing as []
-  call/cc []                    <- the same thing as r<
-
-Some questions:
-
-| 1. How is the data stack tied to the return stack, if at all? Is the data stack part of a continuation?
-  2. How is the current continuation replaced by a different one?
-  3. Does the FP-style continuation model make sense in a concatenative context?
-  4. Is continuation modeling even necessary?
-
-__
-meta::note('compilation', <<'__');
-Compilation.
-Canard makes much more sense as a binary memory image than as text. The 'compiler' just takes an input file and converts it to bytecode, a process that can be done in linear average time and
-with almost no analysis. In particular, symbols are erased up-front; the string data is not necessarily stored.
-
-Separate compilation is not possible, but this is not a problem from the perspective of performance. Multiple source files in the same environment should be concatenated prior to compilation;
-this ensures good symbol packing and, importantly, allows symbol strings to be erased even for symbols that link files together. Because of this, there is no such thing as a precompiled
-library.
-
-The compilation process is fairly simple; it's just about converting the text into a list image. This is doable because all pointers are relative; this makes the resulting memory image
-position-independent. Compiled images contain no mutable static data references; any such references will need to be pushed onto the stack at runtime. Immutable static data is encoded into
-instructions as immediate data.
 
 __
 meta::note('cons-cell-allocator', <<'__');
@@ -1708,69 +1664,6 @@ Here are the cases (... indicates the original position of %rsi):
   cons x y              %rsi -> | e8 xx xx xx xx | e9 yy yy yy yy | ...
   cons x cons y z       %rsi -> | e8 xx xx xx xx | e8 yy yy yy yy |
                                                    e9 zz zz zz zz | ...
-
-__
-meta::note('continuations', <<'__');
-Continuations.
-In Canard, expressions (lists) are executed from right to left following the cons tree. So E[x :: y] = E[x] I[y], making cons homomorphic to composition. Because of this, a continuation can be
-represented as a tuple (list, return-stack-head, data-stack-head), where the list is code and the two stack heads are pointers to immutable cons cells.
-
-The return stack is required because blocks have return continuations, but it might not be required if CPS-conversion were performed up front. I'm not sure about this.
-
-That's a cop-out.
-Right, it is. Ok, so here's how cons cells are evaluated:
-
-| E[:: x y] = E[x] I[y]
-
-So cons corresponds to a form of composition. Here, the continuation of I[y] is E[x]; so in general the continuation of x y z is [x y]. E[] doesn't represent a tail-evaluation because it must
-itself keep track of the continuation E[x]. Someone needs to keep track of this in any case; otherwise there is no implicit 'next command'.
-
-The return stack.
-This works as a stack of lists. Suppose, for example, you've got something like this:
-
-| a b . [c d . [e] f] g
-
-Here's the sequence of return stack contents after each step:
-
-|  0. Receive input             [a b . [c d . [e] f] g]
-   1. Execute g                 [a b . [c d . [e] f]]
-   2. Execute [c d . [e] f]     [a b .]
-   3. Execute .                 [c d . [e] f] [a b]
-   4. Execute f                 [c d . [e]] [a b]
-   5. Execute [e]               [c d .] [a b]
-   6. Execute .                 [e] [c d] [a b]
-   7. Execute e                 [] [c d] [a b]
-   8. Execute []                [c d] [a b]
-   9. Execute d                 [c] [a b]
-  10. Execute c                 [] [a b]
-  11. Execute []                [a b]
-  12. Execute b                 [a]
-  13. Execute a                 []
-  14. Execute []                <empty>
-
-So a continuation is the pair of data/return stack values, assuming immutable cons cells and stack entries in each case.
-
-__
-meta::note('definition', <<'__');
-Symbol definition.
-Canard gives you two ways to quote things. The first and most obvious is just to put something into a list. For instance, to alias the $< function:
-
-| = 'print [$<]
-
-The other is to quote a symbol:
-
-| = 'print '$<                  <- but this might not work
-
-These two definitions have different meanings:
-
-| [$<] = a function that invokes $< and then returns
-  '$<  = the address of the $< function
-
-The problem with = 'print '$< is that after this, the symbol 'print is equivalent to the symbol '$<. This could be a big problem when thinking about quoted lists:
-
-| == head [print] head [$<]     <- returns 1
-
-Maybe the right answer is to just disable aliasing altogether...
 
 __
 meta::note('dynamic-inlining', <<'__');
@@ -1938,36 +1831,6 @@ meta::note('gc', <<'__');
 Garbage collection.
 GC is implemented as a library and is, importantly, non-primitive. Most GC libraries probably provide custom stack representations and cons allocators, and their entry point is an evaluation
 function.
-
-__
-meta::note('global-symbol-table', <<'__');
-Global symbol table.
-This is an interesting problem. Lists fundamentally contain symbols, not functions, since we don't know whether they will be executed. So we can't fully erase the identity of the symbols that
-make up these lists, at least in the authoritative copy.
-
-Therefore, inlining is not of much use beyond the obvious primitive case because otherwise the lists are impossible to reconstruct. For example:
-
-| = 'foo [bar bif baz]
-
-If foo is represented as 0f1f 09 ... 0f1f 0b ... 0f1f 08 ... 0f1f 80 00000000 c3, then how do we know that it was written as [bar bif baz] instead of [<definition of bar> <definition of bif>
-<definition of baz>]? Preserving the function calls is important here:
-
-| 0f1f 09 e8 baz-offset 0f1f 09 e8 bif-offset 0f1f 09 e8 bar-offset 0f1f 80 00000000 c3
-
-It's starting to look like a mistake to use machine language as an authoritative list encoding for a few reasons:
-
-| 1. There is some overhead involved in allocating cons cells this way.
-  2. There is also some overhead executing lists defined this way.
-  3. Inlining is not generally possible, which will slow the processor down.
-  4. Decoding is a pain and requires extra metadata.
-  5. On systems with W^X (currently just OpenBSD, according to Wikipedia), we'll have to change the memory protection of the page where the list is allocated.
-
-A nice advantage, however, is that we now have a way to encode native instructions without explicit decisionals. Otherwise the interpreter needs to know the difference between primitives and
-other instructions.
-
-Mutability vs immutability.
-Any recursive calls will need to be indirect, so it seems reasonable enough to just make the global table mutable. But it's fine if modifying it is expensive, since this should be an uncommon
-case. Modifying a global symbol could invalidate arbitrarily much code, or it could even fail to be reflected in already-compiled functions.
 
 __
 meta::note('interpreter-constraints', <<'__');
@@ -2180,154 +2043,6 @@ The only difference is prefused consing, but this is not a reliable indicator
 since it depends on the ordering of potentially unrelated cons operations.
 
 Therefore, we cannot encode tail calls as a reader optimization.
-
-__
-meta::note('list-machine-homomorphism', <<'__');
-List/machine-language homomorphism.
-Canard lists can be translated into machine language via the compiler. In this sense, Canard is not an interpreter after all, but a compiler that does the translation up-front. This makes a
-certain amount of sense.
-
-The real question is whether all machine code has a list representation as well. If so, then primitives are just lists of numbers or some such, and this has some nice advantages from a
-representational standpoint. How might this work? Here are some options:
-
-| 1. Basic blocks are encoded as simple lists of numbers (instruction prefixes, opcode, operands), and each list ends with a jump instruction. The jump instruction is a list pointer.
-  2. Lists are always represented in some form that can be executed natively; so consing corresponds to jumping from one list into another.
-
-There are probably other solutions, but I think (2) is interesting. Not sure what to do about primitive commands...
-
-Executable list representation.
-The x86-64 32-bit relative jump instruction uses a single-byte E9 opcode. This wouldn't add a lot of overhead to a cons cell and could easily enough fit into a 64-bit chunk. There are some
-other considerations, however, among which are things like CPS conversion. Encoding the list's execution semantics into the list itself makes the compiler intrinsic, which may not be a great
-idea. But let's follow this to see where it goes.
-
-Cons cell (nop precedes each jump, and the first one is a call to push the continuation pointer):
-
-| 0f1f00 e8 hhhhhhhh 0f1f00 e9 tttttttt
-
-Therefore, nil can be encoded as a ret instruction:
-
-| 0f1f80 00000000 c3
-
-The trouble with this approach is that we have no way to encode primitive stack instructions. Technically, those should be directly encoded into the head of the list. So, for example, the +
-instruction (add the top two stack values) would be something like this:
-
-| 4883ee08 488b4608 480106 e9 tttttttt
-  subq $8, %rsi
-  movq 8(%rsi), %rax
-  addq %rax, (%rsi)
-  jmp  tttttttt
-
-Not sure whether this scales, however. Intel instructions have low enough information density that I can see this scheme breaking down for more complex instructions. Maybe it's possible to
-overcome this by using very long cons cells...
-
-Also, the existing scheme makes it very difficult to detect a cons cell. Testing a single continuation-jump byte seems really sketchy. The limit case is that we would need to decode the whole
-thing as x86 instructions and figure out whether the e9 is a real opcode.
-
-Optimizing compilation.
-The list representation above is suboptimal in a few ways:
-
-| 1. Function calls are not inlined.
-  2. There are nops all over the place.
-  3. Adjacent instructions have not been fused. This can be resolved at a symbolic level; there is no particular reason to implement a dynamic register allocator, I think.
-  4. The stack model is unerased (not sure whether it makes sense to tackle this).
-  5. Any polymorphic primitives will have unerased decisionals (unfortunately, the VM does provide some of these).
-
-So in order to optimize, we'll have to go back to the symbolic stage and start fusing instructions into a separate native instruction stream, doing some register-stack aliasing in the process.
-This also means we'll need to know the shape of each primitive, which shouldn't be too difficult. (Now it's becoming clear why most stack VMs don't provide high-power stack manipulators, but
-if we constant-fold first it shouldn't be an issue.)
-
-Optimization should not be a big concern in the native representation of cons cells, since it can be handled from within the language. The real value of having native cons representation is
-enabling a protocol by which low-level system programming can be achieved.
-
-__
-meta::note('ll', <<'__');
-Low-level basis.
-The purpose of the low-level environment is to make it possible to write a compiler. Ideally, the compiler can compile itself, so the basis should be consistent modulo even lower-level
-optimizations that can be emitted later on. The basic operation categories are:
-
-| 1. Stack manipulation of various sorts. This should be covered by stash, permute, and literals.
-  2. Toplevel definition and introspection, even if this isn't used by compilers. This establishes the identity of Canard as an interpreter with compiler backends.
-  3. Direct allocation, freeing, and access of memory.
-  4. Integer and floating-point arithmetic, but basic instructions only. Instruction fusion should be compiler-specific.
-  5. Control flow.
-
-Stack manipulation.
-Every literal pushes a value onto the stack. Canard provides three functions that manipulate stack values:
-
-| ^ k [f] x0 x1 x2 ... xk-1 xk ... = x0 x1 x2 ... xk-1 f xk ...         (stash)
-  < k x0 x1 x2 ... xk-1 xk ...     = xk ...                             (drop)
-  > k x0 x1 x2 ... xk ...          = xk x0 x1 x2 ... xk ...             (get)
-
-Definition.
-Canard gives you two functions that deal with definitions:
-
-| = name value          (define)
-  @ name                (get-value)
-
-Low-level interpreters are allowed to impose an O(n) time overhead to resolve symbol definitions.
-
-Memory.
-There are four memory-related operators:
-
-| * address = value     (dereference)
-  ! value address       (assignment)
-  ( size = address      (mmap; generally requires multiples of 4096 bytes)
-  ) address             (munmap)
-
-Arithmetic.
-These mirror processor intrinsics:
-
-| + x y   = x+y
-  - x y   = x-y
-  / x y   = x/y x%y
-  % x y   = x*y
-  & x y   = x&y
-  | x y   = x|y
-  ~ x     = ~x
-  not x   = !x
-  xor x y = x^y
-  << n x  = x<<n
-  >> n x  = x>>n
-  >>> n x = x>>>n
-
-Control flow.
-There is only one control flow statement:
-
-| ? 0 [true-branch] [false-branch] = false-branch
-  ? x [true-branch] [false-branch] = true-branch        (x != 0)
-
-Primitive representation.
-What happens when you inspect something like the ^ function? Theoretically you would see a list of stack instructions, but in this case that doesn't make sense; there aren't other stack
-instructions that will end up producing ^. Maybe the right move here is to provide some sort of machine code representation of the intrinsic. It could be the case that lists are homomorphic to
-machine code anyway, at least across evaluation. (!)
-
-__
-meta::note('locals', <<'__');
-Local variables.
-There is a lot to be said for the option of using local variables in a concatenative context. Though perhaps the right execution combinators reduce the need to specify them explicitly. Also,
-better stack permutation primitives would help with this.
-
-__
-meta::note('machine-code-type-mapping', <<'__');
-Machine code type mapping.
-Values are analogous to machine-code operations across the list-program homomorphism. For example:
-
-| transparent pointer to <address> = jmp <address>
-  packed pointer to <address>      = call <address>
-  nil                              = ret
-  nop                              = transparent metadata
-  anything else                    = primitive
-
-In particular, the transparent pointer is interesting because you could easily enough have more than one of them. For example:
-
-| address1: e8 prog1 e9 address2
-  address2: e9 address3
-  address3: c3
-
-Here we have just one cons cell: prog1 :: nil. Address2 is an intermediate pointer, but its type is encoded by the machine instruction that represents it, which importantly has tail
-precedence: jmp a -> jmp b === jmp b. Any machine operation with this property can be erased when converting back from the machine-code representation to the logical one.
-
-Quoted symbols are encoded as instructions that push the symbol's address onto the data stack.
 
 __
 meta::note('native-execution', <<'__');
