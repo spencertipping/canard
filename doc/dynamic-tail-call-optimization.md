@@ -6,31 +6,9 @@ different matter). Here's the code:
 
     popq %rax                     <- continuation
     testb (%rax), $0xc3           <- is the continuation opcode RET?
-    je rewrite_caller
-    ...
-    rewrite_caller:
+    jne preserve_caller
+    testb -5(%rax), $0xe8         <- is the call site using a CALL?
+    jne preserve_caller
       movb $0xe9, -5(%rax)        <- rewrite CALL to JMP
+    preserve_caller:
     ...
-
-Here's the transformation in action:
-
-    e8 xx | AA: c3                %rsp -> | ...
-    (execute e8)                  %rsp -> | AA | ...
-    popq %rax                     %rsp -> | ...           %rax = AA
-    testb (%rax), $0x93           %rsp -> | ...           %rax = AA
-    je rewrite_caller             (branch taken)
-    movb $0xe9, -5(%rax)          -> e9 xx | AA: c3
-
-Next time this code executes:
-
-    e9 xx | AA: c3                %rsp -> | cc1 | ...
-    (execute e9)                  %rsp -> | cc1 | ...
-    popq %rax                     %rsp -> | ...           %rax = cc1
-    testb (%rax), $0x93           %rsp -> | ...
-    je rewrite_caller             (branch maybe taken)
-
-Oops. This is a problem. We can't always control the two-level calling context
-of a function; it's possible that we don't want to transitively tail-call
-optimize. (Actually, it's fine to do this, but only for static call sites.)
-
-Therefore, we need to know whether a call site is static or dynamic.

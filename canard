@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  fdbb68f6d0a378a5033051770ed4948d
+# state:  6165d00611bfa2944e8ab59cba352cb1
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1847,34 +1847,30 @@ different matter). Here's the code:
 
 | popq %rax                     <- continuation
   testb (%rax), $0xc3           <- is the continuation opcode RET?
-  je rewrite_caller
-  ...
-  rewrite_caller:
+  jne preserve_caller
+  testb -5(%rax), $0xe8         <- is the call site using a CALL?
+  jne preserve_caller
     movb $0xe9, -5(%rax)        <- rewrite CALL to JMP
+  preserve_caller:
   ...
 
-Here's the transformation in action:
+__
+meta::note('dynamic-tco-is-impossible', <<'__');
+Dynamic TCO is impossible.
+This is the case because call sites are aliased. This happens because of the
+identity that '. [x]' and 'x' are functionally equivalent (though they are not
+the same lists).
 
-| e8 xx | AA: c3                %rsp -> | ...
-  (execute e8)                  %rsp -> | AA | ...
-  popq %rax                     %rsp -> | ...           %rax = AA
-  testb (%rax), $0x93           %rsp -> | ...           %rax = AA
-  je rewrite_caller             (branch taken)
-  movb $0xe9, -5(%rax)          -> e9 xx | AA: c3
+The problem is that the cons cell that points to the . is shared across all
+values of the list it is invoking. Therefore, we can't modify it unless we can
+prove that it is monomorphic (but if it were, the odds are good that it would
+have been written as just 'x', not '. [x]').
 
-Next time this code executes:
+An alternative is to eagerly clone the code over the domain of monomorphism ...
+but this is a serious undertaking and is probably impossible.
 
-| e9 xx | AA: c3                %rsp -> | cc1 | ...
-  (execute e9)                  %rsp -> | cc1 | ...
-  popq %rax                     %rsp -> | ...           %rax = cc1
-  testb (%rax), $0x93           %rsp -> | ...
-  je rewrite_caller             (branch maybe taken)
-
-Oops. This is a problem. We can't always control the two-level calling context
-of a function; it's possible that we don't want to transitively tail-call
-optimize. (Actually, it's fine to do this, but only for static call sites.)
-
-Therefore, we need to know whether a call site is static or dynamic.
+Update.
+This is not at all the case. See note::dynamic-tail-call-optimization.
 
 __
 meta::note('frequency-vs-cost', <<'__');
