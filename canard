@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  a9dd23dce76f1c3b3ef8ee862fc4d6e2
+# state:  b25a616fa82ac2546d506e2508adf0e3
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1728,6 +1728,15 @@ bif':
     pop %rax                    <- continuation
     push yy(%rip)               <- push [foo bar] onto the stack
     jmp *%rax                   <- invoke continuation
+
+__
+meta::note('partial-cells', <<'__');
+Partial cells.
+Cons cells are encoded in increments of five bytes. This is an unfortunate
+number because while it fits inside a 64-bit stack cell, it also requires at
+least two separate instructions to generate a functioning machine code command
+(unless prefixed by a 3-byte nop, in which case the cell can be copied and
+executed verbatim).
 
 __
 meta::note('self-defining-symbols', <<'__');
