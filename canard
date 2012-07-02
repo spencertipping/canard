@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  3627786f2c19815b2076bb2b31b5fa09
+# state:  9f0851dcf116a84e6e5e68a0a861628b
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -2086,6 +2086,29 @@ ways to encode various operations efficiently on the target processor.
 Note that high-level optimizers often don't use the usual set of primitives. These are domain-specific languages that know about certain classes of optimizations.
 
 __
+meta::note('parser-role-in-compilation', <<'__');
+The parser's role in compilation.
+I've been overlooking an important opportunity here. The parser has the option
+to generate list code that modifies itself -- for instance, looking up symbols.
+Therefore, we can let the symbol table simply act as a partial function from
+symbol to address (defaulting to a cons for the symbol table). The parser can
+generate code that uses it. For example, here's the output of parsing '[foo bar]
+bif':
+
+| call invoke_symbol_foo_anon   <- anonymous function for 'bif'
+  call invoke_list_anon         <- anonymous function to push [foo bar]
+  ret                           <- nil
+  invoke_symbol_foo_anon:
+    pop %rax                    <- continuation
+    push xx(%rip)               <- push 'bif' onto stack
+    push %rax                   <- push return continuation
+    jmp invoke_symbol           <- tail call: resolve symbol and rewrite caller
+  invoke_list_anon:
+    pop %rax                    <- continuation
+    push yy(%rip)               <- push [foo bar] onto the stack
+    jmp *%rax                   <- invoke continuation
+
+__
 meta::note('prefused-conses', <<'__');
 Prefused conses.
 Cons cells are immutable, so there isn't a real reason to fragment them prematurely. Instead, we can prefuse them; runs of sequential atoms can be represented in a linear string. This
@@ -2143,8 +2166,8 @@ the other:
 | r<: popq %rax
       stosq
 
-| r>: movq -8(%rdi), %rax
-      lea -8(%rdi), %rdi
+| r>: lea -8(%rdi), %rdi
+      movq (%rdi), %rax
       pushq %rax
 
 Doing it this way removes the need for the stash command, which is a good thing.
@@ -2156,7 +2179,19 @@ could prove useful (though I have no idea how at the moment).
 
 Problems with data-stack CPS.
 The biggest problem with this design is probably that r< and r> must work around
-their own immediate continuations.
+their own immediate continuations. That is, they need to be implemented this
+way:
+
+| r<: pop %rbx                  <- immediate continuation
+      pop %rax                  <- value for return stack
+      stosq                     <- store the value
+      jmp *%rbx                 <- invoke immediate continuation
+
+| r>: pop %rbx                  <- immediate continuation
+      lea -8(%rdi), %rdi        <- decrement return stack pointer
+      movq (%rdi), %rax         <- value from return stack
+      push %rax                 <- add value to data stack
+      jmp *%rbx                 <- invoke continuation
 
 __
 meta::note('return-stack-operators', <<'__');

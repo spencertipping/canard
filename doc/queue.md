@@ -16,8 +16,8 @@ the other:
     r<: popq %rax
         stosq
 
-    r>: movq -8(%rdi), %rax
-        lea -8(%rdi), %rdi
+    r>: lea -8(%rdi), %rdi
+        movq (%rdi), %rax
         pushq %rax
 
 Doing it this way removes the need for the stash command, which is a good thing.
@@ -30,4 +30,16 @@ could prove useful (though I have no idea how at the moment).
 # Problems with data-stack CPS
 
 The biggest problem with this design is probably that r< and r> must work around
-their own immediate continuations.
+their own immediate continuations. That is, they need to be implemented this
+way:
+
+    r<: pop %rbx                  <- immediate continuation
+        pop %rax                  <- value for return stack
+        stosq                     <- store the value
+        jmp *%rbx                 <- invoke immediate continuation
+
+    r>: pop %rbx                  <- immediate continuation
+        lea -8(%rdi), %rdi        <- decrement return stack pointer
+        movq (%rdi), %rax         <- value from return stack
+        push %rax                 <- add value to data stack
+        jmp *%rbx                 <- invoke continuation
