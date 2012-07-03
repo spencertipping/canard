@@ -14,19 +14,19 @@ to match:
 And here's the resulting code:
 
     dpop %rbx                     <- pop the string to be tested
-    testl (%rbx), $0x00000006     <- check length
+    cmpl (%rbx), $0x00000006      <- check length
     jne nope
-      testb 4(%rbx), $0x43        <- length is ok, check bytes
+      cmpb 4(%rbx), $0x43         <- length is ok, check bytes
       jne nope                    <- lack of vectorization is lame ...
-      testb 5(%rbx), $0x61        <- ... but probably acceptable
+      cmpb 5(%rbx), $0x61         <- ... but probably acceptable
       jne nope
-      testb 6(%rbx), $0x6e
+      cmpb 6(%rbx), $0x6e
       jne nope
-      testb 7(%rbx), $0x61
+      cmpb 7(%rbx), $0x61
       jne nope
-      testb 8(%rbx), $0x72
+      cmpb 8(%rbx), $0x72
       jne nope
-      testb 9(%rbx), $0x64
+      cmpb 9(%rbx), $0x64
       jne nope
       dpush $0xXXXXXXXX           <- match was successful; push the binding
     ret
