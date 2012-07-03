@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  b25a616fa82ac2546d506e2508adf0e3
+# state:  e0186ebc3cdb80fce297ef774c3e2711
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1632,8 +1632,8 @@ Allocating cons cells efficiently should be straightforward. I think this
 algorithm will work:
 
 | pop %rax                      <- continuation
-  pop %rbx                      <- tail element pointer
-  pop %rcx                      <- head element pointer
+  dpop %rbx                     <- tail element pointer
+  dpop %rcx                     <- head element pointer
   testq %rbx, %rsi              <- are we consing onto the last cell?
   je after_tail                 <- if so, don't cons the tail
     subq %rsi, %rbx             <- absolute to relative address
@@ -1645,6 +1645,7 @@ algorithm will work:
     movl %ecx, -4(%rsi)         <- copy 32-bit displacement into place
     lea -5(%rsi), %rsi          <- allocate head of cons cell
     movb $0xe8, (%rsi)          <- encode CALL instruction
+    dpush %rsi                  <- push resulting cons cell
   jmp *%rax                     <- invoke continuation
 
 Notice that we use %rsi as the heap allocation pointer (and that it grows
@@ -1678,6 +1679,56 @@ different matter). Here's the code:
   ...
 
 __
+meta::note('extensible-symbol-table', <<'__');
+Extensible symbol table.
+The symbol table is a linked list of partial functions, not of symbols verbatim.
+Each partial function responds to a symbol and determines whether that symbol is
+within its domain. If so, it returns a pointer to a definition that should be
+used for that symbol; otherwise, it searches the rest of the symbol table.
+
+Matcher functions can be generated from symbols easily enough; we just map each
+byte into a string comparison function. For example, here's the string we want
+to match:
+
+| 06000000 43 61 6e 61 72 64    <- six bytes long, string is 'Canard'
+
+And here's the resulting code:
+
+| dpop %rbx                     <- pop the string to be tested
+  testl (%rbx), $0x00000006     <- check length
+  jne nope
+    testb 4(%rbx), $0x43        <- length is ok, check bytes
+    jne nope                    <- lack of vectorization is lame ...
+    testb 5(%rbx), $0x61        <- ... but probably acceptable
+    jne nope
+    testb 6(%rbx), $0x6e
+    jne nope
+    testb 7(%rbx), $0x61
+    jne nope
+    testb 8(%rbx), $0x72
+    jne nope
+    testb 9(%rbx), $0x64
+    jne nope
+    dpush $0xXXXXXXXX           <- match was successful; push the binding
+  ret
+  nope:
+    dpush $0                    <- match failed; push 0
+  ret
+
+However, this model generalizes nicely to non-matcher functions. For example, we
+could write a function that supported wildcard characters (denoted here by .) by
+simply skipping some byte comparisons. So you could write a matcher for
+hexadecimal bytes:
+
+| 0x..
+
+The first two characters are literal, the last two are wildcards that accept any
+values. The length must still match for this symbol pattern to be used.
+
+Given this pattern, bootstrapping Canard involves constructing the image of a
+symbol table with enough stuff to be useful.
+
+__
 meta::note('frequency-vs-cost', <<'__');
 Frequency vs cost.
 Machine-coded lists are expensive to inspect but cheap to execute. Canard is
@@ -1705,6 +1756,33 @@ applicative notation (though it is fundamentally different). However, it creates
 
 So ultimately, the only stage at which the cons tree is reversed is in the initial parse phase -- this is a little counterintuitive, but otherwise fine. Trees are probably also serialized in
 reverse, so that the parser can be treated as a projection into list-space. For now, the reverse-consing notation is fine.
+
+__
+meta::note('minimal-symbol-table', <<'__');
+Minimal symbol table.
+A minimal Canard image needs the following from a symbol table:
+
+| 1. A way to parse input. We can't just assume this is taken care of, since we
+     might want to load more input or inspect the bootstrap parser.
+  2. A way to construct, inspect, and execute lists.
+  3. A way to manipulate the stack pointer and read/write arbitrary memory.
+  4. A way to define more symbols.
+  5. A way to write new machine code from within Canard source.
+
+The simplest way to do all of this, most likely, is to just provide a few
+functions to manipulate the stack and deal with lists, and to then provide one
+macro-definition that allows the user to type hexadecimal numbers. This macro
+definition can be used to write the machine code necessary to write new
+symbol-definition functions.
+
+__
+meta::note('numbers', <<'__');
+Numbers.
+It is philosophicall tempting to exclude numbers from the core Canard image;
+parsing numeric literals is a pain and it's unclear that they couldn't be
+implemented in some other way. Including numbers in the core image is a special
+case of providing reader macros, or at the very least, generating definitions
+from a subset of undefined symbols. (!!!)
 
 __
 meta::note('parser-role-in-compilation', <<'__');
@@ -1737,6 +1815,26 @@ number because while it fits inside a 64-bit stack cell, it also requires at
 least two separate instructions to generate a functioning machine code command
 (unless prefixed by a 3-byte nop, in which case the cell can be copied and
 executed verbatim).
+
+I think this is acceptable. We can have separate instructions for writing
+various sizes of memory; the limit case is that everything happens in terms of
+bytes, but this creates a significant performance overhead. We can have several
+instructions, one for each integer size:
+
+| =q    move all eight cell bytes
+  =d    move lower four cell bytes
+  =w    move lower two cell bytes
+  =b    move lower byte
+
+These instructions are impacted by the endianness of the processor; so for Intel
+x64, you would have this (the value on the top of the stack is
+8877665544332211):
+
+| 11 22 33 44 55 66 77 88
+  --------- =q ----------
+  --- =d ----
+  -=w--
+  =b
 
 __
 meta::note('self-defining-symbols', <<'__');

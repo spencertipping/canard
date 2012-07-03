@@ -4,8 +4,8 @@ Allocating cons cells efficiently should be straightforward. I think this
 algorithm will work:
 
     pop %rax                      <- continuation
-    pop %rbx                      <- tail element pointer
-    pop %rcx                      <- head element pointer
+    dpop %rbx                     <- tail element pointer
+    dpop %rcx                     <- head element pointer
     testq %rbx, %rsi              <- are we consing onto the last cell?
     je after_tail                 <- if so, don't cons the tail
       subq %rsi, %rbx             <- absolute to relative address
@@ -17,6 +17,7 @@ algorithm will work:
       movl %ecx, -4(%rsi)         <- copy 32-bit displacement into place
       lea -5(%rsi), %rsi          <- allocate head of cons cell
       movb $0xe8, (%rsi)          <- encode CALL instruction
+      dpush %rsi                  <- push resulting cons cell
     jmp *%rax                     <- invoke continuation
 
 Notice that we use %rsi as the heap allocation pointer (and that it grows
