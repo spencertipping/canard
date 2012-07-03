@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  10f39003b0661424974e07e6fbacab4c
+# state:  9e8f4f6ab8915eb0278a498623919324
 # istate: cb9ae940fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1785,6 +1785,18 @@ not by-reference; we don't want them to have identity beyond being the tail of
 some list.)
 
 __
+meta::note('minimal-allocation', <<'__');
+Minimal allocation.
+Intel JMP instructions can be encoded in two widths, and CALL instructions can
+be encoded in one on 64-bit machines. CALL is always e8; JMP is any one of:
+
+| eb xx                 <- 8-bit relative jump
+  e9 xxxxxxxx           <- 32-bit relative jump
+
+Three bytes of memory can be saved if we pack a jump, which could easily be
+worth it to compensate for things like tightly-paired cons cells.
+
+__
 meta::note('minimal-symbol-table', <<'__');
 Minimal symbol table.
 A minimal Canard image needs the following from a symbol table:
@@ -1862,6 +1874,29 @@ x64, you would have this (the value on the top of the stack is
   --- =d ----
   -=w--
   =b
+
+__
+meta::note('prefused-cons-nop-tagging', <<'__');
+Prefused cons nop tagging.
+I claimed earlier that memory allocation should not use the cons heap because
+cons cells are strictly by-value. But this isn't actually true; we can just
+intersperse allocations onto the cons heap:
+
+| cons [] x             %rsi ->                                   | e8 x ...
+  allocate 8            %rsi ->                             | <8> | e8 x ...
+  cons swap             %rsi -> | e8 05000000 | e9 08000000 | <8> | e8 x ...
+                                      |             |          ^    ^
+                                      +-------------+----------+    |
+                                                    +---------------+
+
+We don't want to use nop tagging here because cons cells ultimately should be
+references. It would be difficult to express more than 64 bits of data in any
+case; you'd have to refer to it, at which point you have what is logically a
+reference anyway. (Giving the destination of the reference by-value semantics
+would be misleading.)
+
+So cons really is a way to compose functions, not to allocate arbitrary chunks
+of memory.
 
 __
 meta::note('self-defining-symbols', <<'__');
