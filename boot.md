@@ -503,17 +503,19 @@ jumping over the definition.
 
 Let's go ahead and cons that onto the symbol table:
 
-    @!1b3 4831 o300 b8 aa014000 48ab      # pointer to @> definition, above
+    @!1b3 4831 o300 b8 a8014000 48ab      # pointer to @> definition, above
     @!1bd b8 @!1be 0200 '@> @!1c2
-    @!1c2 48c7 o300 be104000 48ab         # push symbol @>
+    @!1c2 48c7 o300 be014000 48ab         # push symbol @>
 
-    @!1cb 48b8 @!1cd 0300 '@:k /3/00 48ab # push symbol @:k
-    @!1d7 ff o024 o044                    # call top of %rsp (symbol table)
-    @!1da ff o127 f8                      # call top of data stack (@:k function)
+    @!1cb 48b8 @!1cd 0300 '@:k /3/00      # space for @:k
+    @!1d5 4831 o300 b8 cd014000 48ab      # push pointer to symbol @:k
+    @!1df ff o024 o044                    # call top of %rsp (symbol table)
+    @!1e2 ff o127 f8                      # call top of data stack (@:k function)
 
-    @!1dd b8 @!1de 0200 ':: 48ab          # push symbol ::
-    @!1e4 ff o024 o044                    # call symbol table to resolve
-    @!1e7 ff o127 f8 @!1ea                # call resolved ::
+    @!1e5 b8 @!1e6 0200 ':: @!1ea         # space for ::
+    @!1ea b8 @!1eb e6014000 48ab          # push pointer to symbol ::
+    @!1f1 ff o024 o044                    # call symbol table to resolve
+    @!1f4 ff o127 f8 @!1f7                # call resolved ::
 
 Now @> is a part of the symbol table, which is still at the top of the stack.
 The next function, @<, sets the symbol table adddress.
@@ -525,29 +527,15 @@ obvious reason is that we already have the right value on the stack). The
 function itself is a very simple one; it's only slightly more complex than @>
 due to the fact that we don't have a shortcut quite as nice as stosq.
 
-Also, look at the amount of work we had to go to just to get @> defined as
-being part of the symbol table (which we haven't even interned yet). We're
-about to fix that and in a very cool way. First, let's define @<.
+First, since this function expects a return continuation, we need to create
+one.
 
-    @!1ea 488b o107 f8                            # -8(%rdi) -> %rax
-    @!1ee 4883 o357 08                            # %rdi -= 8 (pop one item)
-    @!1f2 4889 o004 o045 f8ff4f00 c3 @!1fb        # %rax -> (0x4ffff8); ret
+    @!1f7 68 fc014000 @!1fc
+    @!1fc 488b o107 f8                            # -8(%rdi) -> %rax
+    @!200 4889 o004 o045 f8ff4f00 c3 @!209        # %rax -> (0x4ffff8); ret
 
-Ok, now we've got that defined and the symbol table has been officially
-installed at its proper address (and further, it's no longer on the data
-stack).
-
-Here's the fun part. All of the work we did above is reusable: dereferencing
-@:k and :: should probably be done for each new symbol that gets defined, and
-@< will need to be called as well. If you look above, you'll see that we have
-a clear code path all the way from @:k to the c3 (return) in @<. This means
-that we not only have the definition of @<, but we also have two more:
-
-    @<::        cons stack top onto symbol table
-    @<::k       create constant matcher and cons that onto symbol table
-
-First let's define @<::k:
-
-    @!1fb
+At this point the symbol table is installed at the proper address and we are
+ready to write compositions that define things. We still have the symbol table
+on the stack, which is fortuitous because we'll be using it to extend itself.
 
     4831 o300 b03c 4831 o377 0f05
