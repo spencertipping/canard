@@ -80,7 +80,7 @@ See elf(5) for details about what this is made of.
     @!48 00 00 00 00 /4/00          # p_offset (includes ELF header)
     @!50 00 00 40 00 /4/00          # p_vaddr
     @!58 00 00 00 00 /4/00          # p_paddr
-    @!60 00 01 00 00 /4/00          # p_filesz
+    @!60 00 02 00 00 /4/00          # p_filesz
     @!68 00 00 10 00 /4/00          # p_memsz
     @!70 00 10 00 00 /4/00          # p_align
 
@@ -160,10 +160,11 @@ boots up the interpreter.
 
 ## Symbol encoding
 
-As mentioned in the design documentation, symbols are encoded using a single
-byte prefix for the length. So 'hello' is encoded as 05 68656c6c6f, a total of
-six bytes. Unicode is not parsed, though it will work transparently modulo the
-fact that the byte-length limit is still 255.
+As mentioned in the design documentation, symbols are encoded using a
+little-endian two-byte prefix for the inner (logical) length. So 'hello' is
+encoded in these seven bytes: 0500 68656c6c6f. UTF-8 is not parsed, though it
+will work transparently provided that the total number of bytes doesn't exceed
+the limit of 65535.
 
 What we need to do here is encode the symbol 'main. We don't actually need to
 write it again since it's already present in the symbol table; however, this
@@ -176,8 +177,8 @@ mov-immediate into %rax that will be subsequently overwritten. The advantage
 of doing things this way is that disassemblers won't have to follow jumps to
 figure out where the instructions are.
 
-    @!9b 48b8 04 'main /3/00 @!a5
-    @!a5 48c7 o300 a0 00 40 00 48ab @!ae  # data-push the 'main symbol address
+    @!9b 48b8 @!9d 0400 'main /2/00 @!a5
+    @!a5 48c7 o300 9d 00 40 00 48ab @!ae  # data-push the 'main symbol address
 
 Now do a symbol table lookup to get the address. When this returns, we'll have
 the address of the 'main function on top of the data stack.
@@ -242,9 +243,155 @@ continuation as if nothing had happened:
       ...
       ret                               <- invoke 'next' continuation
 
-## Constant symbol matcher
+## Constant symbol matcher generator
 
-This is the first real piece of code that deals with the symbol table. We need
-to be able to take a symbol and generate machine code to match that symbol
-exactly. If the symbol does match, we replace the stack top with the symbol's
-definition.
+This function takes a symbol and an address on the stack and returns a pointer
+to a matcher that matches the symbol and returns the address. If the match
+fails, the matcher invokes the 'next' continuation as described above.
+
+Each generated matcher is a separately-allocated chunk of machine code that
+contains the immediate data required to behave as a closure. So, for example,
+here's what gets generated for the symbol 'foo:
+
+    foo_matcher:
+      movq $foo_data, %rax              <- data-push 'foo' symbol
+      stosq
+      movq $binding_immediate, %rax     <- data-push symbol binding
+      stosq
+      jmp constant_matcher              <- tail-call matching function
+
+Right now I'm defining the generator for matcher functions. However, we'll
+want to store this generator in the symbol table, so we'll end up needing to
+apply it to itself. The easiest way to do that is to first set up its
+arguments on the data stack, then just list out the generator code and let it
+run. After the definition/invocation, we'll have the first symbol table entry
+on the data stack, ready to be consed into the symbol table.
+
+    @!b5 48c7 o300 d1 00 40 00 48ab @!be  # data-push code reference
+    @!be 48b8 @!c0 0300 '@:k  /3/00 @!c8  # literal symbol @:k
+    @!c8 48c7 o300 c0 00 40 00 48ab @!d1  # data-push symbol reference
+
+Now we can write the matcher generator here, running the code on its own
+definition in the process. We can easily compute the amount of space required
+to store the generated code, so we can preallocate. Here's the machine code
+for the assembly above:
+
+    foo_matcher:
+      48b8 foo_data [8 bytes] 48ab      <- 12 bytes total
+      48b8 binding  [8 bytes] 48ab      <- 12 bytes total
+      e9 constant_matcher [4 bytes]     <- 5 bytes total
+
+So we'll need 29 bytes of space per symbol matcher. Right now we don't have a
+proper heap allocator, but luckily it's straightforward enough. We just
+subtract some amount from %rsi and use the new memory.
+
+Here's how the matcher generator works:
+
+    generate_constant_matcher: (@:k in the symbol table)
+      data-pop %rax                     <- symbol pointer
+      data-pop %rbx                     <- binding
+      movq %rsi, %rcx                   <- original heap pointer
+      subq $29, %rsi                    <- allocate code space
+      movw $0xb848, (%rsi)              <- write 48b8 instruction
+      movq %rax, 2(%rsi)                <- write symbol address
+      movl $0xb848ab48, 10(%rsi)        <- write 48ab and 48b8 instructions
+      movq %rbx, 14(%rsi)               <- write binding address
+      movl $0x00e9ab48, 22(%rsi)        <- write 48ab and e9 instructions
+      movq $constant_matcher, %rax      <- absolute address of matcher fn
+      subq %rcx, %rax                   <- compute %rax - (29 + %rsi)
+      movl %ecx, 25(%rsi)               <- write call to constant_matcher
+      data-push %rsi                    <- return reference to new matcher
+      ret                               <- return
+
+Notice that we've got this reference to constant_matcher in the middle of the
+code. This isn't a problem because we can just put the constant matcher into
+the bootstrap section (basically right here), where it will have a known
+address. We can then hard-code that address into generate_constant_matcher.
+None of this requires any interaction with the symbol table, which at this
+point is not yet functional.
+
+    @!d1 eb 2f @!d3                       # jump over constant_matcher
+
+## Constant matcher definition
+
+The constant matcher just compares bytes within a contiguous region of memory.
+It takes two symbols and a binding address as data stack arguments; the
+binding address will be sent to the second continuation if the two symbols
+match; otherwise the immediate continuation will be used and the binding
+address and one of the symbols will be popped from the data stack. (This is
+basically how it needs to work in order to adhere to the calling convention
+for symbol table matchers.)
+
+Here's the logic:
+
+    constant_matcher:
+      data-pop %rbp                     <- binding address
+      data-pop %rax                     <- first symbol
+      movq -8(%rdi), %rbx               <- second symbol (peek, not pop)
+      xorq %rcx, %rcx                   <- clear high bits
+      movw (%rax), %cx                  <- get length
+      cmpw %cx, (%rbx)                  <- both same length?
+      loope length_ok                   <- then check characters
+    bail:
+      ret                               <- else bail
+    length_ok:
+      movb 2(%rbx,%rcx,1), %dl
+      cmpb %dl, 2(%rax,%rcx,1)
+      je ok
+      ret
+    ok:
+      loop
+    success:
+      movq %rbp, -8(%rdi)               <- set data stack result
+      pop %rax                          <- drop 'next' continuation
+      ret                               <- invoke 'return' continuation
+
+This function ends up being bound as @?k in the symbol table. We bind this
+once we've defined cons and bind below.
+
+    @!d3  488b o157 f8                    # -8(%rdi) -> %rbp
+    @!d7  488b o107 f0                    # -16(%rdi) -> %rax
+    @!db  488b o137 e8                    # -24(%rdi) -> %rbx
+    @!df  4883 o357 10                    # %rdi -= 16 (pop two entries)
+
+    @!e3  4831 o311 668b o010             # %rcx = length
+    @!e9  6639 o013 e101 c3               # length check + bailout
+
+    @!ef  8a o124 o013 02                 # top of loop: populate %dl
+    @!f3  38 o124 o010 02                 # compare characters
+    @!f7  74 01 c3                        # bail if not equal
+    @!fa  e2 f3 @!fc                      # next character
+
+    @!fc  4889 o157 f8                    # %rbp -> -8(%rdi)
+    @!100 58 c3                           # return continuation
+    @!102
+
+Now we have the constant matcher function defined at address 0x4000d3, so we
+can go ahead and define/execute the generate_constant_matcher function,
+referred to as @:k from now on.
+
+Push a trivial return address here so that the function below will return to
+the continuation immediately following its definition.
+
+    @!102 68 48 01 40 00 @!107
+
+    @!107 488b o107 f8                    # symbol pointer
+    @!10b 488b o137 f0                    # binding
+    @!10f 4883 o357 08                    # pop one (we replace the other later)
+
+    @!113 488b o316                               # %rsi -> %rcx
+    @!116 4883 o356 1d                            # %rsi -= 29
+    @!11a 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
+    @!123 c7 o106 0a 48b848ab 4889 o136 0e        # 48b848ab, binding
+    @!12e c7 o106 16 48abe900                     # 48ab, e9
+    @!135 48c7 o300 d3004000                      # $constant_matcher -> %rax
+    @!13c 482b o301 4889 o106 19                  # 25(%rsi) = %rax - %rcx
+    @!143 4889 o167 f8                            # %rsi -> -8(%rdi)
+    @!147 c3
+
+    @!148
+
+At this point we have a constant matcher for @:k on the top of the data stack.
+This is ideal for the setup that happens next.
+
+    @!148
