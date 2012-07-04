@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  84377033763770d704fcdcb06b13ef7f
-# istate: 6ca86e21fc5fea59873e49899bfce77f
+# state:  5f6bc48e515e7723301f94ba64548535
+# istate: 3132651efc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2355,13 +2355,13 @@ pushed onto the data stack prior to invoking 'main'.
   Because this number is frequently used, I'm storing it in %rbp during the
   initialization process.
 
-  @!78 488b o054 o045 60 00 40 00 @!80  # get p_filesz
-  @!80 4881 o305      00 00 40 00 @!87  # add p_vaddr to get memory offset
+  @!78 488b o054 o045 60004000 @!80     # get p_filesz
+  @!80 4881 o305      00004000 @!87     # add p_vaddr to get memory offset
 
   At this point %rbp points to the bottom (lowest address) of the data stack.
 
   @!87 488b o375                # initialize %rdi to bottom of data stack
-       48c7 o306 f8 ff 4f 00    # initialize %rsi to top of heap minus 8
+       48c7 o306 f8ff4f00       # initialize %rsi to top of heap minus 8
        488b o304 48ab @!96      # %rsp -> %rax; stosq to push onto data stack
 
   I'm leaving an 8-byte slot open at the top of the heap. This is used to keep
@@ -2399,7 +2399,7 @@ pushed onto the data stack prior to invoking 'main'.
   figure out where the instructions are.
 
   @!9b 48b8 @!9d 0400 'main /2/00 @!a5
-  @!a5 48c7 o300 9d 00 40 00 48ab @!ae  # data-push the 'main symbol address
+  @!a5 48c7 o300 9d004000 48ab    @!ae  # data-push the 'main symbol address
 
   Now do a symbol table lookup to get the address. When this returns, we'll have
   the address of the 'main function on top of the data stack.
@@ -2487,9 +2487,9 @@ At this point, the heap looks like this:
   run. After the definition/invocation, we'll have the first symbol table entry
   on the data stack, ready to be consed into the symbol table.
 
-  @!b9 48c7 o300 0b 01 40 00 48ab @!c2  # data-push code reference
-  @!c2 48b8 @!c4 0300 '@:k  /3/00 @!cc  # literal symbol @:k
-  @!cc 48c7 o300 c4 00 40 00 48ab @!d5  # data-push symbol reference
+  @!b9 48c7 o300 0b014000 48ab   @!c2   # data-push code reference
+  @!c2 48b8 @!c4 0300 '@:k /3/00 @!cc   # literal symbol @:k
+  @!cc 48c7 o300 c4004000 48ab   @!d5   # data-push symbol reference
 
   Now we can write the matcher generator here, running the code on its own
   definition in the process. We can easily compute the amount of space required
@@ -2683,11 +2683,84 @@ into a single byte on the heap.
   bind cons.
 
   @!181 4831 o300 b8 51010400 48ab      # push pointer to cons function
-  @!18b 48b8 @!18d 0200 ':: /4/00 @!195
-  @!195 48c7 o300 8d014000 48ab         # push symbol ::
+  @!18b b8 @!18c 0200 ':: @!190
+  @!190 48c7 o300 8c014000 48ab         # push symbol ::
 
-  @!19e e8 68ffffff                     # invoke @:k to generate the closure
-  @!1a3 e8 a9ffffff @!1a8               # invoke :: to add binding
+  @!199 e8 6dffffff                     # invoke @:k to generate the closure
+  @!19e e8 aeffffff @!1a3               # invoke :: to add binding
+
+Definition and invocation.
+This is the last piece of the symbol table. We need two more functions; the
+first, @<, sets the symbol table pointer to the given function. The second, @>,
+retrieves the given symbol table pointer.
+
+Remember from earlier that the symbol table pointer is mutable and is stored at
+0x4ffff8. The simplest way to deal with this value in memory is just to build
+two special-purpose functions that read or write it.
+
+From here forwards, we use the symbol table to dereference both :: and @:k (plus
+whatever other functions we add as we go). The symbol table works; its only
+problem is that we need to access it as an anonymous entity for the moment.
+Fortunately this is not difficult, since it's on the top of the data stack right
+now. I'm going to stash it onto the return stack for easy access.
+
+@!1a3 ff o167 f8 @!1a6                  # symbol table pointer
+
+  Symbol table getter.
+  We refer to this as @> from now on. This function pushes the quadword at
+  0x4ffff8 onto the data stack. We don't need to run it right now, so I'm
+  jumping over the definition.
+
+  @!1a6 eb0b @!1a8
+  @!1a8 488b o004 o045 f8ff4f00 48ab c3 # (0x4ffff8) -> %rax; stosq; ret
+
+  Let's go ahead and cons that onto the symbol table:
+
+  @!1b3 4831 o300 b8 aa014000 48ab      # pointer to @> definition, above
+  @!1bd b8 @!1be 0200 '@> @!1c2
+  @!1c2 48c7 o300 be104000 48ab         # push symbol @>
+
+  @!1cb 48b8 @!1cd 0300 '@:k /3/00 48ab # push symbol @:k
+  @!1d7 ff o024 o044                    # call top of %rsp (symbol table)
+  @!1da ff o127 f8                      # call top of data stack (@:k function)
+
+  @!1dd b8 @!1de 0200 ':: 48ab          # push symbol ::
+  @!1e4 ff o024 o044                    # call symbol table to resolve
+  @!1e7 ff o127 f8 @!1ea                # call resolved ::
+
+  Now @> is a part of the symbol table, which is still at the top of the stack.
+  The next function, @<, sets the symbol table adddress.
+
+  Symbol table setter.
+  We don't skip over this one for reasons I'll explain in a moment (but the most
+  obvious reason is that we already have the right value on the stack). The
+  function itself is a very simple one; it's only slightly more complex than @>
+  due to the fact that we don't have a shortcut quite as nice as stosq.
+
+  Also, look at the amount of work we had to go to just to get @> defined as
+  being part of the symbol table (which we haven't even interned yet). We're
+  about to fix that and in a very cool way. First, let's define @<.
+
+  @!1ea 488b o107 f8                            # -8(%rdi) -> %rax
+  @!1ee 4883 o357 08                            # %rdi -= 8 (pop one item)
+  @!1f2 4889 o004 o045 f8ff4f00 c3 @!1fb        # %rax -> (0x4ffff8); ret
+
+  Ok, now we've got that defined and the symbol table has been officially
+  installed at its proper address (and further, it's no longer on the data
+  stack).
+
+  Here's the fun part. All of the work we did above is reusable: dereferencing
+  @:k and :: should probably be done for each new symbol that gets defined, and
+  @< will need to be called as well. If you look above, you'll see that we have
+  a clear code path all the way from @:k to the c3 (return) in @<. This means
+  that we not only have the definition of @<, but we also have two more:
+
+  | @<::        cons stack top onto symbol table
+    @<::k       create constant matcher and cons that onto symbol table
+
+  First let's define @<::k:
+
+  @!1fb
 
   4831 o300 b03c 4831 o377 0f05
 
