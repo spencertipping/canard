@@ -15,10 +15,10 @@
 
 #   Conventions.
 #   The most consistent convention I use is encoding the ModR/M and SIB bytes in
-#   octal rather than hex. This better reflects its structure; so, for instance:
+#   octal rather than hex. This better reflects their structure; so, for instance:
 
 #   | movq %rax, %rbx             # copy %rax into %rbx
-#     488b o330
+#     488b o330                   # clearer than 488b d8
 #      | |  |||
 #      | |  ||+-- r/m = 000, %rax
 #      | |  |+--- reg = 011, %rbx
@@ -27,12 +27,11 @@
 #      +--------- REX.W prefix (0100 = REX, 1000 = WRXB)
 
 #   I avoid using any prefix aside from REX.W, which is encoded as 48 and is a
-#   fairly good giveaway that something is an opcode. Immediate operands usually
-#   have spaces between bytes to make it easier to parse the little-endian
-#   encoding:
+#   fairly good giveaway that something is an opcode. (I also use 66 as needed.)
+#   Multi-byte immediate operands are generally separate from opcodes:
 
 #   | push $0x400010              # push a 32-bit immediate
-#     68 10 00 40 00
+#     68 10004000
 #      |  |
 #      |  +-- immediate: little-endian, so bytes are reversed
 #      +----- opcode: 68 = push 32-bit immediate
@@ -145,10 +144,11 @@
 
 #   At this point the registers are initialized, so we can write to both stacks
 #   and to the heap. We need to set up a 'return' into the exit function so that
-#   when the main function exits it will die gracefully. First let's push the exit
-#   function address onto the return stack:
+#   when the main function exits (i.e. we hit a nil at the end of the main program
+#   list) it will die gracefully. First let's push the exit function address onto
+#   the return stack:
 
-  @!96 68 92 00 40 00 @!9b
+  @!96 68 bebafeca @!9b                 # FIXME once we define exit
 
 #   Now push the symbol 'main' onto the data stack and call the symbol table. This
 #   boots up the interpreter.
@@ -197,6 +197,8 @@
 
 @!ae 48ff o316    @!b1          # allocate one byte for nil
 @!b1 48c6 o006 c3 @!b5          # move the byte c3 to this address
+
+@!b5 488b o306 48ab @!ba        # push the c3 reference onto the data stack
 
 # At this point, the heap looks like this:
 
@@ -258,9 +260,9 @@
 #   run. After the definition/invocation, we'll have the first symbol table entry
 #   on the data stack, ready to be consed into the symbol table.
 
-  @!b5 48c7 o300 d1 00 40 00 48ab @!be  # data-push code reference
-  @!be 48b8 @!c0 0300 '@:k  /3/00 @!c8  # literal symbol @:k
-  @!c8 48c7 o300 c0 00 40 00 48ab @!d1  # data-push symbol reference
+  @!ba 48c7 o300 d1 00 40 00 48ab @!c3  # data-push code reference
+  @!c3 48b8 @!c5 0300 '@:k  /3/00 @!cd  # literal symbol @:k
+  @!cd 48c7 o300 c0 00 40 00 48ab @!d6  # data-push symbol reference
 
 #   Now we can write the matcher generator here, running the code on its own
 #   definition in the process. We can easily compute the amount of space required
@@ -301,7 +303,7 @@
 #   None of this requires any interaction with the symbol table, which at this
 #   point is not yet functional.
 
-  @!d1 eb 2f @!d3                       # jump over constant_matcher
+  @!d6 eb2f @!d8                        # jump over constant_matcher
 
 #   Constant matcher definition.
 #   The constant matcher just compares bytes within a contiguous region of memory.
@@ -339,51 +341,124 @@
 #   This function ends up being bound as @?k in the symbol table. We bind this
 #   once we've defined cons and bind below.
 
-  @!d3  488b o157 f8                    # -8(%rdi) -> %rbp
-  @!d7  488b o107 f0                    # -16(%rdi) -> %rax
-  @!db  488b o137 e8                    # -24(%rdi) -> %rbx
-  @!df  4883 o357 10                    # %rdi -= 16 (pop two entries)
+  @!d8  488b o157 f8                    # -8(%rdi) -> %rbp
+  @!dc  488b o107 f0                    # -16(%rdi) -> %rax
+  @!e0  488b o137 e8                    # -24(%rdi) -> %rbx
+  @!e4  4883 o357 10                    # %rdi -= 16 (pop two entries)
 
-  @!e3  4831 o311 668b o010             # %rcx = length
-  @!e9  6639 o013 e101 c3               # length check + bailout
+  @!e8  4831 o311 668b o010             # %rcx = length
+  @!ee  6639 o013 e101 c3               # length check + bailout
 
-  @!ef  8a o124 o013 02                 # top of loop: populate %dl
-  @!f3  38 o124 o010 02                 # compare characters
-  @!f7  74 01 c3                        # bail if not equal
-  @!fa  e2 f3 @!fc                      # next character
+  @!f4  8a o124 o013 02                 # top of loop: populate %dl
+  @!f8  38 o124 o010 02                 # compare characters
+  @!fc  74 01 c3                        # bail if not equal
+  @!ff  e2 f3 @!101                     # next character
 
-  @!fc  4889 o157 f8                    # %rbp -> -8(%rdi)
-  @!100 58 c3                           # return continuation
-  @!102
+  @!101 4889 o157 f8                    # %rbp -> -8(%rdi)
+  @!105 58 c3                           # return continuation
+  @!107
 
-#   Now we have the constant matcher function defined at address 0x4000d3, so we
+#   Now we have the constant matcher function defined at address 0x4000d8, so we
 #   can go ahead and define/execute the generate_constant_matcher function,
 #   referred to as @:k from now on.
 
 #   Push a trivial return address here so that the function below will return to
 #   the continuation immediately following its definition.
 
-  @!102 68 48 01 40 00 @!107
+  @!107 68 4d014000 @!10c
 
-  @!107 488b o107 f8                    # symbol pointer
-  @!10b 488b o137 f0                    # binding
-  @!10f 4883 o357 08                    # pop one (we replace the other later)
+  @!10c 488b o107 f8                    # symbol pointer
+  @!110 488b o137 f0                    # binding
+  @!114 4883 o357 08                    # pop one (we replace the other later)
 
-  @!113 488b o316                               # %rsi -> %rcx
-  @!116 4883 o356 1d                            # %rsi -= 29
-  @!11a 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
-  @!123 c7 o106 0a 48b848ab 4889 o136 0e        # 48b848ab, binding
-  @!12e c7 o106 16 48abe900                     # 48ab, e9
-  @!135 48c7 o300 d3004000                      # $constant_matcher -> %rax
-  @!13c 482b o301 4889 o106 19                  # 25(%rsi) = %rax - %rcx
-  @!143 4889 o167 f8                            # %rsi -> -8(%rdi)
-  @!147 c3
+  @!118 488b o316                               # %rsi -> %rcx
+  @!11b 4883 o356 1d                            # %rsi -= 29
+  @!11f 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
+  @!128 c7 o106 0a 48b848ab 4889 o136 0e        # 48b8, 48ab, binding
+  @!133 c7 o106 16 48abe900                     # 48ab, e9
+  @!13a 48c7 o300 d3004000                      # $constant_matcher -> %rax
+  @!141 482b o301 4889 o106 19                  # 25(%rsi) = %rax - %rcx
+  @!148 4889 o167 f8                            # %rsi -> -8(%rdi)
+  @!14c c3
 
-  @!148
+  @!14d
 
-#   At this point we have a constant matcher for @:k on the top of the data stack.
-#   This is ideal for the setup that happens next.
+#   At this point we have a constant matcher for @:k on the top of the data stack
+#   with a pointer to nil beneath that. This is ideal for the setup that happens
+#   next.
 
-  @!148
+# Consing and memory allocation.
+# We need a way to allocate new cons cells without manually getting memory from
+# the heap. To do this, we define the cons function, which will ultimately be
+# stored in the symbol table as ::.
+
+# Right now we have some leftover stuff on the stack. The data stack top is the
+# symbol matcher for @:k, which we'll ultimately need to cons onto the nil we put
+# into a single byte on the heap.
+
+#   Cons definition.
+#   As described in the design documentation, cons has a few different cases that
+#   it knows how to deal with. If the tail matches the current heap pointer, we
+#   can omit the e9 jump and just rely on sequence to execute the tail as-is,
+#   saving five bytes. Otherwise we write the e9 jump.
+
+#   Cons takes the head on top of the stack and the tail beneath that. This is
+#   counterintuitive from code, as arguments appear to be in the wrong order:
+
+#   | :: 3 []             <- correct
+#     :: [] 3             <- improper list
+
+#   However, generally it's more useful to access the head of a list than the
+#   tail, so we want it to be immediately available.
+
+#   Given all of that, here's the algorithm for cons (referred to as :: from now
+#   on):
+
+#   | cons:
+#       data-pop %rax             <- head
+#       data-pop %rbx             <- tail
+#       cmpq %rbx, %rsi           <- check for contiguous segment
+#     je cons_head                <- skip tail allocation if contiguous
+#       subq %rsi, %rbx           <- absolute->relative
+#       movl %ebx, -4(%rsi)       <- write address of e9 jump instruction
+#       subq $5, %rsi             <- reserve space
+#       movb $0xe9, (%rsi)        <- write e9 jmp opcode
+#     cons_head:
+#       subq %rsi, %rax           <- absolute->relative
+#       movl %eax, -4(%rsi)       <- write address of e8 call instruction
+#       subq $5, %rsi             <- reserve space
+#       movb $0xe8, (%rsi)        <- write e8 call opcode
+#     data-push %rsi              <- return reference to this cons cell
+#     ret
+
+#   As usual, we need to push a return continuation before we define/execute this
+#   code.
+
+  @!14d 68 86014000 @!152
+
+  @!152 488b o107 f8            # head element
+  @!156 488b o137 f0            # tail element
+  @!15a 4883 o357 08            # pop one (the other will be overwritten)
+
+  @!15e 4839 o336 740f                  # tail allocation check
+  @!163 482b o336 6689 o136 fc          # relative, write e9 jump offset
+  @!16a 4883 o356 05 48c6 o106 e9       # allocate space, write e9 jump opcode
+
+  @!172 482b o306 6689 o106 fc          # relative, write e8 call offset
+  @!179 488c o356 05 48c6 o106 e8       # allocate space, write e8 call opcode
+
+  @!181 4889 o167 f8 c3                 # return new cons cell
+  @!186
+
+#   At this point we have the cons cell of @:k's definition and nil. This now
+#   needs to be set as the symbol table; but before we do that, we need to add
+#   cons and create a function that updates the symbol table address. First let's
+#   bind cons.
+
+  @!186 4831 o300 66b8 52010400 48ab    # push pointer to cons function
+  @!191 48b8 @!193 0200 ':: /4/00 @!19b
+  @!19b 48c7 o300 93014000 48ab         # push symbol ::
+
+  @!1a4 e8 ffffff52 @!1a9
 
 # Generated by SDoc
