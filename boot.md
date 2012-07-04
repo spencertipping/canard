@@ -14,7 +14,7 @@ Basic syntax used in this file is:
        the given address. I use these to verify/document the code.
     2. Address displacement: @address. Inserts null bytes until the given address
        is reached.
-    3. /n/byte - byte repeated n times.
+    3. /n/byte - byte repeated n times (n is decimal, not hex).
 
 That's about it. The rest is just binary data written verbatim in hex (no
 prefix), octal (o prefix), or binary (- prefix).
@@ -67,6 +67,44 @@ See elf(5) for details about what this is made of.
     @!78
     # end
 
-    @!78 4831 o300 b03c             # syscall = 60 (exit)
+# Core image layout
+
+The core image consists of two stacks and a heap. The stacks go in opposite
+directions; the return stack is provided by the host operating system and uses
+the processor's native push/pop instructions. The data stack grows forwards from
+the first free address mapped into the interpreter's address space. The commands
+used to manipulate the data stack are inlined into use sites.
+
+The heap grows downwards and is used for allocating cons cells and other
+contiguous blocks of memory. Register mapping is:
+
+    %rsp (4) return stack pointer (grows downwards)
+    %rdi (7) data stack pointer (grows upwards towards %rbp)
+    %rbp (5) heap pointer (grows downwards towards %rdi)
+
+All other general-purpose registers are available for clobbering. The choices
+for the above registers are not arbitrary; they are chosen to minimize the
+number of spurious SIB bytes and displacements required to access memory. (See
+the Intel Instruction Set Reference for the machine-level exception cases for
+various registers.)
+
+At the top (high addresses) of the heap is the symbol table, which consists of
+heap-allocated cons cells as more definitions occur. When Canard boots up, it
+immediately invokes the 'main' symbol; this function contains logic for the
+interpreter/REPL. The original value of %rsp (the one that the OS provided) is
+pushed onto the data stack prior to invoking 'main'.
+
+    @!78 
+
+         488a o304                  # %rsp -> %rax
+         48ab                       # stosq: push, increment %rdi
+
+    @!7d
+
+# Symbol table
+
+This is the central abstraction provided by Canard.
+
+    @!7d 4831 o300 b03c             # syscall = 60 (exit)
          4831 o355                  # status  = 0
          0f05

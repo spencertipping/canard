@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  2bcbecbd7f2d82d97b11b01a907da91f
-# istate: cb9ae940fc5fea59873e49899bfce77f
+# state:  36b6fa0b32dd8216eb69f666a9f7200b
+# istate: eca618c9fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -1880,36 +1880,16 @@ So cons really is a way to compose functions, not to allocate arbitrary chunks
 of memory.
 
 __
-meta::note('self-defining-symbols', <<'__');
-Self-defining symbols.
-It's tempting to have symbols be self-defining; that is, no quotation form is
-used during definitions:
+meta::note('symbol-encoding', <<'__');
+Symbol encoding.
+Symbols are encoded as length-prefixed byte strings. The length is the number of
+bytes occupied by the symbol's string data, so the total space is one greater.
+For example, here is how 'hello' is encoded:
 
-| foo [bar]             <- if 'foo' is unbound, binds 'foo' to [bar]
-  foo                   <- since 'foo' is now bound, evaluates to [bar]
+| 05 68 65 6c 6c 6f
 
-The problem with this approach is that it makes analysis difficult, but it's
-unclear how much of a problem this is considering that analysis is difficult
-with the usual quote-define model as well.
-
-Caveat: Undetectable library collision.
-This is bad. Suppose you have two libraries that attempt to define the same
-symbol. Then you'll end up executing code that looks something like this:
-
-| x [definition 2]
-  ...
-  x [definition 1]
-
-The problem here is that x [definition 2] will use the existing definition of x,
-as if this had happened:
-
-| definition 1 [definition 2]
-  ...
-  x [definition 1]
-
-This happens because symbol definition syntax is identical to usage syntax, so
-there is no opportunity to throw an error. I'm not convinced that this is a
-problem, outside of making Canard irrepressibly hostile to collaboration.
+Symbols are deliberately minimalistic; you should use blobs of memory if you
+want more general-purpose strings.
 
 __
 meta::note('symbol-resolution', <<'__');
@@ -2256,7 +2236,7 @@ Basic syntax used in this file is:
      the given address. I use these to verify/document the code.
   2. Address displacement: @address. Inserts null bytes until the given address
      is reached.
-  3. /n/byte - byte repeated n times.
+  3. /n/byte - byte repeated n times (n is decimal, not hex).
 
 That's about it. The rest is just binary data written verbatim in hex (no
 prefix), octal (o prefix), or binary (- prefix).
@@ -2308,7 +2288,43 @@ See elf(5) for details about what this is made of.
 @!78
 # end
 
-@!78 4831 o300 b03c             # syscall = 60 (exit)
+Core image layout.
+The core image consists of two stacks and a heap. The stacks go in opposite
+directions; the return stack is provided by the host operating system and uses
+the processor's native push/pop instructions. The data stack grows forwards from
+the first free address mapped into the interpreter's address space. The commands
+used to manipulate the data stack are inlined into use sites.
+
+The heap grows downwards and is used for allocating cons cells and other
+contiguous blocks of memory. Register mapping is:
+
+| %rsp (4) return stack pointer (grows downwards)
+  %rdi (7) data stack pointer (grows upwards towards %rbp)
+  %rbp (5) heap pointer (grows downwards towards %rdi)
+
+All other general-purpose registers are available for clobbering. The choices
+for the above registers are not arbitrary; they are chosen to minimize the
+number of spurious SIB bytes and displacements required to access memory. (See
+the Intel Instruction Set Reference for the machine-level exception cases for
+various registers.)
+
+At the top (high addresses) of the heap is the symbol table, which consists of
+heap-allocated cons cells as more definitions occur. When Canard boots up, it
+immediately invokes the 'main' symbol; this function contains logic for the
+interpreter/REPL. The original value of %rsp (the one that the OS provided) is
+pushed onto the data stack prior to invoking 'main'.
+
+@!78 
+
+     488a o304                  # %rsp -> %rax
+     48ab                       # stosq: push, increment %rdi
+
+@!7d
+
+Symbol table.
+This is the central abstraction provided by Canard.
+
+@!7d 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0
      0f05
 
