@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  fa3b4d166229e4e8355ad06469f0ba7d
-# istate: e6c209c1fc5fea59873e49899bfce77f
+# state:  84377033763770d704fcdcb06b13ef7f
+# istate: 6ca86e21fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2423,9 +2423,9 @@ handle the symbol you pass in, the symbol table just hands you your symbol back.
 In list form, this corresponds to a nil as the final tail.
 
 @!ae 48ff o316    @!b1          # allocate one byte for nil
-@!b1 48c6 o006 c3 @!b5          # move the byte c3 to this address
+@!b1 c6   o006 c3 @!b4          # move the byte c3 to this address
 
-@!b5 488b o306 48ab @!ba        # push the c3 reference onto the data stack
+@!b4 488b o306 48ab @!b9        # push the c3 reference onto the data stack
 
 At this point, the heap looks like this:
 
@@ -2487,9 +2487,9 @@ At this point, the heap looks like this:
   run. After the definition/invocation, we'll have the first symbol table entry
   on the data stack, ready to be consed into the symbol table.
 
-  @!ba 48c7 o300 d1 00 40 00 48ab @!c3  # data-push code reference
-  @!c3 48b8 @!c5 0300 '@:k  /3/00 @!cd  # literal symbol @:k
-  @!cd 48c7 o300 c0 00 40 00 48ab @!d6  # data-push symbol reference
+  @!b9 48c7 o300 0b 01 40 00 48ab @!c2  # data-push code reference
+  @!c2 48b8 @!c4 0300 '@:k  /3/00 @!cc  # literal symbol @:k
+  @!cc 48c7 o300 c4 00 40 00 48ab @!d5  # data-push symbol reference
 
   Now we can write the matcher generator here, running the code on its own
   definition in the process. We can easily compute the amount of space required
@@ -2530,7 +2530,7 @@ At this point, the heap looks like this:
   None of this requires any interaction with the symbol table, which at this
   point is not yet functional.
 
-  @!d6 eb2f @!d8                        # jump over constant_matcher
+  @!d5 eb2f @!d7                        # jump over constant_matcher
 
   Constant matcher definition.
   The constant matcher just compares bytes within a contiguous region of memory.
@@ -2568,47 +2568,47 @@ At this point, the heap looks like this:
   This function ends up being bound as @?k in the symbol table. We bind this
   once we've defined cons and bind below.
 
-  @!d8  488b o157 f8                    # -8(%rdi) -> %rbp
-  @!dc  488b o107 f0                    # -16(%rdi) -> %rax
-  @!e0  488b o137 e8                    # -24(%rdi) -> %rbx
-  @!e4  4883 o357 10                    # %rdi -= 16 (pop two entries)
+  @!d7  488b o157 f8                    # -8(%rdi) -> %rbp
+  @!db  488b o107 f0                    # -16(%rdi) -> %rax
+  @!df  488b o137 e8                    # -24(%rdi) -> %rbx
+  @!e3  4883 o357 10                    # %rdi -= 16 (pop two entries)
 
-  @!e8  4831 o311 668b o010             # %rcx = length
-  @!ee  6639 o013 e101 c3               # length check + bailout
+  @!e7  4831 o311 668b o010             # %rcx = length
+  @!ed  6639 o013 e101 c3               # length check + bailout
 
-  @!f4  8a o124 o013 02                 # top of loop: populate %dl
-  @!f8  38 o124 o010 02                 # compare characters
-  @!fc  74 01 c3                        # bail if not equal
-  @!ff  e2 f3 @!101                     # next character
+  @!f3  8a o124 o013 02                 # top of loop: populate %dl
+  @!f7  38 o124 o010 02                 # compare characters
+  @!fb  74 01 c3                        # bail if not equal
+  @!fe  e2 f3 @!100                     # next character
 
-  @!101 4889 o157 f8                    # %rbp -> -8(%rdi)
-  @!105 58 c3                           # return continuation
-  @!107
+  @!100 4889 o157 f8                    # %rbp -> -8(%rdi)
+  @!104 58 c3                           # return continuation
+  @!106
 
-  Now we have the constant matcher function defined at address 0x4000d8, so we
+  Now we have the constant matcher function defined at address 0x4000d7, so we
   can go ahead and define/execute the generate_constant_matcher function,
   referred to as @:k from now on.
 
   Push a trivial return address here so that the function below will return to
   the continuation immediately following its definition.
 
-  @!107 68 4d014000 @!10c
+  @!106 68 4c014000 @!10b
 
-  @!10c 488b o107 f8                    # symbol pointer
-  @!110 488b o137 f0                    # binding
-  @!114 4883 o357 08                    # pop one (we replace the other later)
+  @!10b 488b o107 f8                    # symbol pointer
+  @!10f 488b o137 f0                    # binding
+  @!113 4883 o357 08                    # pop one (we replace the other later)
 
-  @!118 488b o316                               # %rsi -> %rcx
-  @!11b 4883 o356 1d                            # %rsi -= 29
-  @!11f 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
-  @!128 c7 o106 0a 48b848ab 4889 o136 0e        # 48b8, 48ab, binding
-  @!133 c7 o106 16 48abe900                     # 48ab, e9
-  @!13a 48c7 o300 d3004000                      # $constant_matcher -> %rax
-  @!141 482b o301 4889 o106 19                  # 25(%rsi) = %rax - %rcx
-  @!148 4889 o167 f8                            # %rsi -> -8(%rdi)
-  @!14c c3
+  @!117 488b o316                               # %rsi -> %rcx
+  @!11a 4883 o356 1d                            # %rsi -= 29
+  @!11e 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
+  @!127 c7 o106 0a 48b848ab 4889 o136 0e        # 48b8, 48ab, binding
+  @!132 c7 o106 16 48abe900                     # 48ab, e9
+  @!139 48c7 o300 d8004000                      # $constant_matcher -> %rax
+  @!140 482b o301 4889 o106 19                  # 25(%rsi) = %rax - %rcx
+  @!147 4889 o167 f8                            # %rsi -> -8(%rdi)
+  @!14b c3
 
-  @!14d
+  @!14c
 
   At this point we have a constant matcher for @:k on the top of the data stack
   with a pointer to nil beneath that. This is ideal for the setup that happens
@@ -2661,32 +2661,35 @@ into a single byte on the heap.
   As usual, we need to push a return continuation before we define/execute this
   code.
 
-  @!14d 68 86014000 @!152
+  @!14c 68 81014000 @!151
 
-  @!152 488b o107 f8            # head element
-  @!156 488b o137 f0            # tail element
-  @!15a 4883 o357 08            # pop one (the other will be overwritten)
+  @!151 488b o107 f8            # head element
+  @!155 488b o137 f0            # tail element
+  @!159 4883 o357 08            # pop one (the other will be overwritten)
 
-  @!15e 4839 o336 740f                  # tail allocation check
-  @!163 482b o336 6689 o136 fc          # relative, write e9 jump offset
-  @!16a 4883 o356 05 48c6 o106 e9       # allocate space, write e9 jump opcode
+  @!15d 4839 o336 740d                  # tail allocation check
+  @!162 482b o336 89 o136 fc            # relative, write e9 jump offset
+  @!168 4883 o356 05 c6 o006 e9         # allocate space, write e9 jump opcode
 
-  @!172 482b o306 6689 o106 fc          # relative, write e8 call offset
-  @!179 488c o356 05 48c6 o106 e8       # allocate space, write e8 call opcode
+  @!16f 482b o306 89 o106 fc            # relative, write e8 call offset
+  @!175 4883 o356 05 c6 o006 e8         # allocate space, write e8 call opcode
 
-  @!181 4889 o167 f8 c3                 # return new cons cell
-  @!186
+  @!17c 4889 o167 f8 c3                 # return new cons cell
+  @!181
 
   At this point we have the cons cell of @:k's definition and nil. This now
   needs to be set as the symbol table; but before we do that, we need to add
   cons and create a function that updates the symbol table address. First let's
   bind cons.
 
-  @!186 4831 o300 66b8 52010400 48ab    # push pointer to cons function
-  @!191 48b8 @!193 0200 ':: /4/00 @!19b
-  @!19b 48c7 o300 93014000 48ab         # push symbol ::
+  @!181 4831 o300 b8 51010400 48ab      # push pointer to cons function
+  @!18b 48b8 @!18d 0200 ':: /4/00 @!195
+  @!195 48c7 o300 8d014000 48ab         # push symbol ::
 
-  @!1a4 e8 ffffff52 @!1a9
+  @!19e e8 68ffffff                     # invoke @:k to generate the closure
+  @!1a3 e8 a9ffffff @!1a8               # invoke :: to add binding
+
+  4831 o300 b03c 4831 o377 0f05
 
 __
 meta::sdoc('canard::lib/canard-linux-x64', <<'__');
