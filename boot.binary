@@ -91,17 +91,17 @@
 # interpreter/REPL. The original value of %rsp (the one that the OS provided) is
 # pushed onto the data stack prior to invoking 'main'.
 
-@!78 
-
+@!78 48c7 o307 00104000         # initialize %rdi to bottom of heap
+     48c7 o305 ffff7f00         # initialize %rbp to top of stack
      488a o304                  # %rsp -> %rax
      48ab                       # stosq: push, increment %rdi
 
-@!7d
+@!8b
 
 # Symbol table.
 # This is the central abstraction provided by Canard.
 
-@!7d 4831 o300 b03c             # syscall = 60 (exit)
+@!8b 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0
      0f05
 

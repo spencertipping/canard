@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  36b6fa0b32dd8216eb69f666a9f7200b
-# istate: eca618c9fc5fea59873e49899bfce77f
+# state:  8028c0c5f8644f04f28f7451a2d58f39
+# istate: d78609e0fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2314,17 +2314,17 @@ immediately invokes the 'main' symbol; this function contains logic for the
 interpreter/REPL. The original value of %rsp (the one that the OS provided) is
 pushed onto the data stack prior to invoking 'main'.
 
-@!78 
-
+@!78 48c7 o307 00104000         # initialize %rdi to bottom of heap
+     48c7 o305 ffff7f00         # initialize %rbp to top of stack
      488a o304                  # %rsp -> %rax
      48ab                       # stosq: push, increment %rdi
 
-@!7d
+@!8b
 
 Symbol table.
 This is the central abstraction provided by Canard.
 
-@!7d 4831 o300 b03c             # syscall = 60 (exit)
+@!8b 4831 o300 b03c             # syscall = 60 (exit)
      4831 o355                  # status  = 0
      0f05
 
