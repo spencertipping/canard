@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  fdb13965a1a10c03fa4615ce5b5c15e0
-# istate: 15f23364fc5fea59873e49899bfce77f
+# state:  74c9c0bf4d01d512b3e25aefd6bcbced
+# istate: 6ca73345fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2592,7 +2592,7 @@ At this point, the heap looks like this:
   Push a trivial return address here so that the function below will return to
   the continuation immediately following its definition.
 
-  @!106 68 4c014000 @!10b
+  @!106 68 4b014000 @!10b
 
   @!10b 488b o107 f8                    # symbol pointer
   @!10f 488b o137 f0                    # binding
@@ -2601,14 +2601,14 @@ At this point, the heap looks like this:
   @!117 488b o316                               # %rsi -> %rcx
   @!11a 4883 o356 1d                            # %rsi -= 29
   @!11e 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
-  @!127 c7 o106 0a 48b848ab 4889 o136 0e        # 48b8, 48ab, binding
+  @!127 c7 o106 0a 48ab48b8 4889 o136 0e        # 48b8, 48ab, binding
   @!132 c7 o106 16 48abe900                     # 48ab, e9
   @!139 48c7 o300 d8004000                      # $constant_matcher -> %rax
-  @!140 482b o301 4889 o106 19                  # 25(%rsi) = %rax - %rcx
-  @!147 4889 o167 f8                            # %rsi -> -8(%rdi)
-  @!14b c3
+  @!140 482b o301 89 o106 19                    # 25(%rsi) = %rax - %rcx
+  @!146 4889 o167 f8                            # %rsi -> -8(%rdi)
+  @!14a c3
 
-  @!14c
+  @!14b
 
   At this point we have a constant matcher for @:k on the top of the data stack
   with a pointer to nil beneath that. This is ideal for the setup that happens
@@ -2661,33 +2661,33 @@ into a single byte on the heap.
   As usual, we need to push a return continuation before we define/execute this
   code.
 
-  @!14c 68 81014000 @!151
+  @!14b 68 81014000 @!150
 
-  @!151 488b o107 f8            # head element
-  @!155 488b o137 f0            # tail element
-  @!159 4883 o357 08            # pop one (the other will be overwritten)
+  @!150 488b o107 f8            # head element
+  @!154 488b o137 f0            # tail element
+  @!158 4883 o357 08            # pop one (the other will be overwritten)
 
-  @!15d 4839 o336 740d                  # tail allocation check
-  @!162 482b o336 89 o136 fc            # relative, write e9 jump offset
-  @!168 4883 o356 05 c6 o006 e9         # allocate space, write e9 jump opcode
+  @!15c 4839 o336 740d                  # tail allocation check
+  @!161 482b o336 89 o136 fc            # relative, write e9 jump offset
+  @!167 4883 o356 05 c6 o006 e9         # allocate space, write e9 jump opcode
 
-  @!16f 482b o306 89 o106 fc            # relative, write e8 call offset
-  @!175 4883 o356 05 c6 o006 e8         # allocate space, write e8 call opcode
+  @!16e 482b o306 89 o106 fc            # relative, write e8 call offset
+  @!174 4883 o356 05 c6 o006 e8         # allocate space, write e8 call opcode
 
-  @!17c 4889 o167 f8 c3                 # return new cons cell
-  @!181
+  @!17b 4889 o167 f8 c3                 # return new cons cell
+  @!180
 
   At this point we have the cons cell of @:k's definition and nil. This now
   needs to be set as the symbol table; but before we do that, we need to add
   cons and create a function that updates the symbol table address. First let's
   bind cons.
 
-  @!181 4831 o300 b8 51010400 48ab      # push pointer to cons function
-  @!18b b8 @!18c 0200 ':: @!190
-  @!190 48c7 o300 8c014000 48ab         # push symbol ::
+  @!180 4831 o300 b8 51010400 48ab      # push pointer to cons function
+  @!18a b8 @!18b 0200 ':: @!18f
+  @!18f 48c7 o300 8b014000 48ab         # push symbol ::
 
-  @!199 e8 6dffffff                     # invoke @:k to generate the closure
-  @!19e e8 aeffffff @!1a3               # invoke :: to add binding
+  @!198 e8 6dffffff                     # invoke @:k to generate the closure
+  @!19d e8 aeffffff @!1a2               # invoke :: to add binding
 
 Definition and invocation.
 This is the last piece of the symbol table. We need two more functions; the
@@ -2704,31 +2704,31 @@ problem is that we need to access it as an anonymous entity for the moment.
 Fortunately this is not difficult, since it's on the top of the data stack right
 now. I'm going to stash it onto the return stack for easy access.
 
-@!1a3 ff o167 f8 @!1a6                  # symbol table pointer
+@!1a2 ff o167 f8 @!1a5                  # symbol table pointer
 
   Symbol table getter.
   We refer to this as @> from now on. This function pushes the quadword at
   0x4ffff8 onto the data stack. We don't need to run it right now, so I'm
   jumping over the definition.
 
-  @!1a6 eb0b @!1a8
-  @!1a8 488b o004 o045 f8ff4f00 48ab c3 # (0x4ffff8) -> %rax; stosq; ret
+  @!1a5 eb0b @!1a7
+  @!1a7 488b o004 o045 f8ff4f00 48ab c3 # (0x4ffff8) -> %rax; stosq; ret
 
   Let's go ahead and cons that onto the symbol table:
 
-  @!1b3 4831 o300 b8 a8014000 48ab      # pointer to @> definition, above
-  @!1bd b8 @!1be 0200 '@> @!1c2
-  @!1c2 48c7 o300 be014000 48ab         # push symbol @>
+  @!1b2 4831 o300 b8 a8014000 48ab      # pointer to @> definition, above
+  @!1bc b8 @!1bd 0200 '@> @!1c1
+  @!1c1 48c7 o300 bd014000 48ab         # push symbol @>
 
-  @!1cb 48b8 @!1cd 0300 '@:k /3/00      # space for @:k
-  @!1d5 4831 o300 b8 cd014000 48ab      # push pointer to symbol @:k
-  @!1df ff o024 o044                    # call top of %rsp (symbol table)
-  @!1e2 ff o127 f8                      # call top of data stack (@:k function)
+  @!1ca 48b8 @!1cc 0300 '@:k /3/00      # space for @:k
+  @!1d4 4831 o300 b8 cd014000 48ab      # push pointer to symbol @:k
+  @!1de ff o024 o044                    # call top of %rsp (symbol table)
+  @!1e1 ff o127 f8                      # call top of data stack (@:k function)
 
-  @!1e5 b8 @!1e6 0200 ':: @!1ea         # space for ::
-  @!1ea b8 @!1eb e6014000 48ab          # push pointer to symbol ::
-  @!1f1 ff o024 o044                    # call symbol table to resolve
-  @!1f4 ff o127 f8 @!1f7                # call resolved ::
+  @!1e4 b8 @!1e5 0200 ':: @!1e9         # space for ::
+  @!1e9 b8 @!1ea e6014000 48ab          # push pointer to symbol ::
+  @!1f0 ff o024 o044                    # call symbol table to resolve
+  @!1f3 ff o127 f8 @!1f6                # call resolved ::
 
   Now @> is a part of the symbol table, which is still at the top of the stack.
   The next function, @<, sets the symbol table adddress.
@@ -2742,9 +2742,9 @@ now. I'm going to stash it onto the return stack for easy access.
   First, since this function expects a return continuation, we need to create
   one.
 
-  @!1f7 68 fc014000 @!1fc
-  @!1fc 488b o107 f8                            # -8(%rdi) -> %rax
-  @!200 4889 o004 o045 f8ff4f00 c3 @!209        # %rax -> (0x4ffff8); ret
+  @!1f6 68 fc014000 @!1fb
+  @!1fb 488b o107 f8                            # -8(%rdi) -> %rax
+  @!1ff 4889 o004 o045 f8ff4f00 c3 @!208        # %rax -> (0x4ffff8); ret
 
   At this point the symbol table is installed at the proper address and we are
   ready to write compositions that define things. We still have the symbol table
