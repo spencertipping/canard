@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  74c9c0bf4d01d512b3e25aefd6bcbced
-# istate: 6ca73345fc5fea59873e49899bfce77f
+# state:  654f499f925eb57b1f9e03257f756c2a
+# istate: 346a7bc3fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -256,13 +256,14 @@ meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
 meta::alias('cb', <<'__');
-ad -c binary::
+ad -c sdoc::.*boot
 
 __
 meta::alias('cl', 'ad -c canard::lib');
 meta::alias('cn', 'ad -c note::');
 meta::alias('eb', 'edit sdoc::binary::boot');
 meta::alias('ebb', 'edit sdoc::canard::boot/binary');
+meta::alias('edb', 'edit sdoc::boot-debug.gdb');
 meta::alias('er', 'edit sdoc::readme');
 meta::alias('erf', 'edit function::render');
 meta::alias('erwf', 'edit function::render-waul');
@@ -518,6 +519,11 @@ meta::function('current-state', 'serialize(\'-pS\');');
 meta::function('cwd', <<'__');
 use Cwd qw/getcwd/;
 getcwd();
+
+__
+meta::function('debug', <<'__');
+render();
+sh('gdb -x boot/debug.gdb ./boot/image');
 
 __
 meta::function('disable', 'hook(\'disable\', chmod_self(sub {$_[0] & 0666}));');
@@ -803,10 +809,13 @@ my ($options, @stuff) = separate_options(@_);
 # Commented out until I write an accurate readme
 # file::write('README.md', retrieve('markdown::readme'));
 
-file::write('boot.binary', retrieve('binary::boot'));
-file::write('boot.md',     retrieve('markdown::binary::boot'));
-file::write('boot',        compile_binary('pp::binary::boot'));
-chmod 0700, 'boot';
+file::write('boot/image.binary', retrieve('binary::boot'), mkpath => 1);
+file::write('boot/image.md',     retrieve('markdown::binary::boot'));
+file::write('boot/image',        compile_binary('pp::binary::boot'));
+chmod 0700, 'boot/image';
+
+file::write('boot/debug.gdb', retrieve('boot-debug.gdb'));
+file::write('boot/debug.md',  retrieve('markdown::boot-debug.gdb'));
 
 file::write("$_.canard", retrieve("canard::$_"),           mkpath => 1) for grep s/^(sdoc::)?canard::lib\//lib\//, sort keys %data;
 file::write("$_.md",     retrieve("markdown::canard::$_"), mkpath => 1) for grep s/^sdoc::canard::lib\//lib\//,    sort keys %data;
@@ -1087,8 +1096,9 @@ $$options{'-G'} ? $hash : fast_hash("$global_data|$hash");
 __
 meta::function('test', <<'__');
 render();
-sh('file boot');
-sh('readelf -h boot');
+sh('file boot/image');
+sh('readelf -h boot/image');
+sh('boot/image');
 
 __
 meta::function('touch', 'associate($_, \'\') for @_;');
@@ -2303,7 +2313,7 @@ See elf(5) for details about what this is made of.
 @!48 00 00 00 00 /4/00          # p_offset (includes ELF header)
 @!50 00 00 40 00 /4/00          # p_vaddr
 @!58 00 00 00 00 /4/00          # p_paddr
-@!60 00 02 00 00 /4/00          # p_filesz
+@!60 00 04 00 00 /4/00          # p_filesz (this gets used in code; see below)
 @!68 00 00 10 00 /4/00          # p_memsz
 @!70 00 10 00 00 /4/00          # p_align
 
@@ -2576,10 +2586,10 @@ At this point, the heap looks like this:
   @!e7  4831 o311 668b o010             # %rcx = length
   @!ed  6639 o013 e101 c3               # length check + bailout
 
-  @!f3  8a o124 o013 02                 # top of loop: populate %dl
-  @!f7  38 o124 o010 02                 # compare characters
-  @!fb  74 01 c3                        # bail if not equal
-  @!fe  e2 f3 @!100                     # next character
+  @!f3  8a   o124 o013 02               # top of loop: populate %dl
+  @!f7  38   o124 o010 02               # compare characters
+  @!fb  7401 c3                         # bail if not equal
+  @!fe  e2   f3 @!100                   # next character
 
   @!100 4889 o157 f8                    # %rbp -> -8(%rdi)
   @!104 58 c3                           # return continuation
@@ -2592,7 +2602,7 @@ At this point, the heap looks like this:
   Push a trivial return address here so that the function below will return to
   the continuation immediately following its definition.
 
-  @!106 68 4b014000 @!10b
+  @!106 68 4b014000 @!10b               # definition continuation
 
   @!10b 488b o107 f8                    # symbol pointer
   @!10f 488b o137 f0                    # binding
@@ -2682,11 +2692,11 @@ into a single byte on the heap.
   cons and create a function that updates the symbol table address. First let's
   bind cons.
 
-  @!180 4831 o300 b8 51010400 48ab      # push pointer to cons function
+  @!180 4831 o300 b8 51014000 48ab      # push pointer to cons function
   @!18a b8 @!18b 0200 ':: @!18f
   @!18f 48c7 o300 8b014000 48ab         # push symbol ::
 
-  @!198 e8 6dffffff                     # invoke @:k to generate the closure
+  @!198 e8 6effffff                     # invoke @:k to generate the closure
   @!19d e8 aeffffff @!1a2               # invoke :: to add binding
 
 Definition and invocation.
@@ -2721,12 +2731,12 @@ now. I'm going to stash it onto the return stack for easy access.
   @!1c1 48c7 o300 bd014000 48ab         # push symbol @>
 
   @!1ca 48b8 @!1cc 0300 '@:k /3/00      # space for @:k
-  @!1d4 4831 o300 b8 cd014000 48ab      # push pointer to symbol @:k
+  @!1d4 4831 o300 b8 cc014000 48ab      # push pointer to symbol @:k
   @!1de ff o024 o044                    # call top of %rsp (symbol table)
   @!1e1 ff o127 f8                      # call top of data stack (@:k function)
 
   @!1e4 b8 @!1e5 0200 ':: @!1e9         # space for ::
-  @!1e9 b8 @!1ea e6014000 48ab          # push pointer to symbol ::
+  @!1e9 b8 @!1ea e5014000 48ab          # push pointer to symbol ::
   @!1f0 ff o024 o044                    # call symbol table to resolve
   @!1f3 ff o127 f8 @!1f6                # call resolved ::
 
@@ -2742,7 +2752,7 @@ now. I'm going to stash it onto the return stack for easy access.
   First, since this function expects a return continuation, we need to create
   one.
 
-  @!1f6 68 fc014000 @!1fb
+  @!1f6 68 08024000 @!1fb                       # definition continuation
   @!1fb 488b o107 f8                            # -8(%rdi) -> %rax
   @!1ff 4889 o004 o045 f8ff4f00 c3 @!208        # %rax -> (0x4ffff8); ret
 
@@ -2751,6 +2761,48 @@ now. I'm going to stash it onto the return stack for easy access.
   on the stack, which is fortuitous because we'll be using it to extend itself.
 
   4831 o300 b03c 4831 o377 0f05
+
+__
+meta::sdoc('boot-debug.gdb', <<'__');
+Canard bootstrap debugging script.
+GDB definitions to make it easier to debug the main image.
+
+break *0x400078
+
+define s
+  ni
+  x/4i $pc
+  print_data_stack
+  print_heap
+end
+
+Stack inspectors.
+Print the top few items on any given stack. Generally, all stack items will be
+pointers, so dereference those.
+
+define print_data_stack
+  printf "data stack: %lx\n", $rdi
+  set $x = $rdi
+  while $x > 0x400200
+    set $x = $x - 8
+    print_cell $x
+  end
+end
+
+define print_heap
+  printf "heap: %lx\n", $rsi
+  x/i $rsi
+  while $_ < 0x500000
+    x/i
+  end
+end
+
+define print_cell
+  x/g $arg0
+  if ($__ >= 0x400000 && $__ < 0x500000)
+    x/i $__
+  end
+end
 
 __
 meta::sdoc('canard::lib/canard-linux-x64', <<'__');

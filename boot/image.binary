@@ -76,7 +76,7 @@
 @!48 00 00 00 00 /4/00          # p_offset (includes ELF header)
 @!50 00 00 40 00 /4/00          # p_vaddr
 @!58 00 00 00 00 /4/00          # p_paddr
-@!60 00 02 00 00 /4/00          # p_filesz
+@!60 00 04 00 00 /4/00          # p_filesz (this gets used in code; see below)
 @!68 00 00 10 00 /4/00          # p_memsz
 @!70 00 10 00 00 /4/00          # p_align
 
@@ -349,10 +349,10 @@
   @!e7  4831 o311 668b o010             # %rcx = length
   @!ed  6639 o013 e101 c3               # length check + bailout
 
-  @!f3  8a o124 o013 02                 # top of loop: populate %dl
-  @!f7  38 o124 o010 02                 # compare characters
-  @!fb  74 01 c3                        # bail if not equal
-  @!fe  e2 f3 @!100                     # next character
+  @!f3  8a   o124 o013 02               # top of loop: populate %dl
+  @!f7  38   o124 o010 02               # compare characters
+  @!fb  7401 c3                         # bail if not equal
+  @!fe  e2   f3 @!100                   # next character
 
   @!100 4889 o157 f8                    # %rbp -> -8(%rdi)
   @!104 58 c3                           # return continuation
@@ -365,7 +365,7 @@
 #   Push a trivial return address here so that the function below will return to
 #   the continuation immediately following its definition.
 
-  @!106 68 4b014000 @!10b
+  @!106 68 4b014000 @!10b               # definition continuation
 
   @!10b 488b o107 f8                    # symbol pointer
   @!10f 488b o137 f0                    # binding
@@ -455,11 +455,11 @@
 #   cons and create a function that updates the symbol table address. First let's
 #   bind cons.
 
-  @!180 4831 o300 b8 51010400 48ab      # push pointer to cons function
+  @!180 4831 o300 b8 51014000 48ab      # push pointer to cons function
   @!18a b8 @!18b 0200 ':: @!18f
   @!18f 48c7 o300 8b014000 48ab         # push symbol ::
 
-  @!198 e8 6dffffff                     # invoke @:k to generate the closure
+  @!198 e8 6effffff                     # invoke @:k to generate the closure
   @!19d e8 aeffffff @!1a2               # invoke :: to add binding
 
 # Definition and invocation.
@@ -494,12 +494,12 @@
   @!1c1 48c7 o300 bd014000 48ab         # push symbol @>
 
   @!1ca 48b8 @!1cc 0300 '@:k /3/00      # space for @:k
-  @!1d4 4831 o300 b8 cd014000 48ab      # push pointer to symbol @:k
+  @!1d4 4831 o300 b8 cc014000 48ab      # push pointer to symbol @:k
   @!1de ff o024 o044                    # call top of %rsp (symbol table)
   @!1e1 ff o127 f8                      # call top of data stack (@:k function)
 
   @!1e4 b8 @!1e5 0200 ':: @!1e9         # space for ::
-  @!1e9 b8 @!1ea e6014000 48ab          # push pointer to symbol ::
+  @!1e9 b8 @!1ea e5014000 48ab          # push pointer to symbol ::
   @!1f0 ff o024 o044                    # call symbol table to resolve
   @!1f3 ff o127 f8 @!1f6                # call resolved ::
 
@@ -515,7 +515,7 @@
 #   First, since this function expects a return continuation, we need to create
 #   one.
 
-  @!1f6 68 fc014000 @!1fb
+  @!1f6 68 08024000 @!1fb                       # definition continuation
   @!1fb 488b o107 f8                            # -8(%rdi) -> %rax
   @!1ff 4889 o004 o045 f8ff4f00 c3 @!208        # %rax -> (0x4ffff8); ret
 
