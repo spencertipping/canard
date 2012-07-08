@@ -3,16 +3,13 @@ Licensed under the terms of the MIT source code license
 
 # Introduction
 
-Basic syntax used in this file is:
+This file is written in preprocessed binary text, a format defined by the
+'binary' and 'preprocessor' self-modifying Perl objects. You can get these
+objects from http://github.com/spencertipping/perl-objects; the HTML files allow
+you to inspect them online:
 
-    1. Address assertion: @!address. Dies unless the next byte will be emitted at
-       the given address. I use these to verify/document the code.
-    2. Address displacement: @address. Inserts null bytes until the given address
-       is reached.
-    3. /n/byte - byte repeated n times (n is decimal, not hex).
-
-That's about it. The rest is just binary data written verbatim in hex (no
-prefix), octal (o prefix), binary (- prefix), or ASCII (' prefix).
+    http://spencertipping.com/perl-objects/binary.html
+    http://spencertipping.com/perl-objects/preprocessor.html
 
 ## Conventions
 
@@ -30,61 +27,70 @@ octal rather than hex. This better reflects their structure; so, for instance:
 
 I avoid using any prefix aside from REX.W, which is encoded as 48 and is a
 fairly good giveaway that something is an opcode. (I also use 66 as needed.)
-Multi-byte immediate operands are generally separate from opcodes:
 
-    push $0x400010              # push a 32-bit immediate
-    68 10004000
-     |  |
-     |  +-- immediate: little-endian, so bytes are reversed
-     +----- opcode: 68 = push 32-bit immediate
+## Constants
+
+These dictate where the image goes and how big it is in memory. This is
+related to virtual addressing.
+
+    :[::image_base = 0x400000]
+    :[::image_size = 0x100000]
+    :[sub b { shift(@_) + :image_base }]
+
+    :[::image_end  = b:image_size]
 
 # ELF header
 
 See elf(5) for details about what this is made of.
 
-    # Elf64_Ehdr                    # e_ident
-    @!00 7f 'ELF                    #   ELF magic
-    @!04 02                         #   64-bit binary
-    @!05 01                         #   Two's complement little-endian
-    @!06 01                         #   Current ELF version
-    @!07 00                         #   System V UNIX ABI
+    ::bootstrap_begin
 
-    @!08 00                         #   ABI version
-    @!09 /7/00                      # padding; end
+    ::elf_ehdr_begin                # e_ident array
+      ::elf_e_ident    7f 'ELF      # ELF magic
+      ::elf_ei_class   02           # 64-bit binary
+      ::elf_ei_data    01           # Two's complement little-endian
+      ::elf_ei_version 01           # Current ELF version
+      ::elf_ei_osabi   00           # System V UNIX ABI
 
-    @!10 02 00                      # e_type    = Executable file
-    @!12 3e 00                      # e_machine = x86-64
-    @!14 01 00 00 00                # e_version = current version
-    @!18 78 00 40 00 /4/00          # e_entry
+      ::elf_ei_abiversion 00        # ABI version
+      ::elf_ei_padding /7/00        # padding; end of e_ident
 
-    @!20 40 00 00 00 /4/00          # e_phoff
-    @!28 00 00 00 00 /4/00          # e_shoff
+      ::elf_e_type      :2[L 2]     # Executable file
+      ::elf_e_machine   :2[L 0x3e]  # x86-64
+      ::elf_e_version   :4[L 1]     # current version
 
-    @!30 /4/00                      # e_flags
-    @!34 40 00                      # e_ehsize
-    @!36 38 00                      # e_phentsize
-    @!38 01 00                      # e_phnum
+      ::elf_e_entry     :8[L :image_base + :entry]
 
-    @!3a 0000                       # e_shentsize
-    @!3c 0000                       # e_shnum
-    @!3e 0000                       # e_shstrndx
+      ::elf_e_phoff     :8[L :phdr_begin]
+      ::elf_e_shoff     :8[L 0]     # no section headers
 
-    @!40
-    # end
+      ::elf_e_flags     :4[L 0]
+      ::elf_e_ehsize    :2[L :elf_ehdr_end - :elf_ehdr_begin]
+      ::elf_e_phentsize :2[L :phdr_end     - :phdr_begin]
+      ::elf_e_phnum     :2[L 1]
 
-    # Elf64_Phdr (rwx image -- this contains code and definitions)
-    @!40 01 00 00 00                # p_type  = PT_LOAD
-    @!44 07 00 00 00                # p_flags = PT_R | PT_W | PT_X
+      ::elf_e_shentsize :2[L 0]
+      ::elf_e_shnum     :2[L 0]
+      ::elf_e_shstrndx  :2[L 0]
+    ::elf_ehdr_end
 
-    @!48 00 00 00 00 /4/00          # p_offset (includes ELF header)
-    @!50 00 00 40 00 /4/00          # p_vaddr
-    @!58 00 00 00 00 /4/00          # p_paddr
-    @!60 00 04 00 00 /4/00          # p_filesz (this gets used in code; see below)
-    @!68 00 00 10 00 /4/00          # p_memsz
-    @!70 00 10 00 00 /4/00          # p_align
+# Program header for main image
 
-    @!78
-    # end
+This section is read/write/execute and contains the bootstrap code, data stack,
+and heap. It doesn't contain the return stack since we use the OS-provided one.
+
+First we need to define some constants:
+
+    ::phdr_begin
+      ::phdr_p_type   :4[L 1]         # PT_LOAD
+      ::phdr_p_flags  :4[L 4 | 2 | 1] # PT_R | PT_R | PT_X
+      ::phdr_p_offset :8[L 0]
+      ::phdr_p_vaddr  :8[L :image_base]
+      ::phdr_p_paddr  :8[L 0]
+      ::phdr_p_filesz :8[L :bootstrap_end - :bootstrap_begin]
+      ::phdr_p_memsz  :8[L :image_size]
+      ::phdr_p_align  :8[L 0x1000]
+    ::phdr_end
 
 # Core image layout
 
@@ -113,39 +119,43 @@ immediately invokes the 'main' symbol; this function contains logic for the
 interpreter/REPL. The original value of %rsp (the one that the OS provided) is
 pushed onto the data stack prior to invoking 'main'.
 
+## Global state
+
+The interpreter has one global variable aside from the stack/heap registers.
+This variable is the symbol table, which is used by the bootstrap interpreter
+to resolve any symbols entered by the user.
+
+    ::symbol_table :8[L 0]
+
+## Symbol constants
+
+We refer to some constants throughout the code below, most of which are
+symbols. The bootstrap image is smaller if we pull them out of the code
+itself, since this way we won't have to jump around them or write the
+constants as the immediate data of a mov instruction.
+
+    ::@main 0400 'main  ::@@:k 0300 '@:k
+    ::@::   0200 '::    ::@@?k 0300 '@?k
+
 ## Register initialization
 
 Set up these registers to point to useful places. %rsp is provided by the OS,
 so we don't need to do anything else with it. We set up %rdi and %rsi like
 this:
 
-    +-- 400000   +-- 400078       +-- 40xxxx            +-- 500000
+    +-- 400000   +-- 0x400080     +-- 40xxxx            +-- 500000
     V            V                V                     V
     | ELF header | bootstrap code | data stack ... heap | .... | %rsp stack
 
 I'm leaving the data stack lower bound as a variable here because it depends
 on the amount of bootstrap code that we use. But the idea is the same either
-way; the data stack begins immediately after the bootstrap logic. In order to
-make this as automatic as possible, we grab the value from the ELF header. In
-this case, we want to add 0x400000 to the p_filesz field in the first program
-header entry; this field is located at 0x400060.
+way; the data stack begins immediately after the bootstrap logic.
 
-Because this number is frequently used, I'm storing it in %rbp during the
-initialization process.
+    :[::file_end = :image_base + :phdr_p_filesz]
 
-    @!78 488b o054 o045 60004000 @!80     # get p_filesz
-    @!80 4881 o305      00004000 @!87     # add p_vaddr to get memory offset
-
-At this point %rbp points to the bottom (lowest address) of the data stack.
-
-    @!87 488b o375                # initialize %rdi to bottom of data stack
-         48c7 o306 f8ff4f00       # initialize %rsi to top of heap minus 8
-         488b o304 48ab @!96      # %rsp -> %rax; stosq to push onto data stack
-
-I'm leaving an 8-byte slot open at the top of the heap. This is used to keep
-track of the current global symbol table cons cell, since it changes every
-time we define something. This is the only piece of global mutable state
-maintained by the interpreter (aside from the stacks and heap).
+    ::entry
+    ::rdi_init 48c7 o305 :4[L :file_end]
+    ::rsi_init 48c7 o306 :4[L :image_end]
 
 At this point the registers are initialized, so we can write to both stacks
 and to the heap. We need to set up a 'return' into the exit function so that
@@ -153,7 +163,7 @@ when the main function exits (i.e. we hit a nil at the end of the main program
 list) it will die gracefully. First let's push the exit function address onto
 the return stack:
 
-    @!96 68 bebafeca @!9b                 # FIXME once we define exit
+    ::init_return 68 bebafeca     # FIXME once we define exit
 
 Now push the symbol 'main' onto the data stack and call the symbol table. This
 boots up the interpreter.
@@ -166,19 +176,7 @@ encoded in these seven bytes: 0500 68656c6c6f. UTF-8 is not parsed, though it
 will work transparently provided that the total number of bytes doesn't exceed
 the limit of 65535.
 
-What we need to do here is encode the symbol 'main. We don't actually need to
-write it again since it's already present in the symbol table; however, this
-provides a good functional test of the symbol resolution code so it's worth
-doing. We can drop the symbol directly into the machine code and just refer to
-it by absolute address.
-
-We can easily drop short symbols directly into machine code by using a
-mov-immediate into %rax that will be subsequently overwritten. The advantage
-of doing things this way is that disassemblers won't have to follow jumps to
-figure out where the instructions are.
-
-    @!9b 48b8 @!9d 0400 'main /2/00 @!a5
-    @!a5 48c7 o300 9d004000 48ab    @!ae  # data-push the 'main symbol address
+    ::push_main 4831 o300 48b8 :4[L b:@main] 48ab
 
 Now do a symbol table lookup to get the address. When this returns, we'll have
 the address of the 'main function on top of the data stack.
@@ -192,7 +190,7 @@ First, the symbol table is ultimately a function composition, which is
 represented in Canard as a linked list of cons cells. So the general form is
 something like this:
 
-    4ffff8: 00000000ssssssss
+    symbol_table: 00000000ssssssss
     ssssssss: e8 xxxxxxxx | e8 yyyyyyyy | e9 zzzzzzzz
     zzzzzzzz: e8 qqqqqqqq | ... | c3
 
@@ -202,14 +200,14 @@ very end is a RET instruction; the result of this is that if no resolver can
 handle the symbol you pass in, the symbol table just hands you your symbol back.
 In list form, this corresponds to a nil as the final tail.
 
-    @!ae 48ff o316    @!b1          # allocate one byte for nil
-    @!b1 c6   o006 c3 @!b4          # move the byte c3 to this address
-
-    @!b4 488b o306 48ab @!b9        # push the c3 reference onto the data stack
+      ::init_symbol_table
+      ff   o316             # allocate one byte for nil
+      c6   o006 c3          # move the byte c3 to this address
+      488b o306 48ab        # push the c3 reference onto the data stack
 
 At this point, the heap looks like this:
 
-    %rsi -> | c3 | xxxxxxxx xxxxxxxx |
+    %rsi -> | c3 | :image_end
 
 ## Matchers and symbol resolution
 
@@ -269,9 +267,11 @@ arguments on the data stack, then just list out the generator code and let it
 run. After the definition/invocation, we'll have the first symbol table entry
 on the data stack, ready to be consed into the symbol table.
 
-    @!b9 48c7 o300 0b014000 48ab   @!c2   # data-push code reference
-    @!c2 48b8 @!c4 0300 '@:k /3/00 @!cc   # literal symbol @:k
-    @!cc 48c7 o300 c4004000 48ab   @!d5   # data-push symbol reference
+It's ok to omit the 48 prefix because the high 32 bits of %rax are known to be
+zero here. If this ever changes, then this code will cause a segfault.
+
+    c7 o300 :4[L b:generate_constant_matcher] 48ab
+    c7 o300 :4[L b:@@:k]                      48ab
 
 Now we can write the matcher generator here, running the code on its own
 definition in the process. We can easily compute the amount of space required
@@ -312,8 +312,6 @@ address. We can then hard-code that address into generate_constant_matcher.
 None of this requires any interaction with the symbol table, which at this
 point is not yet functional.
 
-    @!d5 eb2f @!d7                        # jump over constant_matcher
-
 ## Constant matcher definition
 
 The constant matcher just compares bytes within a contiguous region of memory.
@@ -351,47 +349,42 @@ Here's the logic:
 This function ends up being bound as @?k in the symbol table. We bind this
 once we've defined cons and bind below.
 
-    @!d7  488b o157 f8                    # -8(%rdi) -> %rbp
-    @!db  488b o107 f0                    # -16(%rdi) -> %rax
-    @!df  488b o137 e8                    # -24(%rdi) -> %rbx
-    @!e3  4883 o357 10                    # %rdi -= 16 (pop two entries)
+    ::constant_matcher
+    488b o157 f8                  # -8(%rdi) -> %rbp
+    488b o107 f0                  # -16(%rdi) -> %rax
+    488b o137 e8                  # -24(%rdi) -> %rbx
+    4883 o357 10                  # %rdi -= 16 (pop two entries)
 
-    @!e7  4831 o311 668b o010             # %rcx = length
-    @!ed  6639 o013 e101 c3               # length check + bailout
+    4831 o311 668b o010           # %rcx = length
+    6639 o013 e101 c3             # length check + bailout
 
-    @!f3  8a   o124 o013 02               # top of loop: populate %dl
-    @!f7  38   o124 o010 02               # compare characters
-    @!fb  7401 c3                         # bail if not equal
-    @!fe  e2   f3 @!100                   # next character
+    ::constant_matcher_loop
+    8a   o124 o013 02             # top of loop: populate %dl
+    38   o124 o010 02             # compare characters
+    7401 c3                       # bail if not equal
+    e2   :1[L :constant_matcher_loop - :>]
 
-    @!100 4889 o157 f8                    # %rbp -> -8(%rdi)
-    @!104 58 c3                           # return continuation
-    @!106
+    4889 o157 f8                  # %rbp -> -8(%rdi)
+    58 c3                         # pop; invoke return continuation
 
-Now we have the constant matcher function defined at address 0x4000d7, so we
-can go ahead and define/execute the generate_constant_matcher function,
-referred to as @:k from now on.
+Here's the definition of generate_constant_matcher. Push a trivial return
+address here so that the function below will return to the continuation
+immediately following its definition.
 
-Push a trivial return address here so that the function below will return to
-the continuation immediately following its definition.
+    ::generate_constant_matcher
+    488b o107 f8                    # symbol pointer
+    488b o137 f0                    # binding
+    4883 o357 08                    # pop one (we replace the other later)
 
-    @!106 68 4b014000 @!10b               # definition continuation
-
-    @!10b 488b o107 f8                    # symbol pointer
-    @!10f 488b o137 f0                    # binding
-    @!113 4883 o357 08                    # pop one (we replace the other later)
-
-    @!117 488b o316                               # %rsi -> %rcx
-    @!11a 4883 o356 1d                            # %rsi -= 29
-    @!11e 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
-    @!127 c7 o106 0a 48ab48b8 4889 o136 0e        # 48b8, 48ab, binding
-    @!132 c7 o106 16 48abe900                     # 48ab, e9
-    @!139 48c7 o300 d8004000                      # $constant_matcher -> %rax
-    @!140 482b o301 89 o106 19                    # 25(%rsi) = %rax - %rcx
-    @!146 4889 o167 f8                            # %rsi -> -8(%rdi)
-    @!14a c3
-
-    @!14b
+    488b o316                                       # %rsi -> %rcx
+    4883 o356 1d                                    # %rsi -= 29
+    66c7 o006 48b8        4889 o106 02              # 48b8, symbol pointer
+    c7   o106 0a 48ab48b8 4889 o136 0e              # 48b8, 48ab, binding
+    c7   o106 16 48abe900                           # 48ab, e9
+    48c7 o300 :4[L :image_base + :constant_matcher] # $constant_matcher -> %rax
+    482b o301 89 o106 19                            # 25(%rsi) = %rax - %rcx
+    4889 o167 f8                                    # %rsi -> -8(%rdi)
+    c3
 
 At this point we have a constant matcher for @:k on the top of the data stack
 with a pointer to nil beneath that. This is ideal for the setup that happens
@@ -443,36 +436,24 @@ on):
     data-push %rsi              <- return reference to this cons cell
     ret
 
-As usual, we need to push a return continuation before we define/execute this
-code.
+Some optimization has been done around the stack parameters. In particular,
+since we end up pushing the result, we can just pop one instead of popping
+both; then we can write the result over the parameter that we didn't pop.
 
-    @!14b 68 81014000 @!150
+    ::cons
+    488b o107 f8                          # head element
+    488b o137 f0                          # tail element
+    4883 o357 08                          # pop one
 
-    @!150 488b o107 f8            # head element
-    @!154 488b o137 f0            # tail element
-    @!158 4883 o357 08            # pop one (the other will be overwritten)
+    4839 o336 74 :1[L :cons_head - :>]    # tail allocation check
+    482b o336 89 o136 fc                  # relative, write e9 jump offset
+    4883 o356 05 c6 o006 e9               # allocate space, write e9 jump opcode
 
-    @!15c 4839 o336 740d                  # tail allocation check
-    @!161 482b o336 89 o136 fc            # relative, write e9 jump offset
-    @!167 4883 o356 05 c6 o006 e9         # allocate space, write e9 jump opcode
+    ::cons_head
+    482b o306 89 o106 fc                  # relative, write e8 call offset
+    4883 o356 05 c6 o006 e8               # allocate space, write e8 call opcode
 
-    @!16e 482b o306 89 o106 fc            # relative, write e8 call offset
-    @!174 4883 o356 05 c6 o006 e8         # allocate space, write e8 call opcode
-
-    @!17b 4889 o167 f8 c3                 # return new cons cell
-    @!180
-
-At this point we have the cons cell of @:k's definition and nil. This now
-needs to be set as the symbol table; but before we do that, we need to add
-cons and create a function that updates the symbol table address. First let's
-bind cons.
-
-    @!180 4831 o300 b8 51014000 48ab      # push pointer to cons function
-    @!18a b8 @!18b 0200 ':: @!18f
-    @!18f 48c7 o300 8b014000 48ab         # push symbol ::
-
-    @!198 e8 6effffff                     # invoke @:k to generate the closure
-    @!19d e8 aeffffff @!1a2               # invoke :: to add binding
+    4889 o167 f8 c3                       # return new cons cell
 
 # Definition and invocation
 
@@ -490,35 +471,14 @@ problem is that we need to access it as an anonymous entity for the moment.
 Fortunately this is not difficult, since it's on the top of the data stack right
 now. I'm going to stash it onto the return stack for easy access.
 
-    @!1a2 ff o167 f8 @!1a5                  # symbol table pointer
-
 ## Symbol table getter
 
 We refer to this as @> from now on. This function pushes the quadword at
 0x4ffff8 onto the data stack. We don't need to run it right now, so I'm
 jumping over the definition.
 
-    @!1a5 eb0b @!1a7
-    @!1a7 488b o004 o045 f8ff4f00 48ab c3 # (0x4ffff8) -> %rax; stosq; ret
-
-Let's go ahead and cons that onto the symbol table:
-
-    @!1b2 4831 o300 b8 a8014000 48ab      # pointer to @> definition, above
-    @!1bc b8 @!1bd 0200 '@> @!1c1
-    @!1c1 48c7 o300 bd014000 48ab         # push symbol @>
-
-    @!1ca 48b8 @!1cc 0300 '@:k /3/00      # space for @:k
-    @!1d4 4831 o300 b8 cc014000 48ab      # push pointer to symbol @:k
-    @!1de ff o024 o044                    # call top of %rsp (symbol table)
-    @!1e1 ff o127 f8                      # call top of data stack (@:k function)
-
-    @!1e4 b8 @!1e5 0200 ':: @!1e9         # space for ::
-    @!1e9 b8 @!1ea e5014000 48ab          # push pointer to symbol ::
-    @!1f0 ff o024 o044                    # call symbol table to resolve
-    @!1f3 ff o127 f8 @!1f6                # call resolved ::
-
-Now @> is a part of the symbol table, which is still at the top of the stack.
-The next function, @<, sets the symbol table adddress.
+    ::get_symbol_table
+    488b o004 o045 :4[L b:symbol_table] 48ab c3
 
 ## Symbol table setter
 
@@ -530,32 +490,32 @@ due to the fact that we don't have a shortcut quite as nice as stosq.
 First, since this function expects a return continuation, we need to create
 one.
 
-    @!1f6 68 0c024000 @!1fb                       # definition continuation
-    @!1fb 488b o107 f8 4883 o357 08               # data-pop -> %rax;
-    @!203 4889 o004 o045 f8ff4f00 c3 @!20c        # %rax -> (0x4ffff8); ret
+     68 0c024000                        # definition continuation
+     488b o107 f8 4883 o357 08               # data-pop -> %rax;
+     4889 o004 o045 f8ff4f00 c3         # %rax -> (0x4ffff8); ret
 
 At this point the symbol table is installed at the proper address and we are
 ready to write compositions that define things. We still have the symbol table
 on the stack, which is fortuitous because we'll be using it to extend itself.
 
-    @!20c 4831 o300 b8 fb014000 48ab      # pointer to @< definition above
-    @!216 b8 @!217 0200 '@< @!21b
-    @!21b 48c7 o300 17024000 48ab @!224   # push symbol @<
+     4831 o300 b8 fb014000 48ab      # pointer to @< definition above
+     b8  0200 '@< 
+     48c7 o300 17024000 48ab    # push symbol @<
 
 Form the above address/symbol pair into a constant matcher. At that point it
 will be ready to be consed onto the symbol table.
 
-    @!224 48b8 @!226 0300 '@:k /3/00      # space for @:k
-    @!22e 4831 o300 b8 26024000 48ab      # push symbol @:k
-    @!238 ff o024 o044                    # call symbol table to resolve
-    @!23b ff o127 f8 @!23e                # call resolved function
+     48b8  0300 '@:k /3/00      # space for @:k
+     4831 o300 b8 26024000 48ab      # push symbol @:k
+     ff o024 o044                    # call symbol table to resolve
+     ff o127 f8                 # call resolved function
 
 Now store the matcher onto the symbol table using all of the symbols we have
 defined so far:
 
-    @!23e b8 @!23f 0200 '@> @!243
-    @!243 48c7 o300 3f024000 48ab @!24c   # push symbol @>
-    @!24c ff o024 o044 ff o127 f8 @!252   # resolve and invoke
+     b8  0200 '@> 
+     48c7 o300 3f024000 48ab    # push symbol @>
+     ff o024 o044 ff o127 f8    # resolve and invoke
 
 ## Definition symbol
 
@@ -566,3 +526,5 @@ rightmost functions are executed first).
     # TODO
 
     4831 o300 b03c 4831 o377 0f05
+
+    ::bootstrap_end

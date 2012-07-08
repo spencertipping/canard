@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  211da8381c06a8fcde6a4a06565078d3
-# istate: 5c8656e8fc5fea59873e49899bfce77f
+# state:  37fd6a8c582921d1cf8206c1c75ce5fa
+# istate: 2fc49e0bfc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -388,10 +388,10 @@ vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
 __
 meta::cache('parent-state', <<'__');
 3d87f1a4b0694cfebcbfd589fa5ed5dd 18d86397c52aeb07c61f70b50fb20703
-70dae4b46eb4e06798ec6f38d17d4c7b c1206a81092e5ce22267bbd74981485d
+70dae4b46eb4e06798ec6f38d17d4c7b c836bdf70b43abfd4a2e2440100a5f8f
 902333a0bd6ed90ff919fe8477cb4e69 ddfdd081247cac098af00ce79198d1fd
-93194ecf50e38f2adb6e273909e007b5 fe51e1d2037ffa05ad735616f8fdaf40
-99aeabc9ec7fe80b1b39f5e53dc7e49e 6ae770c53c8d71e9d53a74bffc921f9b
+93194ecf50e38f2adb6e273909e007b5 78b8637d85c49386339c614106100448
+99aeabc9ec7fe80b1b39f5e53dc7e49e e024d1ddb534961d35855863dea1e160
 9fabb9b6f2f374c35ddcc26549ac2b65 56dab921dd9ddd719d024bf3400d9cec
 a1e8480e579614c01dabeecf0f963bcc 7735c8c339814d357b2825e7eb3425ee
 a9e5975593ed5d90d943ad98405c71e5 4471aca86a04a4d75c21cf5090c71011
@@ -497,8 +497,8 @@ meta::function('compile-binary', <<'__');
 # /\/(\d+)\//           <- repeat next byte \1 times
 #
 # Assembler:
-# /::(\w\+)/            <- create label \1 pointing to next byte offset
-# /:\d\+\[([^\]]+)\]/   <- insert bytes resulting from expression evaluation
+# /::([^' ]\+)/         <- create label \1 pointing to next byte offset
+# /:\d*\[([^\]]+)\]/    <- insert bytes resulting from expression evaluation
 #
 # The assembler gives you a language you can use to evaluate expressions. It's
 # ultimately a preprocessor transform to Perl; that is, a few string
@@ -507,11 +507,11 @@ meta::function('compile-binary', <<'__');
 # matches the number before the open bracket. Here are the preprocessor
 # transformations:
 #
-# s/:(\w+)/$places{'\1'}/g              <- label references
 # s/:</$o/g                             <- offset at beginning of expression
-# s/:>/($o + $expression_sizes{$o})/g   <- offset at end of expression
-# s/L(\d)([^A-Z]*)/&$le(\1, \2)/g       <- little-endian integer encoding
-# s/B(\d)([^A-Z]*)/&$be(\1, \2)/g       <- big-endian integer encoding
+# s/:>/($o + $e{size})/g                <- offset at end of expression
+# s/::?([^' ]+)/$places{'\1'}/g         <- label references
+# s/L(\d)?(.*)/&$le(\1, \2)/g           <- little-endian integer encoding
+# s/B(\d)?(.*)/&$be(\1, \2)/g           <- big-endian integer encoding
 #
 # Little-endian and big-endian encoders take a numeric argument indicating how
 # many bytes should be encoded. This number is limited only by Perl's numerical
@@ -519,7 +519,8 @@ meta::function('compile-binary', <<'__');
 # are sign-extended to the requested byte width.
 #
 # You can use 0 width to evaluate an expression with no output; that is, some
-# form of side-effect.
+# form of side-effect. In this case, the bracketed expression's value is ignored
+# and no length check occurs.
 #
 # Note that all expressions are evaluated after the basic image has been
 # generated. This allows you to use forward references to labels.
@@ -529,7 +530,6 @@ my $hex_letters = '0123456789abcdef';
 
 my %places;
 my %expressions;
-my %expression_sizes;
 my @output;
 
 my $offset     = 0;
@@ -543,43 +543,56 @@ my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters
 my $until      = sub {my $address = hex $_[0]; "\0" x ($address - $offset)};
 my $debug      = sub {printf STDERR "%s: 0x%x\n", $_[0], $offset; ''};
 my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)", hex $_[0], $offset unless $offset == hex $_[0]; ''};
-my $label      = sub {die sprintf "label %s is defined twice" if exists $labels{$_[0]}; $labels{$_[0]} = $offset; ''};
-my $expression = sub {$expression_sizes{$offset} = $_[0]; $expressions{$offset} = $_[1]; 'E' x $_[0]};
+my $label      = sub {die sprintf "label %s is defined twice" if exists $places{$_[0]}; $places{$_[0]} = $offset; ''};
+my $expression = sub {push @{$expressions{$offset} ||= []}, {size => $_[0], e => $_[1]}; 'E' x $_[0]};
 
 my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
 
 my @tokens = split m#('\S+ | -[01]{8} | o[0-3][0-7]{2} | [0-9a-f]{2} | @\?\S+ |
-                      @!?[0-9a-f]+ | /\d+/ | ::\w+ | :\d\[[\]]+\])#x, $text;
+                      @!?[0-9a-f]+ | /\d+/ | ::\S+ | :\d*\[[^\]]+\])#x, $text;
 
 &$emit(/^'(\S+)/        ? &$ascii($1)  : /^@\?(\S+)/          ? &$debug($1) :
        /^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/  ? &$octal($1) :
        /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/      ? &$until($1) :
        /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/       ? &$hex($_)   :
 
-       /^::(\w+)/           ? &$label($1)          :
-       /^:(\d)\[([^\]]+)\]/ ? &$expression($1, $2) : '') for @tokens;
+       /^::(\S+)/            ? &$label($1)          :
+       /^:(\d*)\[([^\]]+)\]/ ? &$expression($1, $2) : '') for @tokens;
 
 # Now go through and evaluate every expression. Right now the spaces for the
 # results contain repetitions of the byte 'E'.
 my $concatenated = join '', @output;
 
-my $le = sub {join '', map chr($_[1] >> $_ * 8 & 255), reverse 0 .. $_[0] - 1};
-my $be = sub {join '', map chr($_[1] >> $_ * 8 & 255),         0 .. $_[0] - 1};
+my $le = sub {join '', map chr($_[1] >> $_ * 8 & 255),         0 .. $_[0] - 1};
+my $be = sub {join '', map chr($_[1] >> $_ * 8 & 255), reverse 0 .. $_[0] - 1};
 
 for my $o (sort {$a <=> $b} keys %expressions) {
-  $_ = $expressions{$o};
-  s/:(\w+)/\$places{'\1'}/g;
-  s/:\</$o/g, s/:\>/($o + $expression_sizes{$o})/g;
-  s/<L(\d)([^A-Z]+)/&\$le(\1, \2)/g;
-  s/<B(\d)([^A-Z]+)/&\$be(\1, \2)/g;
+  for my $e (@{$expressions{$o}}) {
+    my $expression = $$e{e};
+    my $size       = $$e{size};
 
-  my $result = eval;
-  die "error evaluating $expressions{$o}: $@" if $@;
-  die "result of $expressions{$o} is " . length($result) .
-      " bytes; expected $expression_sizes{$o}"
-      if length($result) != $expression_sizes{$o};
+    $_ = $expression;
 
-  substr($concatenated, $o, $expression_sizes{$o}) = $result;
+    s/:</$o/g, s/:>/($o + $size)/g;
+
+    # :: is unchecked, : is checked
+    s/::([^' ]+)/\$places{'$1'}/g;
+    s-:([^' ]+)-(\$places{'$1'} // die '$1 is not a defined label')-g;
+
+    s/L([1-9])?(.+)/&\$le(($1) || $size, $2)/g;
+    s/B([1-9])?(.+)/&\$be(($1) || $size, $2)/g;
+
+    my $result = eval;
+    die "error evaluating $_ as $expression: $@" if $@;
+
+    if ($size) {
+      die "result of $_ as $expression is " . length($result) .
+          " bytes; expected $size"
+          if length($result) != $size;
+
+      substr($concatenated, $o, $size) = $result;
+    }
+  }
 }
 
 $concatenated;
@@ -1223,6 +1236,9 @@ around_hook('update-from-invocation', separate_options(@_), sub {
   my $force             = $$options{'-f'} || $$options{'--force'};
   my $clobber_divergent = $$options{'-D'} || $$options{'--clobber-divergent'};
 
+  my $can_skip_already_seen = !($$options{'-K'} || $$options{'--no-skip'}) &&
+                              !$force && !$clobber_divergent;
+
   save_state('before-update') unless $no_state;
 
   for my $target (@targets) {
@@ -1233,7 +1249,8 @@ around_hook('update-from-invocation', separate_options(@_), sub {
       terminal::warning("$target_filename has no externally visible metadata (makes updating slower)") unless $parent_metadata{id};
 
       my $identity = $parent_id_cache{$target} ||= $parent_metadata{id} || join '', qx($target identity);
-      next if $already_seen{$identity} || $parent_state_cache{$identity} eq $parent_metadata{istate};
+      next if $can_skip_already_seen and
+              $already_seen{$identity} || $parent_state_cache{$identity} eq $parent_metadata{istate};
 
       my $attributes = join '', qx($target ls -ahiu);
       my %divergent;
@@ -2055,11 +2072,11 @@ will be used at most once for each symbol.
 
 __
 meta::parent('binary', <<'__');
-function::compile-binary  4564c26fb50a4a0b11aaa27766e3c759
+function::compile-binary  d2b26dc5bc0f76dbc5a8cfa39bfbcce6
 meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
 parent::vim-highlighters  ca2d38050b4c851157b4cba70d48c68a
 retriever::bin            24b2382d3f002ee325963a5c652c53ff
-vim_highlighter::binary   c2a280daa6dc73806bd00c06ea92e6c7
+vim_highlighter::binary   47bce7f1d6a2ab114ed7b1c65808bbf9
 
 __
 meta::parent('canard-object', <<'__');
@@ -2222,7 +2239,7 @@ meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
 parent::object                 1eb57805f5368d0d6692124a93814e73
 retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
 template::comment              dfe273d2dad3d8159b847545e4e5c309
-template::def                  92f0cd3353dc6dcd4f0ee3ffca7fd928
+template::def                  6298278ca5c461d4380ff02498a6103d
 template::eval                 1a0e2124a05056be4abc11803883c294
 template::failing_conditional  e3a4523110dd859e828f342185de7c62
 template::include              47b5552d609d97fe7f2522d5c1027014
@@ -2237,7 +2254,7 @@ function::sdoc-packed     8ec4975fca7228708baae6ccd241bdbf
 function::sdocp           c3d738d982ba87418a298ff58478a85b
 meta::type::sdoc          22cd7315641d38c9d536344e83c36bed
 meta::type::slibrary      95474943c4a5f8ff17d3cf66ddb7c386
-parent::object            1eb57805f5368d0d6692124a93814e73
+parent::object            a37424dde13ac2d896d5d1f6c48603d7
 retriever::code-sdoc      03b87ff8d1ecf7594db9ca0669fc69a1
 retriever::html-sdoc      8ab7705d03276945b23a71677153233c
 retriever::markdown-sdoc  67c34ba8223ec36a3ae018e411354db2
@@ -2248,7 +2265,7 @@ retriever::sdocp          fcfcf3a7de79d7d863402b9ccfcac3c4
 __
 meta::parent('text', <<'__');
 function::wrapped-near   b34731b33db1a4b56c724b1aa5c97f6d
-parent::object           1eb57805f5368d0d6692124a93814e73
+parent::object           a37424dde13ac2d896d5d1f6c48603d7
 retriever::wrapped-near  1b00aeef9dbd19633a1fedc443b846e8
 
 __
@@ -2338,16 +2355,13 @@ Canard bootstrap interpreter | Spencer Tipping
 Licensed under the terms of the MIT source code license
 
 Introduction.
-Basic syntax used in this file is:
+This file is written in preprocessed binary text, a format defined by the
+'binary' and 'preprocessor' self-modifying Perl objects. You can get these
+objects from http://github.com/spencertipping/perl-objects; the HTML files allow
+you to inspect them online:
 
-| 1. Address assertion: @!address. Dies unless the next byte will be emitted at
-     the given address. I use these to verify/document the code.
-  2. Address displacement: @address. Inserts null bytes until the given address
-     is reached.
-  3. /n/byte - byte repeated n times (n is decimal, not hex).
-
-That's about it. The rest is just binary data written verbatim in hex (no
-prefix), octal (o prefix), binary (- prefix), or ASCII (' prefix).
+| http://spencertipping.com/perl-objects/binary.html
+  http://spencertipping.com/perl-objects/preprocessor.html
 
   Conventions.
   The most consistent convention I use is encoding the ModR/M and SIB bytes in
@@ -2364,60 +2378,67 @@ prefix), octal (o prefix), binary (- prefix), or ASCII (' prefix).
 
   I avoid using any prefix aside from REX.W, which is encoded as 48 and is a
   fairly good giveaway that something is an opcode. (I also use 66 as needed.)
-  Multi-byte immediate operands are generally separate from opcodes:
 
-  | push $0x400010              # push a 32-bit immediate
-    68 10004000
-     |  |
-     |  +-- immediate: little-endian, so bytes are reversed
-     +----- opcode: 68 = push 32-bit immediate
+  Constants.
+  These dictate where the image goes and how big it is in memory. This is
+  related to virtual addressing.
+
+  :[::image_base = 0x400000]
+  :[::image_size = 0x100000]
+  :[sub b { shift(@_) + :image_base }]
+
+  :[::image_end  = b:image_size]
 
 ELF header.
 See elf(5) for details about what this is made of.
 
-# Elf64_Ehdr                    # e_ident
-@!00 7f 'ELF                    #   ELF magic
-@!04 02                         #   64-bit binary
-@!05 01                         #   Two's complement little-endian
-@!06 01                         #   Current ELF version
-@!07 00                         #   System V UNIX ABI
+::bootstrap_begin
 
-@!08 00                         #   ABI version
-@!09 /7/00                      # padding; end
+::elf_ehdr_begin                # e_ident array
+  ::elf_e_ident    7f 'ELF      # ELF magic
+  ::elf_ei_class   02           # 64-bit binary
+  ::elf_ei_data    01           # Two's complement little-endian
+  ::elf_ei_version 01           # Current ELF version
+  ::elf_ei_osabi   00           # System V UNIX ABI
 
-@!10 02 00                      # e_type    = Executable file
-@!12 3e 00                      # e_machine = x86-64
-@!14 01 00 00 00                # e_version = current version
-@!18 78 00 40 00 /4/00          # e_entry
+  ::elf_ei_abiversion 00        # ABI version
+  ::elf_ei_padding /7/00        # padding; end of e_ident
 
-@!20 40 00 00 00 /4/00          # e_phoff
-@!28 00 00 00 00 /4/00          # e_shoff
+  ::elf_e_type      :2[L 2]     # Executable file
+  ::elf_e_machine   :2[L 0x3e]  # x86-64
+  ::elf_e_version   :4[L 1]     # current version
 
-@!30 /4/00                      # e_flags
-@!34 40 00                      # e_ehsize
-@!36 38 00                      # e_phentsize
-@!38 01 00                      # e_phnum
+  ::elf_e_entry     :8[L :image_base + :entry]
 
-@!3a 0000                       # e_shentsize
-@!3c 0000                       # e_shnum
-@!3e 0000                       # e_shstrndx
+  ::elf_e_phoff     :8[L :phdr_begin]
+  ::elf_e_shoff     :8[L 0]     # no section headers
 
-@!40
-# end
+  ::elf_e_flags     :4[L 0]
+  ::elf_e_ehsize    :2[L :elf_ehdr_end - :elf_ehdr_begin]
+  ::elf_e_phentsize :2[L :phdr_end     - :phdr_begin]
+  ::elf_e_phnum     :2[L 1]
 
-# Elf64_Phdr (rwx image -- this contains code and definitions)
-@!40 01 00 00 00                # p_type  = PT_LOAD
-@!44 07 00 00 00                # p_flags = PT_R | PT_W | PT_X
+  ::elf_e_shentsize :2[L 0]
+  ::elf_e_shnum     :2[L 0]
+  ::elf_e_shstrndx  :2[L 0]
+::elf_ehdr_end
 
-@!48 00 00 00 00 /4/00          # p_offset (includes ELF header)
-@!50 00 00 40 00 /4/00          # p_vaddr
-@!58 00 00 00 00 /4/00          # p_paddr
-@!60 00 04 00 00 /4/00          # p_filesz (this gets used in code; see below)
-@!68 00 00 10 00 /4/00          # p_memsz
-@!70 00 10 00 00 /4/00          # p_align
+Program header for main image.
+This section is read/write/execute and contains the bootstrap code, data stack,
+and heap. It doesn't contain the return stack since we use the OS-provided one.
 
-@!78
-# end
+First we need to define some constants:
+
+::phdr_begin
+  ::phdr_p_type   :4[L 1]         # PT_LOAD
+  ::phdr_p_flags  :4[L 4 | 2 | 1] # PT_R | PT_R | PT_X
+  ::phdr_p_offset :8[L 0]
+  ::phdr_p_vaddr  :8[L :image_base]
+  ::phdr_p_paddr  :8[L 0]
+  ::phdr_p_filesz :8[L :bootstrap_end - :bootstrap_begin]
+  ::phdr_p_memsz  :8[L :image_size]
+  ::phdr_p_align  :8[L 0x1000]
+::phdr_end
 
 Core image layout.
 The core image consists of two stacks and a heap. The stacks go in opposite
@@ -2445,38 +2466,40 @@ immediately invokes the 'main' symbol; this function contains logic for the
 interpreter/REPL. The original value of %rsp (the one that the OS provided) is
 pushed onto the data stack prior to invoking 'main'.
 
+  Global state.
+  The interpreter has one global variable aside from the stack/heap registers.
+  This variable is the symbol table, which is used by the bootstrap interpreter
+  to resolve any symbols entered by the user.
+
+  ::symbol_table :8[L 0]
+
+  Symbol constants.
+  We refer to some constants throughout the code below, most of which are
+  symbols. The bootstrap image is smaller if we pull them out of the code
+  itself, since this way we won't have to jump around them or write the
+  constants as the immediate data of a mov instruction.
+
+  ::@main 0400 'main  ::@@:k 0300 '@:k
+  ::@::   0200 '::    ::@@?k 0300 '@?k
+
   Register initialization.
   Set up these registers to point to useful places. %rsp is provided by the OS,
   so we don't need to do anything else with it. We set up %rdi and %rsi like
   this:
 
-  | +-- 400000   +-- 400078       +-- 40xxxx            +-- 500000
+  | +-- 400000   +-- 0x400080     +-- 40xxxx            +-- 500000
     V            V                V                     V
     | ELF header | bootstrap code | data stack ... heap | .... | %rsp stack
 
   I'm leaving the data stack lower bound as a variable here because it depends
   on the amount of bootstrap code that we use. But the idea is the same either
-  way; the data stack begins immediately after the bootstrap logic. In order to
-  make this as automatic as possible, we grab the value from the ELF header. In
-  this case, we want to add 0x400000 to the p_filesz field in the first program
-  header entry; this field is located at 0x400060.
+  way; the data stack begins immediately after the bootstrap logic.
 
-  Because this number is frequently used, I'm storing it in %rbp during the
-  initialization process.
+  :[::file_end = :image_base + :phdr_p_filesz]
 
-  @!78 488b o054 o045 60004000 @!80     # get p_filesz
-  @!80 4881 o305      00004000 @!87     # add p_vaddr to get memory offset
-
-  At this point %rbp points to the bottom (lowest address) of the data stack.
-
-  @!87 488b o375                # initialize %rdi to bottom of data stack
-       48c7 o306 f8ff4f00       # initialize %rsi to top of heap minus 8
-       488b o304 48ab @!96      # %rsp -> %rax; stosq to push onto data stack
-
-  I'm leaving an 8-byte slot open at the top of the heap. This is used to keep
-  track of the current global symbol table cons cell, since it changes every
-  time we define something. This is the only piece of global mutable state
-  maintained by the interpreter (aside from the stacks and heap).
+  ::entry
+  ::rdi_init 48c7 o305 :4[L :file_end]
+  ::rsi_init 48c7 o306 :4[L :image_end]
 
   At this point the registers are initialized, so we can write to both stacks
   and to the heap. We need to set up a 'return' into the exit function so that
@@ -2484,7 +2507,7 @@ pushed onto the data stack prior to invoking 'main'.
   list) it will die gracefully. First let's push the exit function address onto
   the return stack:
 
-  @!96 68 bebafeca @!9b                 # FIXME once we define exit
+  ::init_return 68 bebafeca     # FIXME once we define exit
 
   Now push the symbol 'main' onto the data stack and call the symbol table. This
   boots up the interpreter.
@@ -2496,19 +2519,7 @@ pushed onto the data stack prior to invoking 'main'.
   will work transparently provided that the total number of bytes doesn't exceed
   the limit of 65535.
 
-  What we need to do here is encode the symbol 'main. We don't actually need to
-  write it again since it's already present in the symbol table; however, this
-  provides a good functional test of the symbol resolution code so it's worth
-  doing. We can drop the symbol directly into the machine code and just refer to
-  it by absolute address.
-
-  We can easily drop short symbols directly into machine code by using a
-  mov-immediate into %rax that will be subsequently overwritten. The advantage
-  of doing things this way is that disassemblers won't have to follow jumps to
-  figure out where the instructions are.
-
-  @!9b 48b8 @!9d 0400 'main /2/00 @!a5
-  @!a5 48c7 o300 9d004000 48ab    @!ae  # data-push the 'main symbol address
+  ::push_main 4831 o300 48b8 :4[L b:@main] 48ab
 
   Now do a symbol table lookup to get the address. When this returns, we'll have
   the address of the 'main function on top of the data stack.
@@ -2521,7 +2532,7 @@ First, the symbol table is ultimately a function composition, which is
 represented in Canard as a linked list of cons cells. So the general form is
 something like this:
 
-| 4ffff8: 00000000ssssssss
+| symbol_table: 00000000ssssssss
   ssssssss: e8 xxxxxxxx | e8 yyyyyyyy | e9 zzzzzzzz
   zzzzzzzz: e8 qqqqqqqq | ... | c3
 
@@ -2531,14 +2542,14 @@ very end is a RET instruction; the result of this is that if no resolver can
 handle the symbol you pass in, the symbol table just hands you your symbol back.
 In list form, this corresponds to a nil as the final tail.
 
-@!ae 48ff o316    @!b1          # allocate one byte for nil
-@!b1 c6   o006 c3 @!b4          # move the byte c3 to this address
-
-@!b4 488b o306 48ab @!b9        # push the c3 reference onto the data stack
+  ::init_symbol_table
+  ff   o316             # allocate one byte for nil
+  c6   o006 c3          # move the byte c3 to this address
+  488b o306 48ab        # push the c3 reference onto the data stack
 
 At this point, the heap looks like this:
 
-| %rsi -> | c3 | xxxxxxxx xxxxxxxx |
+| %rsi -> | c3 | :image_end
 
   Matchers and symbol resolution.
   Each function in the symbol table composition is a matcher. This means that it
@@ -2596,9 +2607,11 @@ At this point, the heap looks like this:
   run. After the definition/invocation, we'll have the first symbol table entry
   on the data stack, ready to be consed into the symbol table.
 
-  @!b9 48c7 o300 0b014000 48ab   @!c2   # data-push code reference
-  @!c2 48b8 @!c4 0300 '@:k /3/00 @!cc   # literal symbol @:k
-  @!cc 48c7 o300 c4004000 48ab   @!d5   # data-push symbol reference
+  It's ok to omit the 48 prefix because the high 32 bits of %rax are known to be
+  zero here. If this ever changes, then this code will cause a segfault.
+
+  c7 o300 :4[L b:generate_constant_matcher] 48ab
+  c7 o300 :4[L b:@@:k]                      48ab
 
   Now we can write the matcher generator here, running the code on its own
   definition in the process. We can easily compute the amount of space required
@@ -2639,8 +2652,6 @@ At this point, the heap looks like this:
   None of this requires any interaction with the symbol table, which at this
   point is not yet functional.
 
-  @!d5 eb2f @!d7                        # jump over constant_matcher
-
   Constant matcher definition.
   The constant matcher just compares bytes within a contiguous region of memory.
   It takes two symbols and a binding address as data stack arguments; the
@@ -2677,47 +2688,42 @@ At this point, the heap looks like this:
   This function ends up being bound as @?k in the symbol table. We bind this
   once we've defined cons and bind below.
 
-  @!d7  488b o157 f8                    # -8(%rdi) -> %rbp
-  @!db  488b o107 f0                    # -16(%rdi) -> %rax
-  @!df  488b o137 e8                    # -24(%rdi) -> %rbx
-  @!e3  4883 o357 10                    # %rdi -= 16 (pop two entries)
+  ::constant_matcher
+  488b o157 f8                  # -8(%rdi) -> %rbp
+  488b o107 f0                  # -16(%rdi) -> %rax
+  488b o137 e8                  # -24(%rdi) -> %rbx
+  4883 o357 10                  # %rdi -= 16 (pop two entries)
 
-  @!e7  4831 o311 668b o010             # %rcx = length
-  @!ed  6639 o013 e101 c3               # length check + bailout
+  4831 o311 668b o010           # %rcx = length
+  6639 o013 e101 c3             # length check + bailout
 
-  @!f3  8a   o124 o013 02               # top of loop: populate %dl
-  @!f7  38   o124 o010 02               # compare characters
-  @!fb  7401 c3                         # bail if not equal
-  @!fe  e2   f3 @!100                   # next character
+  ::constant_matcher_loop
+  8a   o124 o013 02             # top of loop: populate %dl
+  38   o124 o010 02             # compare characters
+  7401 c3                       # bail if not equal
+  e2   :1[L :constant_matcher_loop - :>]
 
-  @!100 4889 o157 f8                    # %rbp -> -8(%rdi)
-  @!104 58 c3                           # return continuation
-  @!106
+  4889 o157 f8                  # %rbp -> -8(%rdi)
+  58 c3                         # pop; invoke return continuation
 
-  Now we have the constant matcher function defined at address 0x4000d7, so we
-  can go ahead and define/execute the generate_constant_matcher function,
-  referred to as @:k from now on.
+  Here's the definition of generate_constant_matcher. Push a trivial return
+  address here so that the function below will return to the continuation
+  immediately following its definition.
 
-  Push a trivial return address here so that the function below will return to
-  the continuation immediately following its definition.
+  ::generate_constant_matcher
+  488b o107 f8                    # symbol pointer
+  488b o137 f0                    # binding
+  4883 o357 08                    # pop one (we replace the other later)
 
-  @!106 68 4b014000 @!10b               # definition continuation
-
-  @!10b 488b o107 f8                    # symbol pointer
-  @!10f 488b o137 f0                    # binding
-  @!113 4883 o357 08                    # pop one (we replace the other later)
-
-  @!117 488b o316                               # %rsi -> %rcx
-  @!11a 4883 o356 1d                            # %rsi -= 29
-  @!11e 66c7 o006 48b8      4889 o106 02        # 48b8, symbol pointer
-  @!127 c7 o106 0a 48ab48b8 4889 o136 0e        # 48b8, 48ab, binding
-  @!132 c7 o106 16 48abe900                     # 48ab, e9
-  @!139 48c7 o300 d8004000                      # $constant_matcher -> %rax
-  @!140 482b o301 89 o106 19                    # 25(%rsi) = %rax - %rcx
-  @!146 4889 o167 f8                            # %rsi -> -8(%rdi)
-  @!14a c3
-
-  @!14b
+  488b o316                                       # %rsi -> %rcx
+  4883 o356 1d                                    # %rsi -= 29
+  66c7 o006 48b8        4889 o106 02              # 48b8, symbol pointer
+  c7   o106 0a 48ab48b8 4889 o136 0e              # 48b8, 48ab, binding
+  c7   o106 16 48abe900                           # 48ab, e9
+  48c7 o300 :4[L :image_base + :constant_matcher] # $constant_matcher -> %rax
+  482b o301 89 o106 19                            # 25(%rsi) = %rax - %rcx
+  4889 o167 f8                                    # %rsi -> -8(%rdi)
+  c3
 
   At this point we have a constant matcher for @:k on the top of the data stack
   with a pointer to nil beneath that. This is ideal for the setup that happens
@@ -2767,36 +2773,24 @@ into a single byte on the heap.
     data-push %rsi              <- return reference to this cons cell
     ret
 
-  As usual, we need to push a return continuation before we define/execute this
-  code.
+  Some optimization has been done around the stack parameters. In particular,
+  since we end up pushing the result, we can just pop one instead of popping
+  both; then we can write the result over the parameter that we didn't pop.
 
-  @!14b 68 81014000 @!150
+  ::cons
+  488b o107 f8                          # head element
+  488b o137 f0                          # tail element
+  4883 o357 08                          # pop one
 
-  @!150 488b o107 f8            # head element
-  @!154 488b o137 f0            # tail element
-  @!158 4883 o357 08            # pop one (the other will be overwritten)
+  4839 o336 74 :1[L :cons_head - :>]    # tail allocation check
+  482b o336 89 o136 fc                  # relative, write e9 jump offset
+  4883 o356 05 c6 o006 e9               # allocate space, write e9 jump opcode
 
-  @!15c 4839 o336 740d                  # tail allocation check
-  @!161 482b o336 89 o136 fc            # relative, write e9 jump offset
-  @!167 4883 o356 05 c6 o006 e9         # allocate space, write e9 jump opcode
+  ::cons_head
+  482b o306 89 o106 fc                  # relative, write e8 call offset
+  4883 o356 05 c6 o006 e8               # allocate space, write e8 call opcode
 
-  @!16e 482b o306 89 o106 fc            # relative, write e8 call offset
-  @!174 4883 o356 05 c6 o006 e8         # allocate space, write e8 call opcode
-
-  @!17b 4889 o167 f8 c3                 # return new cons cell
-  @!180
-
-  At this point we have the cons cell of @:k's definition and nil. This now
-  needs to be set as the symbol table; but before we do that, we need to add
-  cons and create a function that updates the symbol table address. First let's
-  bind cons.
-
-  @!180 4831 o300 b8 51014000 48ab      # push pointer to cons function
-  @!18a b8 @!18b 0200 ':: @!18f
-  @!18f 48c7 o300 8b014000 48ab         # push symbol ::
-
-  @!198 e8 6effffff                     # invoke @:k to generate the closure
-  @!19d e8 aeffffff @!1a2               # invoke :: to add binding
+  4889 o167 f8 c3                       # return new cons cell
 
 Definition and invocation.
 This is the last piece of the symbol table. We need two more functions; the
@@ -2813,34 +2807,13 @@ problem is that we need to access it as an anonymous entity for the moment.
 Fortunately this is not difficult, since it's on the top of the data stack right
 now. I'm going to stash it onto the return stack for easy access.
 
-@!1a2 ff o167 f8 @!1a5                  # symbol table pointer
-
   Symbol table getter.
   We refer to this as @> from now on. This function pushes the quadword at
   0x4ffff8 onto the data stack. We don't need to run it right now, so I'm
   jumping over the definition.
 
-  @!1a5 eb0b @!1a7
-  @!1a7 488b o004 o045 f8ff4f00 48ab c3 # (0x4ffff8) -> %rax; stosq; ret
-
-  Let's go ahead and cons that onto the symbol table:
-
-  @!1b2 4831 o300 b8 a8014000 48ab      # pointer to @> definition, above
-  @!1bc b8 @!1bd 0200 '@> @!1c1
-  @!1c1 48c7 o300 bd014000 48ab         # push symbol @>
-
-  @!1ca 48b8 @!1cc 0300 '@:k /3/00      # space for @:k
-  @!1d4 4831 o300 b8 cc014000 48ab      # push pointer to symbol @:k
-  @!1de ff o024 o044                    # call top of %rsp (symbol table)
-  @!1e1 ff o127 f8                      # call top of data stack (@:k function)
-
-  @!1e4 b8 @!1e5 0200 ':: @!1e9         # space for ::
-  @!1e9 b8 @!1ea e5014000 48ab          # push pointer to symbol ::
-  @!1f0 ff o024 o044                    # call symbol table to resolve
-  @!1f3 ff o127 f8 @!1f6                # call resolved ::
-
-  Now @> is a part of the symbol table, which is still at the top of the stack.
-  The next function, @<, sets the symbol table adddress.
+  ::get_symbol_table
+  488b o004 o045 :4[L b:symbol_table] 48ab c3
 
   Symbol table setter.
   We don't skip over this one for reasons I'll explain in a moment (but the most
@@ -2851,32 +2824,32 @@ now. I'm going to stash it onto the return stack for easy access.
   First, since this function expects a return continuation, we need to create
   one.
 
-  @!1f6 68 0c024000 @!1fb                       # definition continuation
-  @!1fb 488b o107 f8 4883 o357 08               # data-pop -> %rax;
-  @!203 4889 o004 o045 f8ff4f00 c3 @!20c        # %rax -> (0x4ffff8); ret
+   68 0c024000                        # definition continuation
+   488b o107 f8 4883 o357 08               # data-pop -> %rax;
+   4889 o004 o045 f8ff4f00 c3         # %rax -> (0x4ffff8); ret
 
   At this point the symbol table is installed at the proper address and we are
   ready to write compositions that define things. We still have the symbol table
   on the stack, which is fortuitous because we'll be using it to extend itself.
 
-  @!20c 4831 o300 b8 fb014000 48ab      # pointer to @< definition above
-  @!216 b8 @!217 0200 '@< @!21b
-  @!21b 48c7 o300 17024000 48ab @!224   # push symbol @<
+   4831 o300 b8 fb014000 48ab      # pointer to @< definition above
+   b8  0200 '@< 
+   48c7 o300 17024000 48ab    # push symbol @<
 
   Form the above address/symbol pair into a constant matcher. At that point it
   will be ready to be consed onto the symbol table.
 
-  @!224 48b8 @!226 0300 '@:k /3/00      # space for @:k
-  @!22e 4831 o300 b8 26024000 48ab      # push symbol @:k
-  @!238 ff o024 o044                    # call symbol table to resolve
-  @!23b ff o127 f8 @!23e                # call resolved function
+   48b8  0300 '@:k /3/00      # space for @:k
+   4831 o300 b8 26024000 48ab      # push symbol @:k
+   ff o024 o044                    # call symbol table to resolve
+   ff o127 f8                 # call resolved function
 
   Now store the matcher onto the symbol table using all of the symbols we have
   defined so far:
 
-  @!23e b8 @!23f 0200 '@> @!243
-  @!243 48c7 o300 3f024000 48ab @!24c   # push symbol @>
-  @!24c ff o024 o044 ff o127 f8 @!252   # resolve and invoke
+   b8  0200 '@> 
+   48c7 o300 3f024000 48ab    # push symbol @>
+   ff o024 o044 ff o127 f8    # resolve and invoke
 
   Definition symbol.
   Definition involves reading, consing, and writing the symbol table. The core
@@ -2886,6 +2859,8 @@ now. I'm going to stash it onto the return stack for easy access.
   # TODO
 
   4831 o300 b03c 4831 o377 0f05
+
+  ::bootstrap_end
 
 __
 meta::sdoc('boot-debug.gdb', <<'__');
@@ -3194,8 +3169,10 @@ my $body_binding       = "my \$body = \$_[1]";
 my $heredoc_delimiter  = state();
 
 meta::externalize "template::$name", "- def $name @formals",
-  "sub {\n$parameter_bindings;\n$body_binding;\n" .
-  "<<$heredoc_delimiter\n$body\n$heredoc_delimiter\n}";
+  eval "sub {\n$parameter_bindings;\n$body_binding;\n" .
+       "<<$heredoc_delimiter\n$body\n$heredoc_delimiter\n}";
+
+die $@ if $@;
 
 # No output from this template.
 '';
@@ -3243,13 +3220,14 @@ syn match bt_place              -@![0-9a-f]\+-
 syn match bt_debug              -@?\w\+-
 syn match bt_ascii              -'\S\+-
 
-syn match bt_label              /::\w\+/
+syn match bt_label              /::\S\+/
 
-syn region bt_expression        matchgroup=bt_expression_bracket start=/:\d\[/ end=/]/
-syn match  bt_label_ref         /:\w\+/  contained containedin=bt_expression
-syn match  bt_here              /:</     contained containedin=bt_expression
-syn match  bt_there             /:>/     contained containedin=bt_expression
-syn match  bt_endian            /[BL]\d/ contained containedin=bt_expression
+syn region bt_expression        matchgroup=bt_expression_bracket start=/:\d*\[/ end=/]/ keepend
+syn match  bt_label_definition  /::\S\+/      contained containedin=bt_expression
+syn match  bt_label_ref         /:\S\+/       contained containedin=bt_expression
+syn match  bt_here              /:</          contained containedin=bt_expression
+syn match  bt_there             /:>/          contained containedin=bt_expression
+syn match  bt_endian            /[BL][1-9]\?/ contained containedin=bt_expression
 syn match  bt_perl_number       /0x[0-9a-f]\+\|0[0-7]\+\|\d\+/ contained containedin=bt_expression
 
 hi link bt_line_comment      Comment
@@ -3264,7 +3242,8 @@ hi link bt_ascii             String
 
 hi link bt_label              Identifier
 hi link bt_expression_bracket Special
-hi link bt_label_ref          Type
+hi link bt_label_ref          Identifier
+hi link bt_label_definition   Identifier
 hi link bt_here               Keyword
 hi link bt_there              Keyword
 hi link bt_endian             Special
