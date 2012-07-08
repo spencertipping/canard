@@ -530,12 +530,39 @@ due to the fact that we don't have a shortcut quite as nice as stosq.
 First, since this function expects a return continuation, we need to create
 one.
 
-    @!1f6 68 08024000 @!1fb                       # definition continuation
-    @!1fb 488b o107 f8                            # -8(%rdi) -> %rax
-    @!1ff 4889 o004 o045 f8ff4f00 c3 @!208        # %rax -> (0x4ffff8); ret
+    @!1f6 68 0c024000 @!1fb                       # definition continuation
+    @!1fb 488b o107 f8 4883 o357 08               # data-pop -> %rax;
+    @!203 4889 o004 o045 f8ff4f00 c3 @!20c        # %rax -> (0x4ffff8); ret
 
 At this point the symbol table is installed at the proper address and we are
 ready to write compositions that define things. We still have the symbol table
 on the stack, which is fortuitous because we'll be using it to extend itself.
+
+    @!20c 4831 o300 b8 fb014000 48ab      # pointer to @< definition above
+    @!216 b8 @!217 0200 '@< @!21b
+    @!21b 48c7 o300 17024000 48ab @!224   # push symbol @<
+
+Form the above address/symbol pair into a constant matcher. At that point it
+will be ready to be consed onto the symbol table.
+
+    @!224 48b8 @!226 0300 '@:k /3/00      # space for @:k
+    @!22e 4831 o300 b8 26024000 48ab      # push symbol @:k
+    @!238 ff o024 o044                    # call symbol table to resolve
+    @!23b ff o127 f8 @!23e                # call resolved function
+
+Now store the matcher onto the symbol table using all of the symbols we have
+defined so far:
+
+    @!23e b8 @!23f 0200 '@> @!243
+    @!243 48c7 o300 3f024000 48ab @!24c   # push symbol @>
+    @!24c ff o024 o044 ff o127 f8 @!252   # resolve and invoke
+
+## Definition symbol
+
+Definition involves reading, consing, and writing the symbol table. The core
+definition function, @<::>, is a composition of @<, ::, and @> (remember that
+rightmost functions are executed first).
+
+    # TODO
 
     4831 o300 b03c 4831 o377 0f05
