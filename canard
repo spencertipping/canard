@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  75b8d9df862e813c57af1d15112772d6
-# istate: c38b9b39fc5fea59873e49899bfce77f
+# state:  b19462d24670387cf898c1c27d6d4522
+# istate: 0c4c9abdfc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2483,8 +2483,8 @@ pushed onto the data stack prior to invoking 'main'.
 
   ::@main 0400'main ::@@:k 0300'@:k ::@@> 0200'@>  ::@&0 0200'&0 ::@&1 0200'&1
                     ::@@?k 0300'@?k ::@@< 0200'@<  ::@&2 0200'&2 ::@&3 0200'&3
-  ::@:: 0200'::
-  ::@:v 0200':v
+  ::@:: 0200'::                     ::@r> 0200'r>
+  ::@:v 0200':v                     ::@r< 0200'r<
 
   ::@=1 0200'=1 ::@=2 0200'=2 ::@=4 0200'=4 ::@=8 0200'=8
   ::@@1 0200'@1 ::@@2 0200'@2 ::@@4 0200'@4 ::@@8 0200'@8
@@ -2499,8 +2499,8 @@ pushed onto the data stack prior to invoking 'main'.
   ::binding_table
   :2[L:@@:k]:2[L:generate_constant_matcher] :2[L:@@?k]:2[L:constant_matcher]
 
-  :2[L:@@>]:2[L:get_symbol_table]
-  :2[L:@@<]:2[L:set_symbol_table]
+  :2[L:@@>]:2[L:get_symbol_table] :2[L:@r>]:2[L:return_to_data]
+  :2[L:@@<]:2[L:set_symbol_table] :2[L:@r<]:2[L:return_from_data]
 
   :2[L:@&0]:2[L:syscall0] :2[L:@&1]:2[L:syscall1]
   :2[L:@&2]:2[L:syscall2] :2[L:@&3]:2[L:syscall3]
@@ -2925,6 +2925,17 @@ functions that read or write it.
   ::set_symbol_table
   488b o107 f8 4883 o357 08                     # data-pop -> %rax;
   4889 o005:4[L:symbol_table - :>] c3           # %rax -> (symbol_table); ret
+
+  Return stack manipulation.
+  These two functions allow you to move values between the data and return
+  stacks. r> pulls from the return stack, r< pushes onto it.
+
+  Each of these uses a nonstandard return operator because it needs to ignore
+  its own immediate return address. This means that you cannot tail-call these
+  functions!
+
+  ::return_to_data   59 58 48ab ff o051
+  ::return_from_data 59 488b o107 f8 4883 o357 08 50 ff o051
 
 System functions.
 Some definitions that will be required for the interpreter to work correctly

@@ -136,8 +136,8 @@ constants as the immediate data of a mov instruction.
 
     ::@main 0400'main ::@@:k 0300'@:k ::@@> 0200'@>  ::@&0 0200'&0 ::@&1 0200'&1
                       ::@@?k 0300'@?k ::@@< 0200'@<  ::@&2 0200'&2 ::@&3 0200'&3
-    ::@:: 0200'::
-    ::@:v 0200':v
+    ::@:: 0200'::                     ::@r> 0200'r>
+    ::@:v 0200':v                     ::@r< 0200'r<
 
     ::@=1 0200'=1 ::@=2 0200'=2 ::@=4 0200'=4 ::@=8 0200'=8
     ::@@1 0200'@1 ::@@2 0200'@2 ::@@4 0200'@4 ::@@8 0200'@8
@@ -153,8 +153,8 @@ file. This will break if the file grows to be larger than 65535 bytes.
     ::binding_table
     :2[L:@@:k]:2[L:generate_constant_matcher] :2[L:@@?k]:2[L:constant_matcher]
 
-    :2[L:@@>]:2[L:get_symbol_table]
-    :2[L:@@<]:2[L:set_symbol_table]
+    :2[L:@@>]:2[L:get_symbol_table] :2[L:@r>]:2[L:return_to_data]
+    :2[L:@@<]:2[L:set_symbol_table] :2[L:@r<]:2[L:return_from_data]
 
     :2[L:@&0]:2[L:syscall0] :2[L:@&1]:2[L:syscall1]
     :2[L:@&2]:2[L:syscall2] :2[L:@&3]:2[L:syscall3]
@@ -596,6 +596,18 @@ don't have a shortcut quite as nice as stosq. The setter is called @<.
     ::set_symbol_table
     488b o107 f8 4883 o357 08                     # data-pop -> %rax;
     4889 o005:4[L:symbol_table - :>] c3           # %rax -> (symbol_table); ret
+
+## Return stack manipulation
+
+These two functions allow you to move values between the data and return
+stacks. r> pulls from the return stack, r< pushes onto it.
+
+Each of these uses a nonstandard return operator because it needs to ignore
+its own immediate return address. This means that you cannot tail-call these
+functions!
+
+    ::return_to_data   59 58 48ab ff o051
+    ::return_from_data 59 488b o107 f8 4883 o357 08 50 ff o051
 
 # System functions
 
