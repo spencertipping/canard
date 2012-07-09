@@ -50,7 +50,7 @@ pointers, so dereference those.
     define print_heap
       printf "%c[1;32mheap%c[1;30m: %lx\n", 27, 27, $rsi
       x/i $rsi
-      while $_ < 0x4ffff8
+      while $_ < 0x4fffff
         x/i
       end
     end
