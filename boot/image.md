@@ -59,7 +59,7 @@ See elf(5) for details about what this is made of.
       ::elf_e_machine   :2[L 0x3e]  # x86-64
       ::elf_e_version   :4[L 1]     # current version
 
-      ::elf_e_entry     :8[L :image_base + :entry]
+      ::elf_e_entry     :8[L b:entry]
 
       ::elf_e_phoff     :8[L :phdr_begin]
       ::elf_e_shoff     :8[L 0]     # no section headers

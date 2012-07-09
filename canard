@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  cef946f5286a158b03327f482d5a5964
-# istate: 420657c0fc5fea59873e49899bfce77f
+# state:  f0a1166d296f43a69656f1422a35dcc2
+# istate: f00d6a4afc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2408,7 +2408,7 @@ See elf(5) for details about what this is made of.
   ::elf_e_machine   :2[L 0x3e]  # x86-64
   ::elf_e_version   :4[L 1]     # current version
 
-  ::elf_e_entry     :8[L :image_base + :entry]
+  ::elf_e_entry     :8[L b:entry]
 
   ::elf_e_phoff     :8[L :phdr_begin]
   ::elf_e_shoff     :8[L 0]     # no section headers
@@ -2848,7 +2848,7 @@ meta::sdoc('boot-debug.gdb', <<'__');
 Canard bootstrap debugging script.
 GDB definitions to make it easier to debug the main image.
 
-break *0x400078
+break *0x40009c
 run
 
 set $stack_end = 0
