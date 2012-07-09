@@ -588,10 +588,10 @@ e8:4[L:/nil - :>]
 #   endianness is used. (This is relevant since all stack values are the same
 #   width -- so for small reads/writes, you're working with a byte slice.)
 
-  ::/@1 4831o300 488b o137f8   8a o003 4889 o107f8 c3
-  ::/@2 4831o300 488b o137f8 668b o003 4889 o107f8 c3
-  ::/@4 4831o300 488b o137f8   8b o003 4889 o107f8 c3
-  ::/@8 4831o300 488b o137f8 488b o003 4889 o107f8 c3
+  ::/@1 488b o137f8 480fb6 o003 4889 o107f8 c3
+  ::/@2 488b o137f8 480fb7 o003 4889 o107f8 c3
+  ::/@4 488b o137f8     8b o003 4889 o107f8 c3
+  ::/@8 488b o137f8   488b o003 4889 o107f8 c3
 
 #   Writes take the value on the top of the stack, followed by the address. We use
 #   %rax for the value and %rbx for the address.
