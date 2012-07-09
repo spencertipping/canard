@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  b19462d24670387cf898c1c27d6d4522
-# istate: 0c4c9abdfc5fea59873e49899bfce77f
+# state:  e1475e9e3e3d540266345d1109c11043
+# istate: 321dd276fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2931,8 +2931,8 @@ functions that read or write it.
   stacks. r> pulls from the return stack, r< pushes onto it.
 
   Each of these uses a nonstandard return operator because it needs to ignore
-  its own immediate return address. This means that you cannot tail-call these
-  functions!
+  its own immediate return address. However, this doesn't impact the calling
+  convention.
 
   ::return_to_data   59 58 48ab ff o051
   ::return_from_data 59 488b o107 f8 4883 o357 08 50 ff o051
