@@ -2,7 +2,7 @@
 
 GDB definitions to make it easier to debug the main image.
 
-    break *0x40009c
+    break *0x4000ac
     run
 
     set $stack_end = 0
@@ -17,6 +17,8 @@ GDB definitions to make it easier to debug the main image.
       print_data_stack
       print_return_stack
       print_heap
+
+      printf "%c[1;32m%%rax = %lx\n", 27, $rax
 
       printf "%c[1;32minstruction queue%c[1;30m\n", 27, 27
       x/8i $pc
@@ -49,17 +51,17 @@ pointers, so dereference those.
 
     define print_heap
       printf "%c[1;32mheap%c[1;30m: %lx\n", 27, 27, $rsi
+      set $count = 0
       x/i $rsi
-      while $_ < 0x4fffff
+      while $_ < 0x4fffff && $count < 10
         x/i
+        set $count = $count + 1
       end
     end
 
     define print_cell
-      if $arg0 >= 0x400000 && $arg0 < 0x500000
-        x/g $arg0
-        if $__ >= 0x400000 && $__ < 0x500000
-          x/i $__
-        end
+      x/g $arg0
+      if $__ >= 0x400000 && $__ < 0x500000
+        x/i $__
       end
     end

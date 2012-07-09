@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  f4e3d246e5f34316b5bf1ef0a45402c2
-# istate: 6c5fe016fc5fea59873e49899bfce77f
+# state:  5d43a996cce1d7be22bbbee2ab5cdd24
+# istate: 4436a88dfc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -913,6 +913,8 @@ file::write('boot/image.binary', retrieve('binary::boot'), mkpath => 1);
 file::write('boot/image.md',     retrieve('markdown::binary::boot'));
 file::write('boot/image',        compile_binary('pp::binary::boot'));
 chmod 0700, 'boot/image';
+
+terminal::info('binary size is ' . length(compile_binary('pp::binary::boot')));
 
 file::write('boot/debug.gdb', retrieve('boot-debug.gdb'));
 file::write('boot/debug.md',  retrieve('markdown::boot-debug.gdb'));
@@ -2427,7 +2429,7 @@ Program header for main image.
 This section is read/write/execute and contains the bootstrap code, data stack,
 and heap. It doesn't contain the return stack since we use the OS-provided one.
 
-First we need to define some constants:
+:[::bootstrap_size = :bootstrap_end - :bootstrap_begin]
 
 ::phdr_begin
   ::phdr_p_type   :4[L 1]         # PT_LOAD
@@ -2435,7 +2437,7 @@ First we need to define some constants:
   ::phdr_p_offset :8[L 0]
   ::phdr_p_vaddr  :8[L :image_base]
   ::phdr_p_paddr  :8[L 0]
-  ::phdr_p_filesz :8[L :bootstrap_end - :bootstrap_begin]
+  ::phdr_p_filesz :8[L :bootstrap_size]
   ::phdr_p_memsz  :8[L :image_size]
   ::phdr_p_align  :8[L 0x1000]
 ::phdr_end
@@ -2479,15 +2481,15 @@ pushed onto the data stack prior to invoking 'main'.
   itself, since this way we won't have to jump around them or write the
   constants as the immediate data of a mov instruction.
 
-  ::@main 0400'main ::@@:k 0300'@:k  ::@@> 0200'@>  ::@#0 0200'#0 ::@#1 0200'#1
-  ::@::   0200'::   ::@@?k 0300'@?k  ::@@< 0200'@<  ::@#2 0200'#2 ::@#3 0200'#3
+  ::@main 0400'main  ::@@:k 0300'@:k  ::@@> 0200'@>  ::@&0 0200'&0 ::@&1 0200'&1
+  ::@::   0200'::    ::@@?k 0300'@?k  ::@@< 0200'@<  ::@&2 0200'&2 ::@&3 0200'&3
 
   Register initialization.
   Set up these registers to point to useful places. %rsp is provided by the OS,
   so we don't need to do anything else with it. We set up %rdi and %rsi like
   this:
 
-  | +-- 400000   +-- 0x400080     +-- 40xxxx            +-- 500000
+  | +-- 400000   +-- 0x4000c9     +-- 40xxxx            +-- 500000
     V            V                V                     V
     | ELF header | bootstrap code | data stack ... heap | .... | %rsp stack
 
@@ -2495,7 +2497,7 @@ pushed onto the data stack prior to invoking 'main'.
   on the amount of bootstrap code that we use. But the idea is the same either
   way; the data stack begins immediately after the bootstrap logic.
 
-  :[::file_end = b:phdr_p_filesz]
+  :[::file_end = b:bootstrap_size]
 
   ::entry
   ::rdi_init 48c7 o307:4[L:file_end]
@@ -2559,36 +2561,68 @@ This is necessary for the initialization we're going to do below.
   the functions below. These functions will then be added to the symbol table
   and will be part of the image.
 
-  This is the perfect place to introduce a preprocessor macro to save some work.
+  ::read_binding_table
+  48c7 o305:4[Lb:binding_table]
 
-  - def bind name, value << end
-    48c7 o300 $value                         48ab
-      c7 o300 $name                          48ab
-      e8:4[L:generate_constant_matcher - :>] e8:4[L:cons - :>]
-  - end
+  ::read_binding_table_loop
+  4831 o300 8b o105 00                                  # (%rbp + 0) -> %rax
+  66a9 ffff 74:1[L:read_binding_table_loop_end - :>]    # break if symbol == 0
+  488b o310 31 o322                                     # %rcx = %rax; %rdx = 0
+  0fac o320 10 05:4[L:image_base] 48ab                  # push %rax >> 16 + b
+  668b o301 48ab                                        # push symbol
 
-  - bind :4[Lb:@@:k], :4[Lb:generate_constant_matcher]
-  - bind :4[Lb:@@?k], :4[Lb:constant_matcher]
-  - bind :4[Lb:@::],  :4[Lb:cons]
-  - bind :4[Lb:@@>],  :4[Lb:get_symbol_table]
-  - bind :4[Lb:@@<],  :4[Lb:set_symbol_table]
+  4883 o305 04                                          # %rbp += 4
+  55 e8:4[L:generate_constant_matcher - :>]             # stash %rbp
+     e8:4[L:cons                      - :>] 5d          # restore %rbp
 
-  - bind :4[Lb:@#0],  :4[Lb:syscall0]
-  - bind :4[Lb:@#1],  :4[Lb:syscall1]
-  - bind :4[Lb:@#2],  :4[Lb:syscall2]
-  - bind :4[Lb:@#3],  :4[Lb:syscall3]
+  eb:1[L:read_binding_table_loop - :>]
+  ::read_binding_table_loop_end
 
   Now we have a complete symbol table. Bind it to the global address and start
   up the interpreter.
 
-  e8:4[L:set_symbol_table - :>]                 # now it's installed...
+  488b o137 f8                          # copy the symbol table to %rbx
+  e8:4[L:set_symbol_table - :>]         # and install it globally
 
-  48c7 o300:4[Lb:@main] 48ab                    # push symbol 'main'
-  ff o064:4[L:symbol_table - :>] 48ff o156 f8   # resolve/jmp main
+  At this point the data stack top is the 'main' symbol, which is ideal: we can
+  resolve it and then tail-call into the result. 'main' can return into 'exit'.
+
+  ff   o323                             # resolve 'main'
+  488b o107 f8 4883 o357 08             # data-pop %rax
+  ff   o340                             # jump into main
+
+  Binding table.
+  To save space, we encode each binding as an offset from the beginning of the
+  file. This will break if the file grows to be larger than 65535 bytes.
+
+  ::binding_table
+  :2[L:@@:k],  :2[L:generate_constant_matcher]
+  :2[L:@@?k],  :2[L:constant_matcher]
+  :2[L:@::],   :2[L:cons]
+  :2[L:@@>],   :2[L:get_symbol_table]
+  :2[L:@@<],   :2[L:set_symbol_table]
+
+  :2[L:@main], :2[L:main]
+
+  :2[L:@&0],   :2[L:syscall0]
+  :2[L:@&1],   :2[L:syscall1]
+  :2[L:@&2],   :2[L:syscall2]
+  :2[L:@&3],   :2[L:syscall3]
+
+  /2/00                                 # end marker
+  ::end_binding_table
 
 Internals.
 Everything from here down is referenced or called by the above to build out the
 image, but is not executed in the toplevel stream.
+
+  Main function.
+  This will end up tying together a number of pieces, but for the moment it just
+  pushes a zero to return.
+
+  ::main
+  4831 o300 48ab        # data-push 0
+  c3                    # return (to exit function)
 
   Nil.
   This is easy; it's just a single byte on the heap. We then push a pointer to
@@ -2823,47 +2857,44 @@ into a single byte on the heap.
   4889 o167 f8 c3                       # return new cons cell
 
 Definition and invocation.
-This is the last piece of the symbol table. We need two more functions; the
-first, @<, sets the symbol table pointer to the given function. The second, @>,
-retrieves the given symbol table pointer.
-
-Remember from earlier that the symbol table pointer is mutable and is stored at
-a fixed address. The simplest way to deal with this value in memory is just to
-build two special-purpose functions that read or write it.
+This is the last piece of the symbol table. Remember from earlier that the
+symbol table pointer is mutable and is stored at a fixed address. The simplest
+way to deal with this value in memory is just to build two special-purpose
+functions that read or write it.
 
   Symbol table getter.
   We refer to this as @> from now on. This function pushes the symbol table
   address onto the data stack.
 
   ::get_symbol_table
-  488b o004 o045:4[Lb:symbol_table] 48ab c3
+  488b o005:4[L:symbol_table - :>] 48ab c3      # st -> %rax; push; ret
 
   Symbol table setter.
   This function is only slightly more complex than @> due to the fact that we
-  don't have a shortcut quite as nice as stosq.
+  don't have a shortcut quite as nice as stosq. The setter is called @<.
 
   ::set_symbol_table
-  488b o107 f8 4883 o357 08             # data-pop -> %rax;
-  4889 o004 o045:4[Lb:symbol_table] c3  # %rax -> (symbol_table); ret
+  488b o107 f8 4883 o357 08                     # data-pop -> %rax;
+  4889 o005:4[L:symbol_table - :>] c3           # %rax -> (symbol_table); ret
 
 System functions.
 Some definitions that will be required for the interpreter to work correctly
 with the system it's running on. All of these end up using syscall functions,
-bound in the symbol table as #0, #1, #2, #3, etc (depending on the arity).
+bound in the symbol table as &0, &1, &2, &3, etc (depending on the arity).
 
   System calling convention.
   The top argument to any syscallX function is the number of the syscall that
   you want to execute. The other arguments are pulled from the data stack
   left-to-right; so, for example:
 
-  | #1 3c 00    <- 0x3c = exit(status = 0)
+  | &1 3c 00    <- 0x3c = exit(status = 0)
 
   The only reason syscall wrappers are particularly interesting is that they
   have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
   %r10, etc, are not saved.
 
   ::syscall0
-  488b o107 f8 488c o357 08     # data-pop -> %rax
+  488b o107 f8 4883 o357 08     # data-pop -> %rax
   5657 0f05 5f5e 48ab c3        # syscall; pop %rdi, %rsi; data-push
 
   ::syscall1
@@ -2876,7 +2907,16 @@ bound in the symbol table as #0, #1, #2, #3, etc (depending on the arity).
   56                            # push %rsi
   488b o107 f8                  # data-pop -> %rax
   488b o117 f0                  # data-pop -> %rcx
-  488b o167 e8 488c o357 18     # data-pop -> %rsi
+  488b o167 e8 4883 o357 18     # data-pop -> %rsi
+  57 4887 o317                  # push %rdi; swap %rcx, %rdi
+  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+  ::syscall3
+  56                            # push %rsi
+  488b o107 f8                  # data-pop -> %rax
+  488b o117 f0                  # data-pop -> %rcx
+  488b o167 e8                  # data-pop -> %rsi
+  488b o127 e0 4883 o357 20     # data-pop -> %rdx
   57 4887 o317                  # push %rdi; swap %rcx, %rdi
   0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
@@ -2884,7 +2924,7 @@ bound in the symbol table as #0, #1, #2, #3, etc (depending on the arity).
   These use the above and abstract away some of the details of system calling.
 
   ::exit
-  4831 o300 b03c e8:4[L:syscall0 - :>]
+  4831 o300 b03c 48ab e8:4[L:syscall1 - :>]
 
   ::bootstrap_end
 
@@ -2893,7 +2933,7 @@ meta::sdoc('boot-debug.gdb', <<'__');
 Canard bootstrap debugging script.
 GDB definitions to make it easier to debug the main image.
 
-break *0x40009c
+break *0x4000ac
 run
 
 set $stack_end = 0
@@ -2908,6 +2948,8 @@ define s
   print_data_stack
   print_return_stack
   print_heap
+
+  printf "%c[1;32m%%rax = %lx\n", 27, $rax
 
   printf "%c[1;32minstruction queue%c[1;30m\n", 27, 27
   x/8i $pc
@@ -2939,18 +2981,18 @@ end
 
 define print_heap
   printf "%c[1;32mheap%c[1;30m: %lx\n", 27, 27, $rsi
+  set $count = 0
   x/i $rsi
-  while $_ < 0x4fffff
+  while $_ < 0x4fffff && $count < 10
     x/i
+    set $count = $count + 1
   end
 end
 
 define print_cell
-  if $arg0 >= 0x400000 && $arg0 < 0x500000
-    x/g $arg0
-    if $__ >= 0x400000 && $__ < 0x500000
-      x/i $__
-    end
+  x/g $arg0
+  if $__ >= 0x400000 && $__ < 0x500000
+    x/i $__
   end
 end
 
