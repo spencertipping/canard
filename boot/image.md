@@ -134,11 +134,16 @@ symbols. The bootstrap image is smaller if we pull them out of the code
 itself, since this way we won't have to jump around them or write the
 constants as the immediate data of a mov instruction.
 
-    ::@main 0400'main  ::@@:k 0300'@:k  ::@@> 0200'@>  ::@&0 0200'&0 ::@&1 0200'&1
-    ::@::   0200'::    ::@@?k 0300'@?k  ::@@< 0200'@<  ::@&2 0200'&2 ::@&3 0200'&3
+    ::@main 0400'main ::@@:k 0300'@:k ::@@> 0200'@>  ::@&0 0200'&0 ::@&1 0200'&1
+                      ::@@?k 0300'@?k ::@@< 0200'@<  ::@&2 0200'&2 ::@&3 0200'&3
+    ::@:: 0200'::
+    ::@:v 0200':v
 
     ::@=1 0200'=1 ::@=2 0200'=2 ::@=4 0200'=4 ::@=8 0200'=8
     ::@@1 0200'@1 ::@@2 0200'@2 ::@@4 0200'@4 ::@@8 0200'@8
+
+    ::@&read 0500'&read ::@&write 0600'&write
+    ::@&open 0500'&open ::@&close 0600'&close
 
 ## Binding table
 
@@ -154,7 +159,10 @@ file. This will break if the file grows to be larger than 65535 bytes.
     :2[L:@&0]:2[L:syscall0] :2[L:@&1]:2[L:syscall1]
     :2[L:@&2]:2[L:syscall2] :2[L:@&3]:2[L:syscall3]
 
-    :2[L:@::]:2[L:cons]
+    :2[L:@&read]:2[L:read] :2[L:@&write]:2[L:write]
+    :2[L:@&open]:2[L:open] :2[L:@&close]:2[L:close]
+
+    :2[L:@::]:2[L:cons] :2[L:@:v]:2[L:heap_allocate]
 
     :2[L:@@1]:2[L:r8] :2[L:@@2]:2[L:r16] :2[L:@@4]:2[L:r32] :2[L:@@8]:2[L:r64]
     :2[L:@=1]:2[L:w8] :2[L:@=2]:2[L:w16] :2[L:@=4]:2[L:w32] :2[L:@=8]:2[L:w64]
@@ -436,16 +444,20 @@ once we've defined cons and bind below.
     4883 o357 10                          # %rdi -= 16 (pop two entries)
 
     4831 o311 668b o010                   # %rcx = length
-    6639 o013 e101 c3                     # length check + bailout
+    6639 o013                             # length check
+    e3:1[L:constant_matcher_bail - :>]
 
     ::constant_matcher_loop
     8a   o124 o013 02                     # top of loop: populate %dl
     38   o124 o010 02                     # compare characters
-    7401 c3                               # bail if not equal
-    e2:1[L:constant_matcher_loop - :>]
+    75:1[L:constant_matcher_bail - :>]    # bail if not equal
+    e2:1[L:constant_matcher_loop - :>]    # loop if more characters (%cx != 0)
 
     4889 o157 f8                          # %rbp -> -8(%rdi)
-    58 c3                                 # pop; invoke return continuation
+    58                                    # pop
+
+    ::constant_matcher_bail               # fall through either way
+    c3                                    # invoke return or next continuation
 
 Here's the definition of generate_constant_matcher. Push a trivial return
 address here so that the function below will return to the continuation
@@ -530,6 +542,16 @@ both; then we can write the result over the parameter that we didn't pop.
     4883 o356 05 c6 o006 e8               # allocate space, write e8 call opcode
 
     4889 o167 f8 c3                       # return new cons cell
+
+## Heap allocation
+
+Allocates the given number of bytes onto the heap and returns a pointer to
+them. Use this carefully; if you allocate too much stuff you'll make the heap
+collide with the data stack and terrible things will happen.
+
+    ::heap_allocate
+    482b o167 f8                          # %rsi -= data-pop
+    4889 o167 f8 c3                       # data-push heap; ret
 
 ## Low-level memory access
 
@@ -623,8 +645,23 @@ have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
 ## Utility functions
 
 These use the above and abstract away some of the details of system calling.
+System call numbers are from /usr/include/asm/unistd_64.h on Linux, and where
+applicable they're encoded like this:
 
-    ::exit
-    4831 o300 b03c 48ab e8:4[L:syscall1 - :>]
+    4831 o300             <- xor %rax, %rax
+    b0NN                  <- mov $0xNN, %al
+
+This ends up being two bytes smaller than the equivalent 48c7 o300 NN000000.
+The only case where b0NN is not present is for the read() syscall, which is
+number 0.
+
+Arguments to these system calls pass through directly, as do return values.
+
+    ::read  4831 o300      48ab e9:4[L:syscall3 - :>]     # n, buf, fd -> n
+    ::write 4831 o300 b001 48ab e9:4[L:syscall3 - :>]     # n, buf, fd -> n
+    ::open  4831 o300 b002 48ab e9:4[L:syscall3 - :>]     # path, f, m -> fd
+    ::close 4831 o300 b003 48ab e9:4[L:syscall3 - :>]     # fd -> status
+
+    ::exit  4831 o300 b03c 48ab e9:4[L:syscall1 - :>]     # code -> _
 
     ::bootstrap_end
