@@ -137,6 +137,33 @@ constants as the immediate data of a mov instruction.
     ::@main 0400'main  ::@@:k 0300'@:k  ::@@> 0200'@>  ::@&0 0200'&0 ::@&1 0200'&1
     ::@::   0200'::    ::@@?k 0300'@?k  ::@@< 0200'@<  ::@&2 0200'&2 ::@&3 0200'&3
 
+    ::@=1 0200'=1 ::@=2 0200'=2 ::@=4 0200'=4 ::@=8 0200'=8
+    ::@@1 0200'@1 ::@@2 0200'@2 ::@@4 0200'@4 ::@@8 0200'@8
+
+## Binding table
+
+To save space, we encode each binding as an offset from the beginning of the
+file. This will break if the file grows to be larger than 65535 bytes.
+
+    ::binding_table
+    :2[L:@@:k]:2[L:generate_constant_matcher] :2[L:@@?k]:2[L:constant_matcher]
+
+    :2[L:@@>]:2[L:get_symbol_table]
+    :2[L:@@<]:2[L:set_symbol_table]
+
+    :2[L:@&0]:2[L:syscall0] :2[L:@&1]:2[L:syscall1]
+    :2[L:@&2]:2[L:syscall2] :2[L:@&3]:2[L:syscall3]
+
+    :2[L:@::]:2[L:cons]
+
+    :2[L:@@1]:2[L:r8] :2[L:@@2]:2[L:r16] :2[L:@@4]:2[L:r32] :2[L:@@8]:2[L:r64]
+    :2[L:@=1]:2[L:w8] :2[L:@=2]:2[L:w16] :2[L:@=4]:2[L:w32] :2[L:@=8]:2[L:w64]
+
+    :2[L:@main]:2[L:main]
+
+    /2/00                                 # end marker
+    ::end_binding_table
+
 ## Register initialization
 
 Set up these registers to point to useful places. %rsp is provided by the OS,
@@ -160,9 +187,13 @@ way; the data stack begins immediately after the bootstrap logic.
 At this point the registers are initialized, so we can write to both stacks
 and to the heap. We need to set up a 'return' into the exit function so that
 when the main function exits (i.e. we hit a nil at the end of the main program
-list) it will die gracefully. First let's push the exit function address onto
-the return stack:
+list) it will die gracefully.
 
+Two things need to happen here. First, we need to put the system-provided %rsp
+value onto the data stack; this lets 'main' inspect argv and environment
+variables. Then we need to push 'exit' as the continuation for 'main'.
+
+    ::push_rsp    488b o305 48ab
     ::init_return 68:4[Lb:exit]
 
 Now push the symbol 'main' onto the data stack and call the symbol table. This
@@ -247,28 +278,6 @@ resolve it and then tail-call into the result. 'main' can return into 'exit'.
     ff   o323                             # resolve 'main'
     488b o107 f8 4883 o357 08             # data-pop %rax
     ff   o340                             # jump into main
-
-## Binding table
-
-To save space, we encode each binding as an offset from the beginning of the
-file. This will break if the file grows to be larger than 65535 bytes.
-
-    ::binding_table
-    :2[L:@@:k],  :2[L:generate_constant_matcher]
-    :2[L:@@?k],  :2[L:constant_matcher]
-    :2[L:@::],   :2[L:cons]
-    :2[L:@@>],   :2[L:get_symbol_table]
-    :2[L:@@<],   :2[L:set_symbol_table]
-
-    :2[L:@main], :2[L:main]
-
-    :2[L:@&0],   :2[L:syscall0]
-    :2[L:@&1],   :2[L:syscall1]
-    :2[L:@&2],   :2[L:syscall2]
-    :2[L:@&3],   :2[L:syscall3]
-
-    /2/00                                 # end marker
-    ::end_binding_table
 
 # Internals
 
@@ -521,6 +530,26 @@ both; then we can write the result over the parameter that we didn't pop.
     4883 o356 05 c6 o006 e8               # allocate space, write e8 call opcode
 
     4889 o167 f8 c3                       # return new cons cell
+
+## Low-level memory access
+
+This is necessary to define a number of things in the standard library. Memory
+can be read and written in a few different sizes, and the processor's
+endianness is used. (This is relevant since all stack values are the same
+width -- so for small reads/writes, you're working with a byte slice.)
+
+    ::r8  4831 o300 488b o137 f8   8a o003 4889 o107 f8 c3
+    ::r16 4831 o300 488b o137 f8 668b o003 4889 o107 f8 c3
+    ::r32 4831 o300 488b o137 f8   8b o003 4889 o107 f8 c3
+    ::r64 4831 o300 488b o137 f8 488b o003 4889 o107 f8 c3
+
+Writes take the value on the top of the stack, followed by the address. We use
+%rax for the value and %rbx for the address.
+
+    ::w8  488b o107 f8 488b o137 f0 4883 o357 10   88 o003 c3
+    ::w16 488b o107 f8 488b o137 f0 4883 o357 10 6689 o003 c3
+    ::w32 488b o107 f8 488b o137 f0 4883 o357 10   89 o003 c3
+    ::w64 488b o107 f8 488b o137 f0 4883 o357 10 4889 o003 c3
 
 # Definition and invocation
 
