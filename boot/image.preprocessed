@@ -141,43 +141,64 @@
 #   symbol binding.)
 
   ::binding_table
-  - def binding name << end
-    :2[L:/$name] ::\@$name @{[sprintf "%02x", length $name]}00'$name
-  - end
 
-  - binding main
-  - binding @:k
-  - binding @?k
-  - binding @>
-  - binding @<
 
-  - binding r>
-  - binding r<
+:2[L:/main] ::@main 0400'main
+
+:2[L:/@:k] ::@@:k 0300'@:k
+
+:2[L:/@?k] ::@@?k 0300'@?k
+
+:2[L:/@>] ::@@> 0200'@>
+
+:2[L:/@<] ::@@< 0200'@<
+
+
+:2[L:/r>] ::@r> 0200'r>
+
+:2[L:/r<] ::@r< 0200'r<
+
 
   # The binary-text compiler can't handle a label called /:: -- the two colons
   # make it think it's supposed to use a label reference.
   :2[L:cons]     ::@cons     0200'::
   :2[L:allocate] ::@allocate 0200':v
 
-  - binding =1
-  - binding =2
-  - binding =4
-  - binding =8
+:2[L:/=1] ::@=1 0200'=1
 
-  - binding @1
-  - binding @2
-  - binding @4
-  - binding @8
+:2[L:/=2] ::@=2 0200'=2
 
-  - binding &0
-  - binding &1
-  - binding &2
-  - binding &3
+:2[L:/=4] ::@=4 0200'=4
 
-  - binding &read
-  - binding &write
-  - binding &open
-  - binding &close
+:2[L:/=8] ::@=8 0200'=8
+
+
+:2[L:/@1] ::@@1 0200'@1
+
+:2[L:/@2] ::@@2 0200'@2
+
+:2[L:/@4] ::@@4 0200'@4
+
+:2[L:/@8] ::@@8 0200'@8
+
+
+:2[L:/&0] ::@&0 0200'&0
+
+:2[L:/&1] ::@&1 0200'&1
+
+:2[L:/&2] ::@&2 0200'&2
+
+:2[L:/&3] ::@&3 0200'&3
+
+
+:2[L:/&read] ::@&read 0500'&read
+
+:2[L:/&write] ::@&write 0600'&write
+
+:2[L:/&open] ::@&open 0500'&open
+
+:2[L:/&close] ::@&close 0600'&close
+
 
   /2/00         # end marker
   ::end_binding_table

@@ -2,7 +2,7 @@
 
 GDB definitions to make it easier to debug the main image.
 
-    break *0x4000ac
+    break *0x40012a
     run
 
     set $stack_end = 0
@@ -19,6 +19,7 @@ GDB definitions to make it easier to debug the main image.
       print_heap
 
       printf "%c[1;32m%%rax = %lx\n", 27, $rax
+      printf "%c[1;32m%%rcx = %lx\n", 27, $rcx
 
       printf "%c[1;32minstruction queue%c[1;30m\n", 27, 27
       x/8i $pc

@@ -83,7 +83,7 @@ and heap. It doesn't contain the return stack since we use the OS-provided one.
 
     ::phdr_begin
       ::phdr_p_type   :4[L 1]         # PT_LOAD
-      ::phdr_p_flags  :4[L 4 | 2 | 1] # PT_R | PT_R | PT_X
+      ::phdr_p_flags  :4[L 4 | 2 | 1] # PT_R | PT_W | PT_X
       ::phdr_p_offset :8[L 0]
       ::phdr_p_vaddr  :8[L :image_base]
       ::phdr_p_paddr  :8[L 0]
@@ -134,42 +134,60 @@ symbols. The bootstrap image is smaller if we pull them out of the code
 itself, since this way we won't have to jump around them or write the
 constants as the immediate data of a mov instruction.
 
-    ::@main 0400'main ::@@:k 0300'@:k ::@@> 0200'@>  ::@&0 0200'&0 ::@&1 0200'&1
-                      ::@@?k 0300'@?k ::@@< 0200'@<  ::@&2 0200'&2 ::@&3 0200'&3
-    ::@:: 0200'::                     ::@r> 0200'r>
-    ::@:v 0200':v                     ::@r< 0200'r<
+This constant table is used two ways. The first way is as a space for us to
+use later on when grabbing symbol references -- for example, when we push the
+'main' symbol onto the stack in the toplevel code.
 
-    ::@=1 0200'=1 ::@=2 0200'=2 ::@=4 0200'=4 ::@=8 0200'=8
-    ::@@1 0200'@1 ::@@2 0200'@2 ::@@4 0200'@4 ::@@8 0200'@8
+The second way is as an initial binding table. The toplevel bootstrap code
+reads through this table and conses up bindings before executing main. All of
+these are offset-encoded from the beginning of the file to save space; this
+way we can get away with using only two bytes instead of three or four.
 
-    ::@&read 0500'&read ::@&write 0600'&write
-    ::@&open 0500'&open ::@&close 0600'&close
-
-## Binding table
-
-To save space, we encode each binding as an offset from the beginning of the
-file. This will break if the file grows to be larger than 65535 bytes.
+Code labels are prefixed with a /; symbol labels are prefixed with @. This
+allows us to duplicate the names and factor the binding table generation into
+a preprocessor macro. (It also makes it more obvious when a label is used as a
+symbol binding.)
 
     ::binding_table
-    :2[L:@@:k]:2[L:generate_constant_matcher] :2[L:@@?k]:2[L:constant_matcher]
+    - def binding name << end
+      :2[L:/$name] ::\@$name @{[sprintf "%02x", length $name]}00'$name
+    - end
 
-    :2[L:@@>]:2[L:get_symbol_table] :2[L:@r>]:2[L:return_to_data]
-    :2[L:@@<]:2[L:set_symbol_table] :2[L:@r<]:2[L:return_from_data]
+    - binding main
+    - binding @:k
+    - binding @?k
+    - binding @>
+    - binding @<
 
-    :2[L:@&0]:2[L:syscall0] :2[L:@&1]:2[L:syscall1]
-    :2[L:@&2]:2[L:syscall2] :2[L:@&3]:2[L:syscall3]
+    - binding r>
+    - binding r<
 
-    :2[L:@&read]:2[L:read] :2[L:@&write]:2[L:write]
-    :2[L:@&open]:2[L:open] :2[L:@&close]:2[L:close]
+    # The binary-text compiler can't handle a label called /:: -- the two colons
+    # make it think it's supposed to use a label reference.
+    :2[L:cons]     ::@cons     0200'::
+    :2[L:allocate] ::@allocate 0200':v
 
-    :2[L:@::]:2[L:cons] :2[L:@:v]:2[L:heap_allocate]
+    - binding =1
+    - binding =2
+    - binding =4
+    - binding =8
 
-    :2[L:@@1]:2[L:r8] :2[L:@@2]:2[L:r16] :2[L:@@4]:2[L:r32] :2[L:@@8]:2[L:r64]
-    :2[L:@=1]:2[L:w8] :2[L:@=2]:2[L:w16] :2[L:@=4]:2[L:w32] :2[L:@=8]:2[L:w64]
+    - binding @1
+    - binding @2
+    - binding @4
+    - binding @8
 
-    :2[L:@main]:2[L:main]
+    - binding &0
+    - binding &1
+    - binding &2
+    - binding &3
 
-    /2/00                                 # end marker
+    - binding &read
+    - binding &write
+    - binding &open
+    - binding &close
+
+    /2/00         # end marker
     ::end_binding_table
 
 ## Register initialization
@@ -201,8 +219,8 @@ Two things need to happen here. First, we need to put the system-provided %rsp
 value onto the data stack; this lets 'main' inspect argv and environment
 variables. Then we need to push 'exit' as the continuation for 'main'.
 
-    ::push_rsp    488b o305 48ab
-    ::init_return 68:4[Lb:exit]
+    ::push_rsp    488bo305 48ab
+    ::init_return 68:4[Lb:/&exit]
 
 Now push the symbol 'main' onto the data stack and call the symbol table. This
 boots up the interpreter.
@@ -215,7 +233,7 @@ encoded in these seven bytes: 0500 68656c6c6f. UTF-8 is not parsed, though it
 will work transparently provided that the total number of bytes doesn't exceed
 the limit of 65535.
 
-    ::push_main 4831 o300 b8:4[Lb:@main] 48ab
+    ::push_main 4831o300 b8:4[Lb:@main] 48ab
 
 Now do a symbol table lookup to get the address. When this returns, we'll have
 the address of the 'main function on top of the data stack.
@@ -239,7 +257,7 @@ very end is a RET instruction; the result of this is that if no resolver can
 handle the symbol you pass in, the symbol table just hands you your symbol back.
 In list form, this corresponds to a nil as the final tail.
 
-    e8:4[L:nil - :>]
+    e8:4[L:/nil - :>]
 
 At this point, the heap looks like this:
 
@@ -257,34 +275,45 @@ consing up a bunch of symbol matchers, each of which is generated by one of
 the functions below. These functions will then be added to the symbol table
 and will be part of the image.
 
+Entries in the binding table are formatted like this:
+
+    [16-bit value] | [16-bit symbol length] | [symbol data]
+
+The last entry has a zero value and no following symbol. To parse this out, we
+read the values into %rbx and then point %rax at the symbol length. If we have
+a value, push the value and the symbol pointer (which is simply the integer
+value of %rax).
+
     ::read_binding_table
     48c7 o305:4[Lb:binding_table]
 
-    ::read_binding_table_loop
-    4831 o300 8b o105 00                                  # (%rbp + 0) -> %rax
-    66a9 ffff 74:1[L:read_binding_table_loop_end - :>]    # break if symbol == 0
-    488b o310 31 o322                                     # %rcx = %rax; %rdx = 0
-    0fac o320 10 05:4[L:image_base] 48ab                  # push %rax >> 16 + b
-    668b o301 48ab                                        # push symbol
+    ::rbt_loop
+    480fb7 o13500                         # %rbx = Z< 16-byte (%rbp)
+    488d   o10502                         # %rax = %rbp + 2
+    480fb7 o010                           # %rcx = Z< 16-byte (%rax)
+    6685   o311 74:1[L:rbt_loop_end - :>] # break if value == 0
 
-    4883 o305 04                                          # %rbp += 4
-    55 e8:4[L:generate_constant_matcher - :>]             # stash %rbp
-       e8:4[L:cons                      - :>] 5d          # restore %rbp
+    4893 05:4[L:image_base] 48ab          # push %rbx + image_base (value)
+    4893 48ab                             # push %rax (= %rbp + 2)
 
-    eb:1[L:read_binding_table_loop - :>]
-    ::read_binding_table_loop_end
+    488d o154o015 02                      # %rbp += %rcx + 2
+    55 e8:4[L:/@:k - :>]                  # stash %rbp
+       e8:4[L:cons - :>] 5d               # restore %rbp
+
+    eb:1[L:rbt_loop - :>]
+    ::rbt_loop_end
 
 Now we have a complete symbol table. Bind it to the global address and start
 up the interpreter.
 
-    488b o137 f8                          # copy the symbol table to %rbx
-    e8:4[L:set_symbol_table - :>]         # and install it globally
+    488b o137f8                           # copy the symbol table to %rbx
+    e8:4[L:/@< - :>]                      # and install it globally
 
 At this point the data stack top is the 'main' symbol, which is ideal: we can
 resolve it and then tail-call into the result. 'main' can return into 'exit'.
 
     ff   o323                             # resolve 'main'
-    488b o107 f8 4883 o357 08             # data-pop %rax
+    488b o107f8 4883 o357 08              # data-pop %rax
     ff   o340                             # jump into main
 
 # Internals
@@ -297,20 +326,20 @@ image, but is not executed in the toplevel stream.
 This will end up tying together a number of pieces, but for the moment it just
 pushes a zero to return.
 
-    ::main
-    4831 o300 48ab        # data-push 0
-    c3                    # return (to exit function)
+    ::/main
+    4831o300 48ab                        # data-push 0
+    c3                                    # return (to exit function)
 
 ## Nil
 
 This is easy; it's just a single byte on the heap. We then push a pointer to
 that byte onto the data stack.
 
-    ::nil
-    ff   o316             # allocate one byte for nil
-    c6   o006 c3          # move the byte c3 to this address
-    488b o306 48ab        # push the c3 reference onto the data stack
-    c3                    # return
+    ::/nil
+    ff  o316                              # allocate one byte for nil
+    c6  o006 c3                           # move the byte c3 to this address
+    488bo306 48ab                         # push the c3 reference onto the stack
+    c3                                    # return
 
 ## Matchers and symbol resolution
 
@@ -361,7 +390,7 @@ here's what gets generated for the symbol 'foo:
       stosq
       movq $binding_immediate, %rax     <- data-push symbol binding
       stosq
-      jmp constant_matcher              <- tail-call matching function
+      jmp @?k                           <- tail-call matching function
 
 We can easily compute the amount of space required to store the generated
 code, so we can preallocate. Here's the machine code for the assembly above:
@@ -369,7 +398,7 @@ code, so we can preallocate. Here's the machine code for the assembly above:
     foo_matcher:
       48b8 foo_data [8 bytes] 48ab      <- 12 bytes total
       48b8 binding  [8 bytes] 48ab      <- 12 bytes total
-      e9 constant_matcher [4 bytes]     <- 5 bytes total
+      e9 @?k [4 bytes]                  <- 5 bytes total
 
 So we'll need 29 bytes of space per symbol matcher. Right now we don't have a
 proper heap allocator, but luckily it's straightforward enough. We just
@@ -377,7 +406,7 @@ subtract some amount from %rsi and use the new memory.
 
 Here's how the matcher generator works:
 
-    generate_constant_matcher: (@:k in the symbol table)
+    @:k: (@:k in the symbol table)
       data-pop %rax                     <- symbol pointer
       data-pop %rbx                     <- binding
       movq %rsi, %rcx                   <- original heap pointer
@@ -387,16 +416,16 @@ Here's how the matcher generator works:
       movl $0xb848ab48, 10(%rsi)        <- write 48ab and 48b8 instructions
       movq %rbx, 14(%rsi)               <- write binding address
       movl $0x00e9ab48, 22(%rsi)        <- write 48ab and e9 instructions
-      movq $constant_matcher, %rax      <- absolute address of matcher fn
+      movq $@?k, %rax                   <- absolute address of matcher fn
       subq %rcx, %rax                   <- compute %rax - (29 + %rsi)
-      movl %ecx, 25(%rsi)               <- write call to constant_matcher
+      movl %ecx, 25(%rsi)               <- write call to @?k
       data-push %rsi                    <- return reference to new matcher
       ret                               <- return
 
-Notice that we've got this reference to constant_matcher in the middle of the
+Notice that we've got this reference to @?k in the middle of the
 code. This isn't a problem because we can just put the constant matcher into
 the bootstrap section (basically right here), where it will have a known
-address. We can then hard-code that address into generate_constant_matcher.
+address. We can then hard-code that address into @:k.
 None of this requires any interaction with the symbol table, which at this
 point is not yet functional.
 
@@ -412,7 +441,7 @@ for symbol table matchers.)
 
 Here's the logic:
 
-    constant_matcher:
+    @?k:
       data-pop %rbp                     <- binding address
       data-pop %rax                     <- first symbol
       movq -8(%rdi), %rbx               <- second symbol (peek, not pop)
@@ -437,45 +466,45 @@ Here's the logic:
 This function ends up being bound as @?k in the symbol table. We bind this
 once we've defined cons and bind below.
 
-    ::constant_matcher
-    488b o157 f8                          # -8(%rdi) -> %rbp
-    488b o107 f0                          # -16(%rdi) -> %rax
-    488b o137 e8                          # -24(%rdi) -> %rbx
-    4883 o357 10                          # %rdi -= 16 (pop two entries)
+    ::/@?k
+    488b o157f8                   # -8(%rdi) -> %rbp
+    488b o107f0                   # -16(%rdi) -> %rax
+    488b o137e8                   # -24(%rdi) -> %rbx
+    4883 o357 10                  # %rdi -= 16 (pop two entries)
 
-    4831 o311 668b o010                   # %rcx = length
-    6639 o013                             # length check
-    e3:1[L:constant_matcher_bail - :>]
+    4831o311 668b o010            # %rcx = length
+    6639 o013                     # length check
+    e3:1[L:/@?k_bail - :>]
 
-    ::constant_matcher_loop
-    8a   o124 o013 02                     # top of loop: populate %dl
-    38   o124 o010 02                     # compare characters
-    75:1[L:constant_matcher_bail - :>]    # bail if not equal
-    e2:1[L:constant_matcher_loop - :>]    # loop if more characters (%cx != 0)
+    ::/@?k_loop
+    8a o124o01302                 # top of loop: populate %dl
+    38 o124o01002                 # compare characters
+    75:1[L:/@?k_bail - :>]        # bail if not equal
+    e2:1[L:/@?k_loop - :>]        # loop if more characters (%cx != 0)
 
-    4889 o157 f8                          # %rbp -> -8(%rdi)
-    58                                    # pop
+    4889 o157f8                   # %rbp -> -8(%rdi)
+    58                            # pop
 
-    ::constant_matcher_bail               # fall through either way
-    c3                                    # invoke return or next continuation
+    ::/@?k_bail                   # fall through either way
+    c3                            # invoke return or next continuation
 
-Here's the definition of generate_constant_matcher. Push a trivial return
+Here's the definition of @:k. Push a trivial return
 address here so that the function below will return to the continuation
 immediately following its definition.
 
-    ::generate_constant_matcher
-    488b o107 f8                          # symbol pointer
-    488b o137 f0                          # binding
+    ::/@:k
+    488b o107f8                           # symbol pointer
+    488b o137f0                           # binding
     4883 o357 08                          # pop one (we replace the other later)
 
     488b o316                             # %rsi -> %rcx
     4883 o356 1d                          # %rsi -= 29
-    66c7 o006 48b8        4889 o106 02    # 48b8, symbol pointer
-    c7   o106 0a 48ab48b8 4889 o136 0e    # 48b8, 48ab, binding
-    c7   o106 16 48abe900                 # 48ab, e9
-    c7   o300:4[Lb:constant_matcher]      # $constant_matcher -> %rax
-    482b o301 89 o106 19                  # 25(%rsi) = %rax - %rcx
-    4889 o167 f8                          # %rsi -> -8(%rdi)
+    66c7 o006 48b8       4889 o10602      # 48b8, symbol pointer
+    c7   o1060a 48ab48b8 4889 o1360e      # 48b8, 48ab, binding
+    c7   o10616 48abe900                  # 48ab, e9
+    c7   o300:4[Lb:/@?k]                  # $/@?k -> %rax
+    482b o301 89 o10619                   # 25(%rsi) = %rax - %rcx
+    4889 o167f8                           # %rsi -> -8(%rdi)
     c3
 
 # Consing and memory allocation
@@ -529,19 +558,19 @@ since we end up pushing the result, we can just pop one instead of popping
 both; then we can write the result over the parameter that we didn't pop.
 
     ::cons
-    488b o107 f8                          # head element
-    488b o137 f0                          # tail element
+    488b o107f8                           # head element
+    488b o137f0                           # tail element
     4883 o357 08                          # pop one
 
     4839 o336 74:1[L:cons_head - :>]      # tail allocation check
-    482b o336 89 o136 fc                  # relative, write e9 jump offset
+    482b o336 89 o136fc                   # relative, write e9 jump offset
     4883 o356 05 c6 o006 e9               # allocate space, write e9 jump opcode
 
     ::cons_head
-    482b o306 89 o106 fc                  # relative, write e8 call offset
+    482b o306 89 o106fc                   # relative, write e8 call offset
     4883 o356 05 c6 o006 e8               # allocate space, write e8 call opcode
 
-    4889 o167 f8 c3                       # return new cons cell
+    4889 o167f8 c3                        # return new cons cell
 
 ## Heap allocation
 
@@ -549,9 +578,9 @@ Allocates the given number of bytes onto the heap and returns a pointer to
 them. Use this carefully; if you allocate too much stuff you'll make the heap
 collide with the data stack and terrible things will happen.
 
-    ::heap_allocate
-    482b o167 f8                          # %rsi -= data-pop
-    4889 o167 f8 c3                       # data-push heap; ret
+    ::allocate
+    482b o167f8                           # %rsi -= data-pop
+    4889 o167f8 c3                        # data-push heap; ret
 
 ## Low-level memory access
 
@@ -560,18 +589,18 @@ can be read and written in a few different sizes, and the processor's
 endianness is used. (This is relevant since all stack values are the same
 width -- so for small reads/writes, you're working with a byte slice.)
 
-    ::r8  4831 o300 488b o137 f8   8a o003 4889 o107 f8 c3
-    ::r16 4831 o300 488b o137 f8 668b o003 4889 o107 f8 c3
-    ::r32 4831 o300 488b o137 f8   8b o003 4889 o107 f8 c3
-    ::r64 4831 o300 488b o137 f8 488b o003 4889 o107 f8 c3
+    ::/@1 4831o300 488b o137f8   8a o003 4889 o107f8 c3
+    ::/@2 4831o300 488b o137f8 668b o003 4889 o107f8 c3
+    ::/@4 4831o300 488b o137f8   8b o003 4889 o107f8 c3
+    ::/@8 4831o300 488b o137f8 488b o003 4889 o107f8 c3
 
 Writes take the value on the top of the stack, followed by the address. We use
 %rax for the value and %rbx for the address.
 
-    ::w8  488b o107 f8 488b o137 f0 4883 o357 10   88 o003 c3
-    ::w16 488b o107 f8 488b o137 f0 4883 o357 10 6689 o003 c3
-    ::w32 488b o107 f8 488b o137 f0 4883 o357 10   89 o003 c3
-    ::w64 488b o107 f8 488b o137 f0 4883 o357 10 4889 o003 c3
+    ::/=1 488b o107f8 488b o137f0 4883 o357 10   88 o003 c3
+    ::/=2 488b o107f8 488b o137f0 4883 o357 10 6689 o003 c3
+    ::/=4 488b o107f8 488b o137f0 4883 o357 10   89 o003 c3
+    ::/=8 488b o107f8 488b o137f0 4883 o357 10 4889 o003 c3
 
 # Definition and invocation
 
@@ -585,7 +614,7 @@ functions that read or write it.
 We refer to this as @> from now on. This function pushes the symbol table
 address onto the data stack.
 
-    ::get_symbol_table
+    ::/@>
     488b o005:4[L:symbol_table - :>] 48ab c3      # st -> %rax; push; ret
 
 ## Symbol table setter
@@ -593,8 +622,8 @@ address onto the data stack.
 This function is only slightly more complex than @> due to the fact that we
 don't have a shortcut quite as nice as stosq. The setter is called @<.
 
-    ::set_symbol_table
-    488b o107 f8 4883 o357 08                     # data-pop -> %rax;
+    ::/@<
+    488b o107f8 4883 o357 08                      # data-pop -> %rax;
     4889 o005:4[L:symbol_table - :>] c3           # %rax -> (symbol_table); ret
 
 ## Return stack manipulation
@@ -606,8 +635,8 @@ Each of these uses a nonstandard return operator because it needs to ignore
 its own immediate return address. However, this doesn't impact the calling
 convention.
 
-    ::return_to_data   59 58 48ab ff o051
-    ::return_from_data 59 488b o107 f8 4883 o357 08 50 ff o051
+    ::/r> 59 58 48ab ff o051
+    ::/r< 59 488b o107f8 4883 o357 08 50 ff o051
 
 # System functions
 
@@ -627,30 +656,30 @@ The only reason syscall wrappers are particularly interesting is that they
 have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
 %r10, etc, are not saved.
 
-    ::syscall0
-    488b o107 f8 4883 o357 08     # data-pop -> %rax
+    ::/&0
+    488b o107f8 4883 o357 08      # data-pop -> %rax
     5657 0f05 5f5e 48ab c3        # syscall; pop %rdi, %rsi; data-push
 
-    ::syscall1
-    488b o107 f8                  # data-pop -> %rax
-    4c8b o117 f0 4883 o357 10     # data-pop -> %rcx
+    ::/&1
+    488b o107f8                   # data-pop -> %rax
+    4c8b o117f0 4883 o357 10      # data-pop -> %rcx
     5657 4887 o317                # push %rsi, %rdi; swap %rcx, %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
-    ::syscall2
+    ::/&2
     56                            # push %rsi
-    488b o107 f8                  # data-pop -> %rax
-    488b o117 f0                  # data-pop -> %rcx
-    488b o167 e8 4883 o357 18     # data-pop -> %rsi
+    488b o107f8                   # data-pop -> %rax
+    488b o117f0                   # data-pop -> %rcx
+    488b o167e8 4883 o357 18      # data-pop -> %rsi
     57 4887 o317                  # push %rdi; swap %rcx, %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
-    ::syscall3
+    ::/&3
     56                            # push %rsi
-    488b o107 f8                  # data-pop -> %rax
-    488b o117 f0                  # data-pop -> %rcx
-    488b o167 e8                  # data-pop -> %rsi
-    488b o127 e0 4883 o357 20     # data-pop -> %rdx
+    488b o107f8                   # data-pop -> %rax
+    488b o117f0                   # data-pop -> %rcx
+    488b o167e8                   # data-pop -> %rsi
+    488b o127e0 4883 o357 20      # data-pop -> %rdx
     57 4887 o317                  # push %rdi; swap %rcx, %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
@@ -660,7 +689,7 @@ These use the above and abstract away some of the details of system calling.
 System call numbers are from /usr/include/asm/unistd_64.h on Linux, and where
 applicable they're encoded like this:
 
-    4831 o300             <- xor %rax, %rax
+    4831o300              <- xor %rax, %rax
     b0NN                  <- mov $0xNN, %al
 
 This ends up being two bytes smaller than the equivalent 48c7 o300 NN000000.
@@ -669,11 +698,11 @@ number 0.
 
 Arguments to these system calls pass through directly, as do return values.
 
-    ::read  4831 o300      48ab e9:4[L:syscall3 - :>]     # n, buf, fd -> n
-    ::write 4831 o300 b001 48ab e9:4[L:syscall3 - :>]     # n, buf, fd -> n
-    ::open  4831 o300 b002 48ab e9:4[L:syscall3 - :>]     # path, f, m -> fd
-    ::close 4831 o300 b003 48ab e9:4[L:syscall3 - :>]     # fd -> status
+    ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # n, buf, fd -> n
+    ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n, buf, fd -> n
+    ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path, f, m -> fd
+    ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # fd -> status
 
-    ::exit  4831 o300 b03c 48ab e9:4[L:syscall1 - :>]     # code -> _
+    ::/&exit  4831o300 b03c 48ab e9:4[L:/&1 - :>]        # code -> _
 
     ::bootstrap_end
