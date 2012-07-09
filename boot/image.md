@@ -327,7 +327,7 @@ This will end up tying together a number of pieces, but for the moment it just
 pushes a zero to return.
 
     ::/main
-    4831o300 48ab                        # data-push 0
+    4831o300 48ab                         # data-push 0
     c3                                    # return (to exit function)
 
 ## Nil
@@ -448,19 +448,16 @@ Here's the logic:
       xorq %rcx, %rcx                   <- clear high bits
       movw (%rax), %cx                  <- get length
       cmpw %cx, (%rbx)                  <- both same length?
-      loope length_ok                   <- then check characters
-    bail:
-      ret                               <- else bail
+      jne bail                          <- if not, bail
     length_ok:
       movb 2(%rbx,%rcx,1), %dl
       cmpb %dl, 2(%rax,%rcx,1)
-      je ok
-      ret
-    ok:
-      loop
+      jne bail                          <- mismatched character
+      loop                              <- else do the next one
     success:
       movq %rbp, -8(%rdi)               <- set data stack result
       pop %rax                          <- drop 'next' continuation
+    bail:                               <- success falls through
       ret                               <- invoke 'return' continuation
 
 This function ends up being bound as @?k in the symbol table. We bind this
@@ -474,7 +471,7 @@ once we've defined cons and bind below.
 
     4831o311 668b o010            # %rcx = length
     6639 o013                     # length check
-    e3:1[L:/@?k_bail - :>]
+    75:1[L:/@?k_bail - :>]
 
     ::/@?k_loop
     8a o124o01302                 # top of loop: populate %dl
