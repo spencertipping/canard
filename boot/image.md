@@ -154,6 +154,8 @@ symbol binding.)
     - end
 
     - binding main
+
+    - binding /:k
     - binding @:k
     - binding @?k
     - binding @>
@@ -330,6 +332,16 @@ pushes a zero to return.
     4831o300 48ab                         # data-push 0
     c3                                    # return (to exit function)
 
+# Consing and memory allocation
+
+We need a way to allocate new cons cells without manually getting memory from
+the heap. To do this, we define the cons function, which will ultimately be
+stored in the symbol table as ::.
+
+Right now we have some leftover stuff on the stack. The data stack top is the
+symbol matcher for @:k, which we'll ultimately need to cons onto the nil we put
+into a single byte on the heap.
+
 ## Nil
 
 This is easy; it's just a single byte on the heap. We then push a pointer to
@@ -340,179 +352,6 @@ that byte onto the data stack.
     c6  o006 c3                           # move the byte c3 to this address
     488bo306 48ab                         # push the c3 reference onto the stack
     c3                                    # return
-
-## Matchers and symbol resolution
-
-Each function in the symbol table composition is a matcher. This means that it
-uses a calling convention that allows it to operate in conjunction with other
-matchers in the symbol table. The calling convention is a consequence of the
-way the symbol table works. For example, here's a matching process:
-
-    call resolve_symbol                 <- %rsp is now 'return'
-    resolve_symbol:
-      call first_matcher                <- %rsp is now 'next'
-      call second_matcher               <- %rsp is now 'next'
-      ...
-      ret                               <- %rsp is now 'no match'
-
-Matchers are always run in order like this, and their return values are not
-checked by any conditional. It would appear as though we need to thread some
-sort of state through the rest of the calls to communicate when a matcher has
-succeeded. This is not the case, however. Matchers can elect to return early
-by popping a continuation off of %rsp and then using a RET instruction to
-return directly to the caller of resolve_symbol:
-
-    first_matcher:
-      ...
-      stosq                             <- push result onto data stack
-      pop %rax                          <- discard 'next' continuation
-      ret                               <- invoke 'return' continuation
-
-If a matcher fails, it should leave the data stack alone and invoke the 'next'
-continuation as if nothing had happened:
-
-    first_matcher:
-      ...
-      ret                               <- invoke 'next' continuation
-
-## Constant symbol matcher generator
-
-This function takes a symbol and an address on the stack and returns a pointer
-to a matcher that matches the symbol and returns the address. If the match
-fails, the matcher invokes the 'next' continuation as described above.
-
-Each generated matcher is a separately-allocated chunk of machine code that
-contains the immediate data required to behave as a closure. So, for example,
-here's what gets generated for the symbol 'foo:
-
-    foo_matcher:
-      movq $foo_data, %rax              <- data-push 'foo' symbol
-      stosq
-      movq $binding_immediate, %rax     <- data-push symbol binding
-      stosq
-      jmp @?k                           <- tail-call matching function
-
-We can easily compute the amount of space required to store the generated
-code, so we can preallocate. Here's the machine code for the assembly above:
-
-    foo_matcher:
-      48b8 foo_data [8 bytes] 48ab      <- 12 bytes total
-      48b8 binding  [8 bytes] 48ab      <- 12 bytes total
-      e9 @?k [4 bytes]                  <- 5 bytes total
-
-So we'll need 29 bytes of space per symbol matcher. Right now we don't have a
-proper heap allocator, but luckily it's straightforward enough. We just
-subtract some amount from %rsi and use the new memory.
-
-Here's how the matcher generator works:
-
-    @:k: (@:k in the symbol table)
-      data-pop %rax                     <- symbol pointer
-      data-pop %rbx                     <- binding
-      movq %rsi, %rcx                   <- original heap pointer
-      subq $29, %rsi                    <- allocate code space
-      movw $0xb848, (%rsi)              <- write 48b8 instruction
-      movq %rax, 2(%rsi)                <- write symbol address
-      movl $0xb848ab48, 10(%rsi)        <- write 48ab and 48b8 instructions
-      movq %rbx, 14(%rsi)               <- write binding address
-      movl $0x00e9ab48, 22(%rsi)        <- write 48ab and e9 instructions
-      movq $@?k, %rax                   <- absolute address of matcher fn
-      subq %rcx, %rax                   <- compute %rax - (29 + %rsi)
-      movl %ecx, 25(%rsi)               <- write call to @?k
-      data-push %rsi                    <- return reference to new matcher
-      ret                               <- return
-
-Notice that we've got this reference to @?k in the middle of the
-code. This isn't a problem because we can just put the constant matcher into
-the bootstrap section (basically right here), where it will have a known
-address. We can then hard-code that address into @:k.
-None of this requires any interaction with the symbol table, which at this
-point is not yet functional.
-
-## Constant matcher definition
-
-The constant matcher just compares bytes within a contiguous region of memory.
-It takes two symbols and a binding address as data stack arguments; the
-binding address will be sent to the second continuation if the two symbols
-match; otherwise the immediate continuation will be used and the binding
-address and one of the symbols will be popped from the data stack. (This is
-basically how it needs to work in order to adhere to the calling convention
-for symbol table matchers.)
-
-Here's the logic:
-
-    @?k:
-      data-pop %rbp                     <- binding address
-      data-pop %rax                     <- first symbol
-      movq -8(%rdi), %rbx               <- second symbol (peek, not pop)
-      xorq %rcx, %rcx                   <- clear high bits
-      movw (%rax), %cx                  <- get length
-      cmpw %cx, (%rbx)                  <- both same length?
-      jne bail                          <- if not, bail
-    length_ok:
-      movb 2(%rbx,%rcx,1), %dl
-      cmpb %dl, 2(%rax,%rcx,1)
-      jne bail                          <- mismatched character
-      loop                              <- else do the next one
-    success:
-      movq %rbp, -8(%rdi)               <- set data stack result
-      pop %rax                          <- drop 'next' continuation
-    bail:                               <- success falls through
-      ret                               <- invoke 'return' continuation
-
-This function ends up being bound as @?k in the symbol table. We bind this
-once we've defined cons and bind below.
-
-    ::/@?k
-    488b o157f8                   # -8(%rdi) -> %rbp
-    488b o107f0                   # -16(%rdi) -> %rax
-    488b o137e8                   # -24(%rdi) -> %rbx
-    4883 o357 10                  # %rdi -= 16 (pop two entries)
-
-    4831o311 668b o010            # %rcx = length
-    6639 o013                     # length check
-    75:1[L:/@?k_bail - :>]
-
-    ::/@?k_loop
-    8a o124o01302                 # top of loop: populate %dl
-    38 o124o01002                 # compare characters
-    75:1[L:/@?k_bail - :>]        # bail if not equal
-    e2:1[L:/@?k_loop - :>]        # loop if more characters (%cx != 0)
-
-    4889 o157f8                   # %rbp -> -8(%rdi)
-    58                            # pop
-
-    ::/@?k_bail                   # fall through either way
-    c3                            # invoke return or next continuation
-
-Here's the definition of @:k. Push a trivial return
-address here so that the function below will return to the continuation
-immediately following its definition.
-
-    ::/@:k
-    488b o107f8                           # symbol pointer
-    488b o137f0                           # binding
-    4883 o357 08                          # pop one (we replace the other later)
-
-    488b o316                             # %rsi -> %rcx
-    4883 o356 1d                          # %rsi -= 29
-    66c7 o006 48b8       4889 o10602      # 48b8, symbol pointer
-    c7   o1060a 48ab48b8 4889 o1360e      # 48b8, 48ab, binding
-    c7   o10616 48abe900                  # 48ab, e9
-    c7   o300:4[Lb:/@?k]                  # $/@?k -> %rax
-    482b o301 89 o10619                   # 25(%rsi) = %rax - %rcx
-    4889 o167f8                           # %rsi -> -8(%rdi)
-    c3
-
-# Consing and memory allocation
-
-We need a way to allocate new cons cells without manually getting memory from
-the heap. To do this, we define the cons function, which will ultimately be
-stored in the symbol table as ::.
-
-Right now we have some leftover stuff on the stack. The data stack top is the
-symbol matcher for @:k, which we'll ultimately need to cons onto the nil we put
-into a single byte on the heap.
 
 ## Cons definition
 
@@ -599,6 +438,67 @@ Writes take the value on the top of the stack, followed by the address. We use
     ::/=4 488b o107f8 488b o137f0 4883 o357 10   89 o003 c3
     ::/=8 488b o107f8 488b o137f0 4883 o357 10 4889 o003 c3
 
+## Return stack manipulation
+
+These two functions allow you to move values between the data and return
+stacks. r> pulls from the return stack, r< pushes onto it.
+
+Each of these uses a nonstandard return operator because it needs to ignore
+its own immediate return address. However, this doesn't impact the calling
+convention.
+
+    ::/r> 59 58 48ab ff o051
+    ::/r< 59 488b o107f8 4883 o357 08 50 ff o051
+
+# Closures
+
+Canard doesn't have closures in the same sense that Lisp or Haskell does, but
+you can construct functions that push specific values onto the stack so that the
+next function has something to work with. For instance, consider something like
+this:
+
+    adder x y = x + y
+    f = adder 5
+    f 10                          <- returns 15
+
+We can define adder like this in Canard:
+
+    = [adder] [+ /:k]             <- quotation here; we want composition
+    = [f] adder 5                 <- notice: no quotation!
+    f 10                          <- returns 15
+
+The key is the /:k function, which is analogous to the 'k' combinator in
+functional programming. For any value, /:k returns a function that pushes that
+value each time it is called.
+
+## Constant function
+
+This is fairly simple. Values are represented as 64-bit numbers internally, so
+we just need to write a function that pushes a fixed number onto the stack.
+The processor supports a 64-bit move-immediate into %rax using the 48b8
+operation, so the generated code will look something like this:
+
+    48b8 xxxxxxxx xxxxxxxx      <- value to be pushed
+    48ab c3                     <- push and return
+
+This requires 13 bytes of heap space, which we can obtain by subtracting
+directly from %rsi.
+
+    :://:k
+    488b o107f8                   # data-pop into %rax
+    4883 o356 0d                  # allocate heap space
+    66c7 o006 48b8                # write 48b8 instruction at (%rsi)
+      c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
+    488b o10602                   # write value to be pushed
+    4889 o106f8                   # data-push %rsi
+    c3
+
+Notice that we're writing the end opcodes first. Doing it this way lets us use
+a wider 4-byte mov, which makes the code smaller and decreases the instruction
+count. However, in doing this we also overwrite the last byte of the value
+that we want to push; so we wait to write the value until after we've written
+all of the opcodes.
+
 # Definition and invocation
 
 This is the last piece of the symbol table. Remember from earlier that the
@@ -623,17 +523,172 @@ don't have a shortcut quite as nice as stosq. The setter is called @<.
     488b o107f8 4883 o357 08                      # data-pop -> %rax;
     4889 o005:4[L:symbol_table - :>] c3           # %rax -> (symbol_table); ret
 
-## Return stack manipulation
+## Matchers and symbol resolution
 
-These two functions allow you to move values between the data and return
-stacks. r> pulls from the return stack, r< pushes onto it.
+Each function in the symbol table composition is a matcher. This means that it
+uses a calling convention that allows it to operate in conjunction with other
+matchers in the symbol table. The calling convention is a consequence of the
+way the symbol table works. For example, here's a matching process:
 
-Each of these uses a nonstandard return operator because it needs to ignore
-its own immediate return address. However, this doesn't impact the calling
-convention.
+    call resolve_symbol                 <- %rsp is now 'return'
+    resolve_symbol:
+      call first_matcher                <- %rsp is now 'next'
+      call second_matcher               <- %rsp is now 'next'
+      ...
+      ret                               <- %rsp is now 'no match'
 
-    ::/r> 59 58 48ab ff o051
-    ::/r< 59 488b o107f8 4883 o357 08 50 ff o051
+Matchers are always run in order like this, and their return values are not
+checked by any conditional. It would appear as though we need to thread some
+sort of state through the rest of the calls to communicate when a matcher has
+succeeded. This is not the case, however. Matchers can elect to return early
+by popping a continuation off of %rsp and then using a RET instruction to
+return directly to the caller of resolve_symbol:
+
+    first_matcher:
+      ...
+      stosq                             <- push result onto data stack
+      pop %rax                          <- discard 'next' continuation
+      ret                               <- invoke 'return' continuation
+
+If a matcher fails, it should leave the data stack alone and invoke the 'next'
+continuation as if nothing had happened:
+
+    first_matcher:
+      ...
+      ret                               <- invoke 'next' continuation
+
+Philosophically this is sort of like having the functions take multiple
+continuations as parameters, with the convention that continuations are passed
+on the return stack instead of the data stack. [TODO: Figure out whether this
+is maintainable given that r> and r< are used to stash data items...]
+
+## Constant symbol matcher generator
+
+This function takes a symbol and an address on the stack and returns a pointer
+to a matcher that matches the symbol and returns the address. If the match
+fails, the matcher invokes the 'next' continuation as described above.
+
+Each generated matcher is a separately-allocated chunk of machine code that
+contains the immediate data required to behave as a closure. So, for example,
+here's what gets generated for the symbol 'foo:
+
+    foo_matcher:
+      movq $foo_data, %rax              <- data-push 'foo' symbol
+      stosq
+      movq $binding_immediate, %rax     <- data-push symbol binding
+      stosq
+      jmp @?k                           <- tail-call matching function
+
+We can easily compute the amount of space required to store the generated
+code, so we can preallocate. Here's the machine code for the assembly above:
+
+    foo_matcher:
+      48b8 foo_data [8 bytes] 48ab      <- 12 bytes total
+      48b8 binding  [8 bytes] 48ab      <- 12 bytes total
+      e9 @?k [4 bytes]                  <- 5 bytes total
+
+So we'll need 29 bytes of space per symbol matcher. Right now we don't have a
+proper heap allocator, but luckily it's straightforward enough. We just
+subtract some amount from %rsi and use the new memory.
+
+Here's how the matcher generator works:
+
+    @:k:
+      data-pop %rax                     <- symbol pointer
+      data-pop %rbx                     <- binding
+      movq %rsi, %rcx                   <- original heap pointer
+      subq $29, %rsi                    <- allocate code space
+      movw $0xb848, (%rsi)              <- write 48b8 instruction
+      movq %rax, 2(%rsi)                <- write symbol address
+      movl $0xb848ab48, 10(%rsi)        <- write 48ab and 48b8 instructions
+      movq %rbx, 14(%rsi)               <- write binding address
+      movl $0x00e9ab48, 22(%rsi)        <- write 48ab and e9 instructions
+      movq $@?k, %rax                   <- absolute address of matcher fn
+      subq %rcx, %rax                   <- compute %rax - (29 + %rsi)
+      movl %ecx, 25(%rsi)               <- write call to @?k
+      data-push %rsi                    <- return reference to new matcher
+      ret                               <- return
+
+Notice that we've got this reference to @?k in the middle of the code. This
+isn't a problem because we can just put the constant matcher into the
+bootstrap section (basically right here), where it will have a known address.
+We can then hard-code that address into @:k. None of this requires any
+interaction with the symbol table, which at this point is not yet functional.
+
+## Constant matcher definition
+
+The constant matcher just compares bytes within a contiguous region of memory.
+It takes two symbols and a binding address as data stack arguments; the
+binding address will be sent to the second continuation if the two symbols
+match; otherwise the immediate continuation will be used and the binding
+address and one of the symbols will be popped from the data stack. (This is
+basically how it needs to work in order to adhere to the calling convention
+for symbol table matchers.)
+
+Here's the logic:
+
+    @?k:
+      data-pop %rbp                     <- binding address
+      data-pop %rax                     <- first symbol
+      movq -8(%rdi), %rbx               <- second symbol (peek, not pop)
+      xorq %rcx, %rcx                   <- clear high bits
+      movw (%rax), %cx                  <- get length
+      cmpw %cx, (%rbx)                  <- both same length?
+      jne bail                          <- if not, bail
+    length_ok:
+      movb 2(%rbx,%rcx,1), %dl
+      cmpb %dl, 2(%rax,%rcx,1)
+      jne bail                          <- mismatched character
+      loop                              <- else do the next one
+    success:
+      movq %rbp, -8(%rdi)               <- set data stack result
+      pop %rax                          <- drop 'next' continuation
+    bail:                               <- success falls through
+      ret                               <- invoke 'return' continuation
+
+This function ends up being bound as @?k in the symbol table. We bind this
+once we've defined cons and bind below.
+
+    ::/@?k
+    488b o157f8                   # -8(%rdi) -> %rbp
+    488b o107f0                   # -16(%rdi) -> %rax
+    488b o137e8                   # -24(%rdi) -> %rbx
+    4883 o357 10                  # %rdi -= 16 (pop two entries)
+
+    4831o311 668b o010            # %rcx = length
+    6639 o013                     # length check
+    75:1[L:/@?k_bail - :>]
+
+    ::/@?k_loop
+    8a o124o01302                 # top of loop: populate %dl
+    38 o124o01002                 # compare characters
+    75:1[L:/@?k_bail - :>]        # bail if not equal
+    e2:1[L:/@?k_loop - :>]        # loop if more characters (%cx != 0)
+
+    4889 o157f8                   # %rbp -> -8(%rdi)
+    58                            # pop
+
+    ::/@?k_bail                   # fall through either way
+    c3                            # invoke return or next continuation
+
+Here's the definition of @:k. Push a trivial return address here so that the
+function below will return to the continuation immediately following its
+definition.
+
+    ::/@:k
+    488b o107f8                           # symbol pointer
+    488b o137f0                           # binding
+    4883 o357 08                          # pop one (we replace the other later)
+
+    488b o316                             # %rsi -> %rcx
+    4883 o356 1d                          # %rsi -= 29
+    66c7 o006 48b8       4889 o10602      # 48b8, symbol pointer
+    c7   o1060a 48ab48b8 4889 o1360e      # 48b8, 48ab, binding
+    c7   o10616 48abe900                  # 48ab, e9
+    c7   o300:4[Lb:/@?k]                  # $/@?k -> %rax
+    482b o301 89 o10619                   # 25(%rsi) = %rax - %rcx
+    4889 o167f8                           # %rsi -> -8(%rdi)
+    c3
 
 # System functions
 
