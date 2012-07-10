@@ -165,6 +165,7 @@
   # The binary-text compiler can't handle a label called /:: -- the two colons
   # make it think it's supposed to use a label reference.
   :2[L:cons]     ::@cons     0200'::
+  :2[L:swons]    ::@swons    0300':$:
   :2[L:allocate] ::@allocate 0200':v
 
 :2[L:/=1] ::@=1 0200'=1
@@ -368,18 +369,30 @@ e8:4[L:/nil - :>]
 #   Cons takes the head on top of the stack and the tail beneath that. This is
 #   counterintuitive from code, as arguments appear to be in the wrong order:
 
-#   | :: 3 []             <- correct
+#   | :: 3 []             <- [3]
 #     :: [] 3             <- improper list
 
 #   However, generally it's more useful to access the head of a list than the
 #   tail, so we want it to be immediately available.
 
-#   Given all of that, here's the algorithm for cons (referred to as :: from now
-#   on):
+#   There are cases where you want the other ordering; for that you can use
+#   'swons' ('swap cons'), which is identical to 'cons' except that its arguments
+#   are reversed:
 
-#   | cons:
+#   | :$: 3 []            <- improper list
+#     :$: [] 3            <- [3]
+
+#   Given all of that, here's the algorithm for both cons and swons (referred to
+#   as :: and :$: respectively):
+
+#   | swons:
+#       data-pop %rbx             <- tail
+#       data-pop %rax             <- head
+#       jmp cons_body             <- reuse logic below
+#     cons:
 #       data-pop %rax             <- head
 #       data-pop %rbx             <- tail
+#     cons_body:
 #       cmpq %rbx, %rsi           <- check for contiguous segment
 #     je cons_head                <- skip tail allocation if contiguous
 #       subq %rsi, %rbx           <- absolute->relative
@@ -398,11 +411,17 @@ e8:4[L:/nil - :>]
 #   since we end up pushing the result, we can just pop one instead of popping
 #   both; then we can write the result over the parameter that we didn't pop.
 
+  ::swons
+  488b o137f8                           # head element
+  488b o107f0                           # tail element
+  eb:1[L:cons_body - :>]                # reuse code below
+
   ::cons
   488b o107f8                           # head element
   488b o137f0                           # tail element
-  4883 o357 08                          # pop one
 
+  ::cons_body
+  4883 o357 08                          # pop one
   4839 o336 74:1[L:cons_head - :>]      # tail allocation check
   482b o336 89 o136fc                   # relative, write e9 jump offset
   4883 o356 05 c6 o006 e9               # allocate space, write e9 jump opcode
@@ -563,52 +582,31 @@ e8:4[L:/nil - :>]
 #   to a matcher that matches the symbol and returns the address. If the match
 #   fails, the matcher invokes the 'next' continuation as described above.
 
-#   Each generated matcher is a separately-allocated chunk of machine code that
-#   contains the immediate data required to behave as a closure. So, for example,
-#   here's what gets generated for the symbol 'foo:
+#   It turns out that this is quite easy given that we've defined /:k already. All
+#   we need to do is construct two cons cells, one for each argument to @?k. We're
+#   basically building up this list:
 
-#   | foo_matcher:
-#       movq $foo_data, %rax              <- data-push 'foo' symbol
-#       stosq
-#       movq $binding_immediate, %rax     <- data-push symbol binding
-#       stosq
-#       jmp @?k                           <- tail-call matching function
+#   | :: (/:k value) :: (/:k symbol) [@?k]
 
-#   We can easily compute the amount of space required to store the generated
-#   code, so we can preallocate. Here's the machine code for the assembly above:
+#   The symbol is on the top of the stack, the value beneath it. @:k consumes both
+#   and returns a single matcher function.
 
-#   | foo_matcher:
-#       48b8 foo_data [8 bytes] 48ab      <- 12 bytes total
-#       48b8 binding  [8 bytes] 48ab      <- 12 bytes total
-#       e9 @?k [4 bytes]                  <- 5 bytes total
+#   Here's an initial implementation:
 
-#   So we'll need 29 bytes of space per symbol matcher. Right now we don't have a
-#   proper heap allocator, but luckily it's straightforward enough. We just
-#   subtract some amount from %rsi and use the new memory.
+#   | ::/@:k
+#     e8:4[L://:k  - :>]                  # value -> k value
+#     48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
+#     e8:4[L:swons - :>]                  # first composition
+#     e8:4[L:%x    - :>]                  # swap
+#     e8:4[L://:k  - :>]                  # symbol -> k symbol
+#     e8:4[L:cons  - :>]                  # final composition
+#     c3
 
-#   Here's how the matcher generator works:
+#   This implementation looks suspiciously similar to a list. The only exceptional
+#   piece is the reference to @?k, but conveniently can use /:k to do this for us.
+#   If we were going to build @:k in code, it would look roughly like this:
 
-#   | @:k:
-#       data-pop %rax                     <- symbol pointer
-#       data-pop %rbx                     <- binding
-#       movq %rsi, %rcx                   <- original heap pointer
-#       subq $29, %rsi                    <- allocate code space
-#       movw $0xb848, (%rsi)              <- write 48b8 instruction
-#       movq %rax, 2(%rsi)                <- write symbol address
-#       movl $0xb848ab48, 10(%rsi)        <- write 48ab and 48b8 instructions
-#       movq %rbx, 14(%rsi)               <- write binding address
-#       movl $0x00e9ab48, 22(%rsi)        <- write 48ab and e9 instructions
-#       movq $@?k, %rax                   <- absolute address of matcher fn
-#       subq %rcx, %rax                   <- compute %rax - (29 + %rsi)
-#       movl %ecx, 25(%rsi)               <- write call to @?k
-#       data-push %rsi                    <- return reference to new matcher
-#       ret                               <- return
-
-#   Notice that we've got this reference to @?k in the middle of the code. This
-#   isn't a problem because we can just put the constant matcher into the
-#   bootstrap section (basically right here), where it will have a known address.
-#   We can then hard-code that address into @:k. None of this requires any
-#   interaction with the symbol table, which at this point is not yet functional.
+#   | = [@:k] :++ :$: [:: /:k %x :$:] /:k '@?k [/:k]
 
 #   Constant matcher definition.
 #   The constant matcher just compares bytes within a contiguous region of memory.
