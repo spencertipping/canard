@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  610402ec2fedb612bc7ca819fdaee9b6
-# istate: bbfa25e6fc5fea59873e49899bfce77f
+# state:  2c7a72131e8cea101a808f0c86f96d09
+# istate: c8cb704afc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -388,14 +388,14 @@ vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
 __
 meta::cache('parent-state', <<'__');
 3d87f1a4b0694cfebcbfd589fa5ed5dd 18d86397c52aeb07c61f70b50fb20703
-70dae4b46eb4e06798ec6f38d17d4c7b c836bdf70b43abfd4a2e2440100a5f8f
-902333a0bd6ed90ff919fe8477cb4e69 ddfdd081247cac098af00ce79198d1fd
-93194ecf50e38f2adb6e273909e007b5 78b8637d85c49386339c614106100448
+70dae4b46eb4e06798ec6f38d17d4c7b 406b66e1ee15bc4cd3dbca435b9ebd63
+902333a0bd6ed90ff919fe8477cb4e69 4b7a49bce518dff6d986099a732538cf
+93194ecf50e38f2adb6e273909e007b5 df2c609f23f138397515f28d792091ba
 99aeabc9ec7fe80b1b39f5e53dc7e49e e024d1ddb534961d35855863dea1e160
-9fabb9b6f2f374c35ddcc26549ac2b65 56dab921dd9ddd719d024bf3400d9cec
-a1e8480e579614c01dabeecf0f963bcc 7735c8c339814d357b2825e7eb3425ee
-a9e5975593ed5d90d943ad98405c71e5 4471aca86a04a4d75c21cf5090c71011
-ffe5790f4c605b3bd73283f7c5e57dc5 99b38f68ed87d988cd58479157e23d2f
+9fabb9b6f2f374c35ddcc26549ac2b65 28869ac238400eb53b7f671f10f307ad
+a1e8480e579614c01dabeecf0f963bcc 5687f668859dd4c695c9379f1ab8e31f
+a9e5975593ed5d90d943ad98405c71e5 2ed219fe3e2003006818ddfa52aaf396
+ffe5790f4c605b3bd73283f7c5e57dc5 f9de507ed237ef8eab194127348de26d
 __
 meta::data('author', 'Spencer Tipping');
 meta::data('default-action', 'shell');
@@ -525,7 +525,7 @@ meta::function('compile-binary', <<'__');
 # Note that all expressions are evaluated after the basic image has been
 # generated. This allows you to use forward references to labels.
 
-my $text = join ' ', map split(/\s+/), split /#.*/m, retrieve($_[0]);
+my $text = join ' ', map split(/\s+/), split /(?:\s|^)#.*/m, retrieve($_[0]);
 my $hex_letters = '0123456789abcdef';
 
 my %places;
@@ -2075,9 +2075,9 @@ will be used at most once for each symbol.
 
 __
 meta::parent('binary', <<'__');
-function::compile-binary  d2b26dc5bc0f76dbc5a8cfa39bfbcce6
+function::compile-binary  fcb22854d34d5fc4f098e823c8fbf865
 meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
-parent::vim-highlighters  ca2d38050b4c851157b4cba70d48c68a
+parent::vim-highlighters  97a78fb60b4c851157b4cba7039e2e8a
 retriever::bin            24b2382d3f002ee325963a5c652c53ff
 vim_highlighter::binary   47bce7f1d6a2ab114ed7b1c65808bbf9
 
@@ -2100,14 +2100,14 @@ function::gd    cff1e868c7c69780a2263c8c7fd75f90
 function::gl    492e2750409588f8b61a8b8e339e42c1
 function::gs    4ea8aeccb36ab83702062e4359e8600b
 function::gu    fdd2e61e0ea981dda6d407df63c0e47e
-parent::object  1eb57805f5368d0d6692124a93814e73
+parent::object  b9a2def7969dcd4b475cae3f95be98d3
 
 __
 meta::parent('notes', <<'__');
 function::note    c6d52ffe73cd48cd95fdc561c59d9f63
 function::notes   7229b326ac8686b2db6de98496bc7527
 meta::type::note  f81bea58841a438e4ee34608ab4f54c0
-parent::object    1eb57805f5368d0d6692124a93814e73
+parent::object    b9a2def7969dcd4b475cae3f95be98d3
 
 __
 meta::parent('object', <<'__');
@@ -2166,7 +2166,7 @@ function::state                         ef2051d9fe0684044d0f3df752e0c949
 function::touch                         3991b1b7c7187566f50e5e58ce01fa06
 function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
 function::update                        ac391dc90e507e7586c81850e7c2ecdd
-function::update-from                   6d72dd26078dd6ef11dbb021bd3d4997
+function::update-from                   10461f1e23b645c1a64f69eabef61b4f
 function::usage                         5bdd370f5a56cfbf199e08d398091444
 function::verify                        0c0cc1dfeab7d705919df122f7850a4f
 indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
@@ -2239,10 +2239,10 @@ __
 meta::parent('preprocessor', <<'__');
 function::preprocess           ab5526a02ff417d4c162357dc327e7c4
 meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
-parent::object                 1eb57805f5368d0d6692124a93814e73
+parent::object                 b9a2def7969dcd4b475cae3f95be98d3
 retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
 template::comment              dfe273d2dad3d8159b847545e4e5c309
-template::def                  6298278ca5c461d4380ff02498a6103d
+template::def                  0575aedbacf922d77f3419b817b7d579
 template::eval                 1a0e2124a05056be4abc11803883c294
 template::failing_conditional  e3a4523110dd859e828f342185de7c62
 template::include              47b5552d609d97fe7f2522d5c1027014
@@ -2257,7 +2257,7 @@ function::sdoc-packed     8ec4975fca7228708baae6ccd241bdbf
 function::sdocp           c3d738d982ba87418a298ff58478a85b
 meta::type::sdoc          22cd7315641d38c9d536344e83c36bed
 meta::type::slibrary      95474943c4a5f8ff17d3cf66ddb7c386
-parent::object            a37424dde13ac2d896d5d1f6c48603d7
+parent::object            b9a2def7969dcd4b475cae3f95be98d3
 retriever::code-sdoc      03b87ff8d1ecf7594db9ca0669fc69a1
 retriever::html-sdoc      8ab7705d03276945b23a71677153233c
 retriever::markdown-sdoc  67c34ba8223ec36a3ae018e411354db2
@@ -2268,14 +2268,14 @@ retriever::sdocp          fcfcf3a7de79d7d863402b9ccfcac3c4
 __
 meta::parent('text', <<'__');
 function::wrapped-near   b34731b33db1a4b56c724b1aa5c97f6d
-parent::object           a37424dde13ac2d896d5d1f6c48603d7
+parent::object           b9a2def7969dcd4b475cae3f95be98d3
 retriever::wrapped-near  1b00aeef9dbd19633a1fedc443b846e8
 
 __
 meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
 meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
-parent::object               1eb57805f5368d0d6692124a93814e73
+parent::object               b9a2def7969dcd4b475cae3f95be98d3
 
 __
 meta::retriever('bin', <<'__');
@@ -2497,46 +2497,19 @@ pushed onto the data stack prior to invoking 'main'.
   symbol binding.)
 
   ::binding_table
-  - def binding name << end
-    :2[L:/$name] ::\@$name @{[sprintf "%02x", length $name]}00'$name
+  - def -p binding << end
+    :2[L:/$_] ::\@$_ @{[sprintf "%02x", length $_]}00'$_
   - end
 
-  - binding main
-
-  - binding /:k
-  - binding @:k
-  - binding @?k
-  - binding @>
-  - binding @<
-
-  - binding r>
-  - binding r<
+  - binding main, /:k, @:k, @?k, @<, @>, r<, r>
+  - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
+  - binding &read, &write, &open, &close
 
   # The binary-text compiler can't handle a label called /:: -- the two colons
   # make it think it's supposed to use a label reference.
   :2[L:cons]     ::@cons     0200'::
   :2[L:swons]    ::@swons    0300':$:
   :2[L:allocate] ::@allocate 0200':v
-
-  - binding =1
-  - binding =2
-  - binding =4
-  - binding =8
-
-  - binding @1
-  - binding @2
-  - binding @4
-  - binding @8
-
-  - binding &0
-  - binding &1
-  - binding &2
-  - binding &3
-
-  - binding &read
-  - binding &write
-  - binding &open
-  - binding &close
 
   /2/00         # end marker
   ::end_binding_table
@@ -2659,7 +2632,7 @@ This is necessary for the initialization we're going to do below.
   At this point the data stack top is the 'main' symbol, which is ideal: we can
   resolve it and then tail-call into the result. 'main' can return into 'exit'.
 
-  ff   o323                             # resolve 'main'
+  ff   o323                             # resolve 'main' (using %rbx)
   488b o107f8 4883 o357 08              # data-pop %rax
   ff   o340                             # jump into main
 
@@ -2805,6 +2778,31 @@ into a single byte on the heap.
   ::/r> 59 58 48ab ff o051
   ::/r< 59 488b o107f8 4883 o357 08 50 ff o051
 
+  Trivial stack permutation.
+  I don't want to do too much here because it turns out that there is a nice way
+  to encode stack permutation in terms of numerical digits; we're better off
+  JIT-compiling the specific transformations we need rather than relying on
+  compositions of basic ones like these.
+
+  However, in the interests of getting a bootstrap compiler off the ground, here
+  are a few:
+
+  ::/%x                                 # Swap two entries
+  488b o137f8                           # data-pop %rbx
+  488b o107f0                           # data-pop $rax
+  4883 o357 10                          # deallocate two entries
+  48ab 4893 48ab                        # push the two entries in reverse
+  c3
+
+  ::/%v                                 # Drop one entry
+  4883 o357 08 c3
+
+  ::/%0                                 # Duplicate top entry
+  488b o107f8 48ab c3
+
+  ::/%1                                 # %1 a b ... = b a b ...
+  488b o107f0 48ab c3
+
 Closures.
 Canard doesn't have closures in the same sense that Lisp or Haskell does, but
 you can construct functions that push specific values onto the stack so that the
@@ -2928,11 +2926,11 @@ functions that read or write it.
   Here's an initial implementation:
 
   | ::/@:k
-    e8:4[L://:k  - :>]                  # value -> k value
+    e8:4[L://:k  - :>]                  # symbol -> k symbol
     48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
     e8:4[L:swons - :>]                  # first composition
-    e8:4[L:%x    - :>]                  # swap
-    e8:4[L://:k  - :>]                  # symbol -> k symbol
+    e8:4[L:/%x   - :>]                  # swap
+    e8:4[L://:k  - :>]                  # value -> k value
     e8:4[L:cons  - :>]                  # final composition
     c3
 
@@ -2940,7 +2938,19 @@ functions that read or write it.
   piece is the reference to @?k, but conveniently can use /:k to do this for us.
   If we were going to build @:k in code, it would look roughly like this:
 
-  | = [@:k] :++ :$: [:: /:k %x :$:] /:k '@?k [/:k]
+  | = [@:k] :++ :$: [:: /:k /%x :$:] /:k '@?k [/:k]
+
+  Here's a preprocessor macro to help create code that consists only of function
+  calls:
+
+  - def -p composition << end
+    e8:4[L:$_ - :>]
+  - end
+
+  The only thing is that you'll have to add the final return:
+
+  | - composition x, y, z
+    c3                          <- don't forget this!
 
   Constant matcher definition.
   The constant matcher just compares bytes within a contiguous region of memory.
@@ -2997,23 +3007,77 @@ functions that read or write it.
   ::/@?k_bail                   # fall through either way
   c3                            # invoke return or next continuation
 
-  Here's the definition of @:k. Push a trivial return address here so that the
-  function below will return to the continuation immediately following its
-  definition.
+  Here's @:k. I chose to write the closure thunk manually just to get things
+  done; otherwise it would have been allocated using /:k and consed into @:k
+  using the real cons function. (However, @:k is a valid list anyway.)
+
+  Also, this closure is slightly smaller than the one that would have been
+  written by /:k.
+
+  ::/@:k-closure
+  c7 o300:4[Lb:/@?k] 48ab c3
 
   ::/@:k
-  488b o107f8                           # symbol pointer
-  488b o137f0                           # binding
-  4883 o357 08                          # pop one (we replace the other later)
+  - composition //:k, /@:k-closure, swons, /%x, //:k, cons
+  c3
 
-  488b o316                             # %rsi -> %rcx
-  4883 o356 1d                          # %rsi -= 29
-  66c7 o006 48b8       4889 o10602      # 48b8, symbol pointer
-  c7   o1060a 48ab48b8 4889 o1360e      # 48b8, 48ab, binding
-  c7   o10616 48abe900                  # 48ab, e9
-  c7   o300:4[Lb:/@?k]                  # $/@?k -> %rax
-  482b o301 89 o10619                   # 25(%rsi) = %rax - %rcx
-  4889 o167f8                           # %rsi -> -8(%rdi)
+  Numeric symbol parser.
+  We want to generate number-pushing constant functions for any numeric symbol
+  we observe. It isn't as simple as looking for strings of digits, since these
+  are valid identifiers.
+
+  What we really want to do is use some kind of prefix that is unique to numeric
+  symbols in various bases. Canard does not assume decimal at all; in fact, it
+  doesn't even support literal decimal numbers. Here are the prefixes:
+
+  | x[0-9a-f]+                  <- hexadecimal number
+    o[0-7]+                     <- octal number
+
+  Numbers don't have intrinsic size beyond the size of a stack cell, which for
+  this implementation is 64 bits. Also, no floating-point numbers are supported
+  yet.
+
+  Because these functions are symbol resolvers, they use the usual calling
+  convention. However, instead of returning a binding that they were preloaded
+  with (which is what functions generated by @:k do), they allocate a new
+  constant function for each literal number observed. No attempt is made to
+  cache previously used number functions even though doing this would save
+  memory.
+
+  The code-generation step is trivial because we have /:k. We just take the
+  parsed number, push it onto the stack, call /:k, and return a reference to the
+  resulting closure. The result is a function that pushes the number whenever it
+  is invoked.
+
+  Each digit is checked for membership within two ranges. The first is 0-9,
+  which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
+  0x61 - 0x66.
+
+  ::/@<x                        # Resolve hexadecimal number
+  488b o137f8                   # data-pop -> %rbx
+  4831 o300 8b o310             # %rcx = %rax = 0
+  668b o013                     # symbol length -> %cx
+
+  # TODO
+
+  ::/@<x_bail
+  c3
+
+  Quoted symbol parser.
+  If we observe a symbol that begins with ', we push a closure that pushes a
+  reference to that symbol. This greatly simplifies the process of defining new
+  symbols. (The alternative would be to use the quotation property of lists to
+  say something like :h [symbol].)
+
+  Like /@<x above, this function allocates a new closure for every symbol it
+  resolves.
+
+  ::/@<'                        # Resolve quoted symbol
+  488b o137f8                   # data-pop -> %rbx
+
+  # TODO
+
+  ::/@<'_bail
   c3
 
 System functions.
@@ -3381,19 +3445,45 @@ meta::template('def', <<'__');
 # - named 'foo' << end
 #   woohoo
 # - end
+#
+# You can define a "plural" form like this:
+#
+# - def -p say_hi_to << end
+#   Hi $_!
+# - end
+#
+# - say_hi_to Foo, Bar, Baz
+#
+# Plural forms still have the $body variable (which doesn't change across
+# arguments), but they can't take formal parameters.
 
-my ($name, $formals) = split /\s+/, $_[0], 2;
-my @formals          = split /,\s*/, $formals;
-my $body             = $_[1];
+my ($options, $name, @args) = separate_options(split /\s+/, $_[0]);
+my @formals                 = map split(/,\s*/), @args;
+my $body                    = $_[1];
 
-my $formal_list        = join(', ', map "\$$_", @formals);
-my $parameter_bindings = "my ($formal_list) = split /,\\s*/, \$_[0]";
-my $body_binding       = "my \$body = \$_[1]";
-my $heredoc_delimiter  = state();
+my $formal_list             = join(', ', map "\$$_", @formals);
+my $parameter_bindings      = "my ($formal_list) = split /,\\s*/, \$_[0]";
+my $body_binding            = "my \$body = \$_[1]";
+my $heredoc_delimiter       = state();
 
-meta::externalize "template::$name", "- def $name @formals",
-  eval "sub {\n$parameter_bindings;\n$body_binding;\n" .
-       "<<$heredoc_delimiter\n$body\n$heredoc_delimiter\n}";
+# This will work great unless you put large hexadecimal barewords on otherwise
+# blank lines in your code. At that point there's a 2^-128 chance that it will
+# bomb out horribly.
+my $plural = $$options{'--plural'} || $$options{'-p'};
+
+die "- def $name: cannot use formal parameters with the -p option"
+if $plural && @formals;
+
+$plural ? meta::externalize "template::$name", "- def -p $name",
+            eval "sub {\n$body_binding;\n" .
+                 "join \"\\n\", map <<$heredoc_delimiter, " .
+                                    "split /,\\s*/, \$_[0];\n" .
+                 "$body\n" .
+                 "$heredoc_delimiter\n}"
+
+        : meta::externalize "template::$name", "- def $name @formals",
+            eval "sub {\n$parameter_bindings;\n$body_binding;\n" .
+                 "<<$heredoc_delimiter\n$body\n$heredoc_delimiter\n}";
 
 die $@ if $@;
 

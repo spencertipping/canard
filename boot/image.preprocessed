@@ -145,28 +145,19 @@
 
 :2[L:/main] ::@main 0400'main
 
-
 :2[L://:k] ::@/:k 0300'/:k
 
 :2[L:/@:k] ::@@:k 0300'@:k
 
 :2[L:/@?k] ::@@?k 0300'@?k
 
-:2[L:/@>] ::@@> 0200'@>
-
 :2[L:/@<] ::@@< 0200'@<
 
-
-:2[L:/r>] ::@r> 0200'r>
+:2[L:/@>] ::@@> 0200'@>
 
 :2[L:/r<] ::@r< 0200'r<
 
-
-  # The binary-text compiler can't handle a label called /:: -- the two colons
-  # make it think it's supposed to use a label reference.
-  :2[L:cons]     ::@cons     0200'::
-  :2[L:swons]    ::@swons    0300':$:
-  :2[L:allocate] ::@allocate 0200':v
+:2[L:/r>] ::@r> 0200'r>
 
 :2[L:/=1] ::@=1 0200'=1
 
@@ -176,7 +167,6 @@
 
 :2[L:/=8] ::@=8 0200'=8
 
-
 :2[L:/@1] ::@@1 0200'@1
 
 :2[L:/@2] ::@@2 0200'@2
@@ -184,7 +174,6 @@
 :2[L:/@4] ::@@4 0200'@4
 
 :2[L:/@8] ::@@8 0200'@8
-
 
 :2[L:/&0] ::@&0 0200'&0
 
@@ -194,7 +183,6 @@
 
 :2[L:/&3] ::@&3 0200'&3
 
-
 :2[L:/&read] ::@&read 0500'&read
 
 :2[L:/&write] ::@&write 0600'&write
@@ -203,6 +191,12 @@
 
 :2[L:/&close] ::@&close 0600'&close
 
+
+  # The binary-text compiler can't handle a label called /:: -- the two colons
+  # make it think it's supposed to use a label reference.
+  :2[L:cons]     ::@cons     0200'::
+  :2[L:swons]    ::@swons    0300':$:
+  :2[L:allocate] ::@allocate 0200':v
 
   /2/00         # end marker
   ::end_binding_table
@@ -325,7 +319,7 @@ e8:4[L:/nil - :>]
 #   At this point the data stack top is the 'main' symbol, which is ideal: we can
 #   resolve it and then tail-call into the result. 'main' can return into 'exit'.
 
-  ff   o323                             # resolve 'main'
+  ff   o323                             # resolve 'main' (using %rbx)
   488b o107f8 4883 o357 08              # data-pop %rax
   ff   o340                             # jump into main
 
@@ -471,6 +465,31 @@ e8:4[L:/nil - :>]
   ::/r> 59 58 48ab ff o051
   ::/r< 59 488b o107f8 4883 o357 08 50 ff o051
 
+#   Trivial stack permutation.
+#   I don't want to do too much here because it turns out that there is a nice way
+#   to encode stack permutation in terms of numerical digits; we're better off
+#   JIT-compiling the specific transformations we need rather than relying on
+#   compositions of basic ones like these.
+
+#   However, in the interests of getting a bootstrap compiler off the ground, here
+#   are a few:
+
+  ::/%x                                 # Swap two entries
+  488b o137f8                           # data-pop %rbx
+  488b o107f0                           # data-pop $rax
+  4883 o357 10                          # deallocate two entries
+  48ab 4893 48ab                        # push the two entries in reverse
+  c3
+
+  ::/%v                                 # Drop one entry
+  4883 o357 08 c3
+
+  ::/%0                                 # Duplicate top entry
+  488b o107f8 48ab c3
+
+  ::/%1                                 # %1 a b ... = b a b ...
+  488b o107f0 48ab c3
+
 # Closures.
 # Canard doesn't have closures in the same sense that Lisp or Haskell does, but
 # you can construct functions that push specific values onto the stack so that the
@@ -594,11 +613,11 @@ e8:4[L:/nil - :>]
 #   Here's an initial implementation:
 
 #   | ::/@:k
-#     e8:4[L://:k  - :>]                  # value -> k value
+#     e8:4[L://:k  - :>]                  # symbol -> k symbol
 #     48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
 #     e8:4[L:swons - :>]                  # first composition
-#     e8:4[L:%x    - :>]                  # swap
-#     e8:4[L://:k  - :>]                  # symbol -> k symbol
+#     e8:4[L:/%x   - :>]                  # swap
+#     e8:4[L://:k  - :>]                  # value -> k value
 #     e8:4[L:cons  - :>]                  # final composition
 #     c3
 
@@ -606,7 +625,17 @@ e8:4[L:/nil - :>]
 #   piece is the reference to @?k, but conveniently can use /:k to do this for us.
 #   If we were going to build @:k in code, it would look roughly like this:
 
-#   | = [@:k] :++ :$: [:: /:k %x :$:] /:k '@?k [/:k]
+#   | = [@:k] :++ :$: [:: /:k /%x :$:] /:k '@?k [/:k]
+
+#   Here's a preprocessor macro to help create code that consists only of function
+#   calls:
+
+
+
+#   The only thing is that you'll have to add the final return:
+
+#   | - composition x, y, z
+#     c3                          <- don't forget this!
 
 #   Constant matcher definition.
 #   The constant matcher just compares bytes within a contiguous region of memory.
@@ -663,23 +692,88 @@ e8:4[L:/nil - :>]
   ::/@?k_bail                   # fall through either way
   c3                            # invoke return or next continuation
 
-#   Here's the definition of @:k. Push a trivial return address here so that the
-#   function below will return to the continuation immediately following its
-#   definition.
+#   Here's @:k. I chose to write the closure thunk manually just to get things
+#   done; otherwise it would have been allocated using /:k and consed into @:k
+#   using the real cons function. (However, @:k is a valid list anyway.)
+
+#   Also, this closure is slightly smaller than the one that would have been
+#   written by /:k.
+
+  ::/@:k-closure
+  c7 o300:4[Lb:/@?k] 48ab c3
 
   ::/@:k
-  488b o107f8                           # symbol pointer
-  488b o137f0                           # binding
-  4883 o357 08                          # pop one (we replace the other later)
+e8:4[L://:k - :>]
 
-  488b o316                             # %rsi -> %rcx
-  4883 o356 1d                          # %rsi -= 29
-  66c7 o006 48b8       4889 o10602      # 48b8, symbol pointer
-  c7   o1060a 48ab48b8 4889 o1360e      # 48b8, 48ab, binding
-  c7   o10616 48abe900                  # 48ab, e9
-  c7   o300:4[Lb:/@?k]                  # $/@?k -> %rax
-  482b o301 89 o10619                   # 25(%rsi) = %rax - %rcx
-  4889 o167f8                           # %rsi -> -8(%rdi)
+e8:4[L:/@:k-closure - :>]
+
+e8:4[L:swons - :>]
+
+e8:4[L:/%x - :>]
+
+e8:4[L://:k - :>]
+
+e8:4[L:cons - :>]
+
+  c3
+
+#   Numeric symbol parser.
+#   We want to generate number-pushing constant functions for any numeric symbol
+#   we observe. It isn't as simple as looking for strings of digits, since these
+#   are valid identifiers.
+
+#   What we really want to do is use some kind of prefix that is unique to numeric
+#   symbols in various bases. Canard does not assume decimal at all; in fact, it
+#   doesn't even support literal decimal numbers. Here are the prefixes:
+
+#   | x[0-9a-f]+                  <- hexadecimal number
+#     o[0-7]+                     <- octal number
+
+#   Numbers don't have intrinsic size beyond the size of a stack cell, which for
+#   this implementation is 64 bits. Also, no floating-point numbers are supported
+#   yet.
+
+#   Because these functions are symbol resolvers, they use the usual calling
+#   convention. However, instead of returning a binding that they were preloaded
+#   with (which is what functions generated by @:k do), they allocate a new
+#   constant function for each literal number observed. No attempt is made to
+#   cache previously used number functions even though doing this would save
+#   memory.
+
+#   The code-generation step is trivial because we have /:k. We just take the
+#   parsed number, push it onto the stack, call /:k, and return a reference to the
+#   resulting closure. The result is a function that pushes the number whenever it
+#   is invoked.
+
+#   Each digit is checked for membership within two ranges. The first is 0-9,
+#   which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
+#   0x61 - 0x66.
+
+  ::/@<x                        # Resolve hexadecimal number
+  488b o137f8                   # data-pop -> %rbx
+  4831 o300 8b o310             # %rcx = %rax = 0
+  668b o013                     # symbol length -> %cx
+
+  # TODO
+
+  ::/@<x_bail
+  c3
+
+#   Quoted symbol parser.
+#   If we observe a symbol that begins with ', we push a closure that pushes a
+#   reference to that symbol. This greatly simplifies the process of defining new
+#   symbols. (The alternative would be to use the quotation property of lists to
+#   say something like :h [symbol].)
+
+#   Like /@<x above, this function allocates a new closure for every symbol it
+#   resolves.
+
+  ::/@<'                        # Resolve quoted symbol
+  488b o137f8                   # data-pop -> %rbx
+
+  # TODO
+
+  ::/@<'_bail
   c3
 
 # System functions.
