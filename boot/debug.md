@@ -2,7 +2,7 @@
 
 GDB definitions to make it easier to debug the main image.
 
-    break *0x40012a
+    break *0x40014d
     run
 
     set $stack_end = 0

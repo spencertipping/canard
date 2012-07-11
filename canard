@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  3cfdb42c2117c86cb1a97fabcc904351
-# istate: 2cf3a333fc5fea59873e49899bfce77f
+# state:  c30d5ab060aa00130e0fa21c04f30e8e
+# istate: 68ede565fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2545,7 +2545,7 @@ pushed onto the data stack prior to invoking 'main'.
   value onto the data stack; this lets 'main' inspect argv and environment
   variables. Then we need to push 'exit' as the continuation for 'main'.
 
-  ::push_rsp    488bo305 48ab
+  ::push_rsp    488bo304 48ab
   ::init_return 68:4[Lb:/&exit]
 
   Now push the symbol 'main' onto the data stack and call the symbol table. This
@@ -2558,7 +2558,7 @@ pushed onto the data stack prior to invoking 'main'.
   will work transparently provided that the total number of bytes doesn't exceed
   the limit of 65535.
 
-  ::push_main 4831o300 b8:4[Lb:@main] 48ab
+  ::push_main b8:4[Lb:@main] 48ab
 
   Now do a symbol table lookup to get the address. When this returns, we'll have
   the address of the 'main function on top of the data stack.
@@ -2673,7 +2673,7 @@ into a single byte on the heap.
   that byte onto the data stack.
 
   ::/nil
-  ff  o316                              # allocate one byte for nil
+  48ffo316                              # allocate one byte for nil
   c6  o006 c3                           # move the byte c3 to this address
   488bo306 48ab                         # push the c3 reference onto the stack
   c3                                    # return
@@ -2730,8 +2730,8 @@ into a single byte on the heap.
   both; then we can write the result over the parameter that we didn't pop.
 
   ::swons
-  488b o137f8                           # head element
-  488b o107f0                           # tail element
+  488b o137f8                           # tail element
+  488b o107f0                           # head element
   eb:1[L:cons_body - :>]                # reuse code below
 
   ::cons
@@ -2799,8 +2799,8 @@ into a single byte on the heap.
   are a few:
 
   ::/%x                                 # Swap two entries
-  488b o137f8                           # data-pop %rbx
-  488b o107f0                           # data-pop $rax
+  488b o107f8                           # data-pop %rax
+  488b o137f0                           # data-pop $rbx
   4883 o357 10                          # deallocate two entries
   48ab 4893 48ab                        # push the two entries in reverse
   c3
@@ -2852,7 +2852,7 @@ value each time it is called.
   66c7 o006 48b8                # write 48b8 instruction at (%rsi)
     c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
   488b o10602                   # write value to be pushed
-  4889 o106f8                   # data-push %rsi
+  4889 o167f8                   # data-push %rsi
   c3
 
   Notice that we're writing the end opcodes first. Doing it this way lets us use
@@ -3023,7 +3023,7 @@ functions that read or write it.
   using the real cons function. (However, @:k is a valid list anyway.)
 
   Also, this closure is slightly smaller than the one that would have been
-  written by /:k.
+  written by /:k. (Maybe I should optimize /:k for cases like these...)
 
   ::/@:k-closure
   c7 o300:4[Lb:/@?k] 48ab c3
@@ -3150,7 +3150,7 @@ functions that read or write it.
   80 o17003 ''                  # is the prefix '?
   75:1[L:/@<q_bail - :>]        # if not, bail; we can't convert this symbol
 
-  4831 o011                     # %rcx = 0
+  4831 o311                     # %rcx = 0
   668b o010 ff o311             # %cx = length - 1
   6689 o11001                   # write new length
   48ff o300                     # ++%rax
@@ -3232,7 +3232,7 @@ meta::sdoc('boot-debug.gdb', <<'__');
 Canard bootstrap debugging script.
 GDB definitions to make it easier to debug the main image.
 
-break *0x40012a
+break *0x40014d
 run
 
 set $stack_end = 0

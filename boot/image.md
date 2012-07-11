@@ -198,7 +198,7 @@ Two things need to happen here. First, we need to put the system-provided %rsp
 value onto the data stack; this lets 'main' inspect argv and environment
 variables. Then we need to push 'exit' as the continuation for 'main'.
 
-    ::push_rsp    488bo305 48ab
+    ::push_rsp    488bo304 48ab
     ::init_return 68:4[Lb:/&exit]
 
 Now push the symbol 'main' onto the data stack and call the symbol table. This
@@ -212,7 +212,7 @@ encoded in these seven bytes: 0500 68656c6c6f. UTF-8 is not parsed, though it
 will work transparently provided that the total number of bytes doesn't exceed
 the limit of 65535.
 
-    ::push_main 4831o300 b8:4[Lb:@main] 48ab
+    ::push_main b8:4[Lb:@main] 48ab
 
 Now do a symbol table lookup to get the address. When this returns, we'll have
 the address of the 'main function on top of the data stack.
@@ -334,7 +334,7 @@ This is easy; it's just a single byte on the heap. We then push a pointer to
 that byte onto the data stack.
 
     ::/nil
-    ff  o316                              # allocate one byte for nil
+    48ffo316                              # allocate one byte for nil
     c6  o006 c3                           # move the byte c3 to this address
     488bo306 48ab                         # push the c3 reference onto the stack
     c3                                    # return
@@ -392,8 +392,8 @@ since we end up pushing the result, we can just pop one instead of popping
 both; then we can write the result over the parameter that we didn't pop.
 
     ::swons
-    488b o137f8                           # head element
-    488b o107f0                           # tail element
+    488b o137f8                           # tail element
+    488b o107f0                           # head element
     eb:1[L:cons_body - :>]                # reuse code below
 
     ::cons
@@ -465,8 +465,8 @@ However, in the interests of getting a bootstrap compiler off the ground, here
 are a few:
 
     ::/%x                                 # Swap two entries
-    488b o137f8                           # data-pop %rbx
-    488b o107f0                           # data-pop $rax
+    488b o107f8                           # data-pop %rax
+    488b o137f0                           # data-pop $rbx
     4883 o357 10                          # deallocate two entries
     48ab 4893 48ab                        # push the two entries in reverse
     c3
@@ -520,7 +520,7 @@ directly from %rsi.
     66c7 o006 48b8                # write 48b8 instruction at (%rsi)
       c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
     488b o10602                   # write value to be pushed
-    4889 o106f8                   # data-push %rsi
+    4889 o167f8                   # data-push %rsi
     c3
 
 Notice that we're writing the end opcodes first. Doing it this way lets us use
@@ -697,7 +697,7 @@ done; otherwise it would have been allocated using /:k and consed into @:k
 using the real cons function. (However, @:k is a valid list anyway.)
 
 Also, this closure is slightly smaller than the one that would have been
-written by /:k.
+written by /:k. (Maybe I should optimize /:k for cases like these...)
 
     ::/@:k-closure
     c7 o300:4[Lb:/@?k] 48ab c3
@@ -826,7 +826,7 @@ transformation:
     80 o17003 ''                  # is the prefix '?
     75:1[L:/@<q_bail - :>]        # if not, bail; we can't convert this symbol
 
-    4831 o011                     # %rcx = 0
+    4831 o311                     # %rcx = 0
     668b o010 ff o311             # %cx = length - 1
     6689 o11001                   # write new length
     48ff o300                     # ++%rax
