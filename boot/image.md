@@ -153,12 +153,15 @@ symbol binding.)
       :2[L:/$_] ::\@$_ @{[sprintf "%02x", length $_]}00'$_
     - end
 
-    - binding main, /:k, @:k, @?k, @<, @>, r<, r>
+    - binding main, /:k, @:k, @?k, @<, @>, r<, r>, @<x, @<o
     - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
     - binding &read, &write, &open, &close
 
-    # The binary-text compiler can't handle a label called /:: -- the two colons
-    # make it think it's supposed to use a label reference.
+The binary-text compiler can't handle a label called /:: -- the two colons
+make it think it's supposed to use a label reference. It also fails for things
+containing single-quotes.
+
+    :2[L:/@<q]     ::@<q       0300'@<'
     :2[L:cons]     ::@cons     0200'::
     :2[L:swons]    ::@swons    0300':$:
     :2[L:allocate] ::@allocate 0200':v
@@ -240,6 +243,15 @@ At this point, the heap looks like this:
     %rsi -> | c3 | :image_end
 
 This is necessary for the initialization we're going to do below.
+
+## Undefined symbol handlers
+
+These handle undefined symbols and construct symbol-specific functions for
+quoted or literal constructs. These can go in basically any order.
+
+    b8:4[Lb:/@<x] 48ab e8:4[L:cons - :>]  # Hexadecimal literals
+    b8:4[Lb:/@<o] 48ab e8:4[L:cons - :>]  # Octal literals
+    b8:4[Lb:/@<q] 48ab e8:4[L:cons - :>]  # Quoted literals
 
 ## Default bindings
 
@@ -694,7 +706,7 @@ written by /:k.
     - composition //:k, /@:k-closure, swons, /%x, //:k, cons
     c3
 
-## Numeric symbol parser
+## Numeric symbol parsers
 
 We want to generate number-pushing constant functions for any numeric symbol
 we observe. It isn't as simple as looking for strings of digits, since these
@@ -729,13 +741,63 @@ which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
 
     ::/@<x                        # Resolve hexadecimal number
     488b o137f8                   # data-pop -> %rbx
-    4831 o300 8b o310             # %rcx = %rax = 0
+    4831 o300 8b o310 8b o320     # %rdx = %rcx = %rax = 0
     668b o013                     # symbol length -> %cx
+    ff   o311                     # --%cx (adjusting for the 'x' prefix)
+    4883 o303 03                  # %rbx += 3 (length + 'x' prefix)
 
-    # TODO
+    80 o073 'x                    # is the prefix x?
+    75:1[L:/@<x_bail - :>]        # if not, bail; we can't convert this symbol
+
+    ::/@<x_digit_loop
+    88 o003                       # current digit byte -> %al
+    3c 'a                         # check this byte against lowercase A
+    7d:1[L:/@<x_letter - :>]      # greater? if so, go to letter case
+    2c '0                         # digit case: subtract '0 offset
+    eb:1[L:/@<x_shift_add - :>]   # go to shift/add section
+    ::/@<x_letter
+    2c 57                         # letter case: subtract (0x61 - 10 = 0x57)
+
+    ::/@<x_shift_add
+    480fa4 o322 04                # %rdx <<= 4
+    480b o302                     # %rdx |= %rax
+    48ff o303                     # ++%rbx
+    e2:1[L:/@<x_digit_loop - :>]  # loop while --%rcx
+
+    4889 o127f8                   # %rdx -> stack top
+    e8:4[L://:k]                  # create closure
+    58                            # pop 'next' continuation
 
     ::/@<x_bail
-    c3
+    c3                            # end of @<x
+
+The function for octal is similar but much simpler, since we don't have to
+deal with the piecewise nature of digits vs letters.
+
+    ::/@<o                        # Resolve octal number
+    488b o137f8                   # data-pop -> %rbx
+    4831 o300 8b o310 8b o320     # %rdx = %rcx = %rax = 0
+    668b o013                     # symbol length -> %cx
+    ff   o311                     # --%cx (adjusting for the 'o' prefix)
+    4883 o303 03                  # %rbx += 3 (length + 'o' prefix)
+
+    80 o073 'o                    # is the prefix o?
+    75:1[L:/@<o_bail - :>]        # if not, bail; we can't convert this symbol
+
+    ::/@<o_digit_loop
+    88 o003                       # current digit byte -> %al
+    2c '0                         # digit case: subtract '0 offset
+    480fa4 o322 03                # %rdx <<= 3
+    480b o302                     # %rdx |= %rax
+    48ff o303                     # ++%rbx
+    e2:1[L:/@<o_digit_loop - :>]  # loop while --%rcx
+
+    4889 o127f8                   # %rdx -> stack top
+    e8:4[L://:k]                  # create closure
+    58                            # pop 'next' continuation
+
+    ::/@<o_bail
+    c3                            # end of @<o
 
 ## Quoted symbol parser
 
@@ -747,12 +809,32 @@ say something like :h [symbol].)
 Like /@<x above, this function allocates a new closure for every symbol it
 resolves.
 
-    ::/@<'                        # Resolve quoted symbol
-    488b o137f8                   # data-pop -> %rbx
+Note that this function destroys the symbols it converts. Specifically, it
+removes the leading ' and moves the length. Here's the specific
+transformation:
 
-    # TODO
+    +--- original symbol pointer
+    |
+    06 00  ' hello                <- original
+    06 05 00 hello                <- converted
+       |
+       +--- new symbol pointer
 
-    ::/@<'_bail
+    ::/@<q                        # Resolve quoted symbol
+    488b o107f8                   # data-pop -> %rax
+
+    80 o17003 ''                  # is the prefix '?
+    75:1[L:/@<q_bail - :>]        # if not, bail; we can't convert this symbol
+
+    4831 o011                     # %rcx = 0
+    668b o010 ff o311             # %cx = length - 1
+    6689 o11001                   # write new length
+    48ff o300                     # ++%rax
+    4889 o107f8                   # %rax -> stack top
+    e8:4[L://:k]                  # create closure
+    58                            # pop 'next' continuation
+
+    ::/@<q_bail
     c3
 
 # System functions
