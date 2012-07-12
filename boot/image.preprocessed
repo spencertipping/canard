@@ -239,23 +239,6 @@
   ::push_rsp    488bo304 48ab
   ::init_return 68:4[Lb:/&exit]
 
-#   Now push the symbol 'main' onto the data stack and call the symbol table. This
-#   boots up the interpreter.
-
-#   Symbol encoding.
-#   As mentioned in the design documentation, symbols are encoded using a
-#   little-endian two-byte prefix for the inner (logical) length. So 'hello' is
-#   encoded in these seven bytes: 0500 68656c6c6f. UTF-8 is not parsed, though it
-#   will work transparently provided that the total number of bytes doesn't exceed
-#   the limit of 65535.
-
-  ::push_main b8:4[Lb:@main] 48ab
-
-#   Now do a symbol table lookup to get the address. When this returns, we'll have
-#   the address of the 'main function on top of the data stack.
-
-#   Before we can do this lookup, however, we need to construct the symbol table.
-
 # Symbol table.
 # There are several pieces of machinery involved in creating the symbol table.
 # First, the symbol table is ultimately a function composition, which is
@@ -331,12 +314,17 @@ e8:4[L:/nil - :>]
   488b o137f8                           # copy the symbol table to %rbx
   e8:4[L:/@< - :>]                      # and install it globally
 
-#   At this point the data stack top is the 'main' symbol, which is ideal: we can
-#   resolve it and then tail-call into the result. 'main' can return into 'exit'.
+#   Push the 'main' function and use the symbol table to resolve it to a code
+#   address. Once we have it, tail-call into the 'main' function and let it return
+#   into 'exit'. (main needs to push an exit code for this to work.)
 
-  ff   o323                             # resolve 'main' (using %rbx)
-  488b o107f8 4883 o357 08              # data-pop %rax
-  ff   o340                             # jump into main
+  ::push_main b8:4[Lb:@main] 48ab       # push symbol 'main'
+  ff   o323                             # resolve 'main' (using table in %rbx)
+  488b o107f8 4883 o357 08              # data-pop %rax (address of main)
+  ff   o340                             # tail-jump into main
+
+#   And that concludes the bootstrap logic. Everything below here is a library
+#   function that is referenced statically from the above.
 
 # Internals.
 # Everything from here down is referenced or called by the above to build out the
@@ -542,7 +530,7 @@ e8:4[L:/nil - :>]
   4883 o356 0d                  # allocate heap space
   66c7 o006 48b8                # write 48b8 instruction at (%rsi)
     c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
-  488b o10602                   # write value to be pushed
+  4889 o10602                   # write value to be pushed
   4889 o167f8                   # data-push %rsi
   c3
 
@@ -629,11 +617,11 @@ e8:4[L:/nil - :>]
 
 #   | ::/@:k
 #     e8:4[L://:k  - :>]                  # symbol -> k symbol
-#     48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
-#     e8:4[L:swons - :>]                  # first composition
 #     e8:4[L:/%x   - :>]                  # swap
 #     e8:4[L://:k  - :>]                  # value -> k value
-#     e8:4[L:cons  - :>]                  # final composition
+#     48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
+#     e8:4[L:swons - :>]                  # first composition
+#     e8:4[L:swons - :>]                  # final composition
 #     c3
 
 #   This implementation looks suspiciously similar to a list. The only exceptional
@@ -720,15 +708,15 @@ e8:4[L:/nil - :>]
   ::/@:k
 e8:4[L://:k - :>]
 
-e8:4[L:/@:k-closure - :>]
-
-e8:4[L:swons - :>]
-
 e8:4[L:/%x - :>]
 
 e8:4[L://:k - :>]
 
-e8:4[L:cons - :>]
+e8:4[L:/@:k-closure - :>]
+
+e8:4[L:swons - :>]
+
+e8:4[L:swons - :>]
 
   c3
 

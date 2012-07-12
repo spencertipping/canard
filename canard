@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  c30d5ab060aa00130e0fa21c04f30e8e
-# istate: 68ede565fc5fea59873e49899bfce77f
+# state:  a0c2891a1e9370cb25d6a83a5f11601c
+# istate: fb77f864fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2548,23 +2548,6 @@ pushed onto the data stack prior to invoking 'main'.
   ::push_rsp    488bo304 48ab
   ::init_return 68:4[Lb:/&exit]
 
-  Now push the symbol 'main' onto the data stack and call the symbol table. This
-  boots up the interpreter.
-
-  Symbol encoding.
-  As mentioned in the design documentation, symbols are encoded using a
-  little-endian two-byte prefix for the inner (logical) length. So 'hello' is
-  encoded in these seven bytes: 0500 68656c6c6f. UTF-8 is not parsed, though it
-  will work transparently provided that the total number of bytes doesn't exceed
-  the limit of 65535.
-
-  ::push_main b8:4[Lb:@main] 48ab
-
-  Now do a symbol table lookup to get the address. When this returns, we'll have
-  the address of the 'main function on top of the data stack.
-
-  Before we can do this lookup, however, we need to construct the symbol table.
-
 Symbol table.
 There are several pieces of machinery involved in creating the symbol table.
 First, the symbol table is ultimately a function composition, which is
@@ -2640,12 +2623,17 @@ This is necessary for the initialization we're going to do below.
   488b o137f8                           # copy the symbol table to %rbx
   e8:4[L:/@< - :>]                      # and install it globally
 
-  At this point the data stack top is the 'main' symbol, which is ideal: we can
-  resolve it and then tail-call into the result. 'main' can return into 'exit'.
+  Push the 'main' function and use the symbol table to resolve it to a code
+  address. Once we have it, tail-call into the 'main' function and let it return
+  into 'exit'. (main needs to push an exit code for this to work.)
 
-  ff   o323                             # resolve 'main' (using %rbx)
-  488b o107f8 4883 o357 08              # data-pop %rax
-  ff   o340                             # jump into main
+  ::push_main b8:4[Lb:@main] 48ab       # push symbol 'main'
+  ff   o323                             # resolve 'main' (using table in %rbx)
+  488b o107f8 4883 o357 08              # data-pop %rax (address of main)
+  ff   o340                             # tail-jump into main
+
+  And that concludes the bootstrap logic. Everything below here is a library
+  function that is referenced statically from the above.
 
 Internals.
 Everything from here down is referenced or called by the above to build out the
@@ -2851,7 +2839,7 @@ value each time it is called.
   4883 o356 0d                  # allocate heap space
   66c7 o006 48b8                # write 48b8 instruction at (%rsi)
     c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
-  488b o10602                   # write value to be pushed
+  4889 o10602                   # write value to be pushed
   4889 o167f8                   # data-push %rsi
   c3
 
@@ -2938,11 +2926,11 @@ functions that read or write it.
 
   | ::/@:k
     e8:4[L://:k  - :>]                  # symbol -> k symbol
-    48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
-    e8:4[L:swons - :>]                  # first composition
     e8:4[L:/%x   - :>]                  # swap
     e8:4[L://:k  - :>]                  # value -> k value
-    e8:4[L:cons  - :>]                  # final composition
+    48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
+    e8:4[L:swons - :>]                  # first composition
+    e8:4[L:swons - :>]                  # final composition
     c3
 
   This implementation looks suspiciously similar to a list. The only exceptional
@@ -3029,7 +3017,7 @@ functions that read or write it.
   c7 o300:4[Lb:/@?k] 48ab c3
 
   ::/@:k
-  - composition //:k, /@:k-closure, swons, /%x, //:k, cons
+  - composition //:k, /%x, //:k, /@:k-closure, swons, swons
   c3
 
   Numeric symbol parsers.
