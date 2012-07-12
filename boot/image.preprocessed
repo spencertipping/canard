@@ -493,6 +493,53 @@ e8:4[L:/nil - :>]
   ::/%1                                 # %1 a b ... = b a b ...
   488b o107f0 48ab c3
 
+#   Arithmetic.
+#   A few functions to make it possible to do basic arithmetic on stack entries.
+
+  # Binary op: load %rax from stack, use entry below as lvalue
+  ::/i+   488b o107f8 4801 o107f0 4883 o357 08 c3
+  ::/i&   488b o107f8 4821 o107f0 4883 o357 08 c3
+  ::/i|   488b o107f8 4809 o107f0 4883 o357 08 c3
+  ::/i^   488b o107f8 4831 o107f0 4883 o357 08 c3
+
+  # Shifts: load %rcx from stack (shift amount), entry below is lvalue
+  ::/i<<  488b o117f8 48d3 o147f0 488c o357 08 c3
+  ::/i>>  488b o117f8 48d3 o177f0 488c o357 08 c3
+  ::/i>>> 488b o117f8 48d3 o157f0 488c o357 08 c3
+
+  # Unary: operate on stack top in-place
+  ::/i-   48f7 o137 f8 c3
+  ::/i~   48f7 o127 f8 c3
+
+#   Evaluation.
+#   There are two ways to evaluate things. One is to use the . operator, which
+#   evaluates the thing on the top of the stack (and segfaults if the stack top
+#   doesn't point to a valid list). The other is to use the ? operator, which
+#   chooses between two conditions. Here are the equations:
+
+#   | . [x] y ...       = x y ...
+#     ? [t] [f] 0 x ... = f x ...
+#     ? [t] [f] N x ... = t x ...         <- N != 0
+
+#   First the . function. This is really simple: all we need to do is jump into
+#   the destination since lists are executable. This can be a tail call, so the
+#   'return' that we would expect to see inside the . function is actually
+#   provided by the function it's calling.
+
+  ::/. 488b o107f8 4883 o357 08 ff o340
+
+#   Now the decisional function. This is a value-oriented form of if/then/else. We
+#   optimistically load the true-case into a register, then load the false case if
+#   the condition is zero. Like . above, this function also tail-calls the branch.
+
+  ::/?
+  488b o107f8                           # true branch -> %rax
+  488b o137e8                           # condition -> %rbx
+  4883 o357 18                          # pop three entries
+
+  4885 o333 480f44 o10708               # false branch -> %rax if cond == 0
+  ff   o340                             # jmp *%rax
+
 # Closures.
 # Canard doesn't have closures in the same sense that Lisp or Haskell does, but
 # you can construct functions that push specific values onto the stack so that the
@@ -772,7 +819,7 @@ e8:4[L:swons - :>]
   2c 57                         # letter case: subtract (0x61 - 10 = 0x57)
 
   ::/@<x_shift_add
-  480fa4 o322 04                # %rdx <<= 4
+  48c1 o342 04                  # %rdx <<= 4
   480b o302                     # %rdx |= %rax
   48ff o303                     # ++%rbx
   e2:1[L:/@<x_digit_loop - :>]  # loop while --%rcx
@@ -800,7 +847,7 @@ e8:4[L:swons - :>]
   ::/@<o_digit_loop
   88 o003                       # current digit byte -> %al
   2c '0                         # digit case: subtract '0 offset
-  480fa4 o322 03                # %rdx <<= 3
+  48c1 o342 03                  # %rdx <<= 3
   480b o302                     # %rdx |= %rax
   48ff o303                     # ++%rbx
   e2:1[L:/@<o_digit_loop - :>]  # loop while --%rcx
@@ -835,7 +882,7 @@ e8:4[L:swons - :>]
   ::/@<q                        # Resolve quoted symbol
   488b o107f8                   # data-pop -> %rax
 
-  80 o17003 ''                  # is the prefix '?
+  80 o17002 ''                  # is the prefix '?
   75:1[L:/@<q_bail - :>]        # if not, bail; we can't convert this symbol
 
   4831 o311                     # %rcx = 0
@@ -859,7 +906,7 @@ e8:4[L:swons - :>]
 #   you want to execute. The other arguments are pulled from the data stack
 #   left-to-right; so, for example:
 
-#   | &1 3c 00    <- 0x3c = exit(status = 0)
+#   | &1 x3c x0   <- 0x3c = exit(status = 0)
 
 #   The only reason syscall wrappers are particularly interesting is that they
 #   have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
@@ -910,6 +957,7 @@ e8:4[L:swons - :>]
   ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n, buf, fd -> n
   ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path, f, m -> fd
   ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # fd -> status
+  ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # path, buf -> n
 
   ::/&exit  4831o300 b03c 48ab e9:4[L:/&1 - :>]        # code -> _
 
