@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  d5840a5e1b0170bcd684280e69af8b6a
-# istate: 75c7e585fc5fea59873e49899bfce77f
+# state:  05fb66f106f433f52ba7b58130caa622
+# istate: 9113234afc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2502,8 +2502,11 @@ pushed onto the data stack prior to invoking 'main'.
   - end
 
   - binding main, /:k, @:k, @?k, @<, @>, r<, r>, @<x, @<o
+  - binding %x, %v, %0, %1
+  - binding i+, i&, i|, i^, i<<, i>>, i>>>, i-, i~
+  - binding ., ?
   - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
-  - binding &read, &write, &open, &close
+  - binding &read, &write, &open, &close, &stat
 
   The binary-text compiler can't handle a label called /:: -- the two colons
   make it think it's supposed to use a label reference. It also fails for things

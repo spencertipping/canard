@@ -154,8 +154,11 @@ symbol binding.)
     - end
 
     - binding main, /:k, @:k, @?k, @<, @>, r<, r>, @<x, @<o
+    - binding %x, %v, %0, %1
+    - binding i+, i&, i|, i^, i<<, i>>, i>>>, i-, i~
+    - binding ., ?
     - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
-    - binding &read, &write, &open, &close
+    - binding &read, &write, &open, &close, &stat
 
 The binary-text compiler can't handle a label called /:: -- the two colons
 make it think it's supposed to use a label reference. It also fails for things
