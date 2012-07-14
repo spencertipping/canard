@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  c8f36002b334a1faa040411fec1cedb7
+# state:  304b90416e62d1f50da200b7209fa30a
 # istate: 98c7e05cffee10ecdfea078459d49ee4
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1622,6 +1622,20 @@ I think that means this issue is closed: executable data structures are a win
 here. (The performance win comes from delegating dispatch to the processor's
 decoder rather than using soft decoding, which would be necessary provided that
 we also need RTTI and polymorphism.)
+
+__
+meta::note('gc', <<'__');
+Garbage collection.
+Trivially, we can implement a conservative GC by going through the data stack
+and marking all things which satisfy:
+
+| 1. The thing points to allocated memory.
+  2. The thing is an x86 instruction whose relative offset refers to allocated
+     memory.
+
+Maybe it should be possible to add new GC traversal strategies. GC involves some
+knowledge about the objects being traced, so maybe it's appropriate to use some
+sort of stronger type information. (Need to think about this...)
 
 __
 meta::note('left-associative-consing', <<'__');
