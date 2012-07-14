@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  eacb43c86d066892704ef329807756ca
-# istate: 914d3215fc5fea59873e49899bfce77f
+# state:  c8f36002b334a1faa040411fec1cedb7
+# istate: 98c7e05cffee10ecdfea078459d49ee4
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -346,12 +346,12 @@ __
 meta::cache('parent-state', <<'__');
 3d87f1a4b0694cfebcbfd589fa5ed5dd 18d86397c52aeb07c61f70b50fb20703
 70dae4b46eb4e06798ec6f38d17d4c7b 406b66e1ee15bc4cd3dbca435b9ebd63
-902333a0bd6ed90ff919fe8477cb4e69 4b7a49bce518dff6d986099a732538cf
+902333a0bd6ed90ff919fe8477cb4e69 d68948b20d89140aaa40a657dcb04585
 93194ecf50e38f2adb6e273909e007b5 df2c609f23f138397515f28d792091ba
-99aeabc9ec7fe80b1b39f5e53dc7e49e e024d1ddb534961d35855863dea1e160
-9fabb9b6f2f374c35ddcc26549ac2b65 28869ac238400eb53b7f671f10f307ad
-a1e8480e579614c01dabeecf0f963bcc 5687f668859dd4c695c9379f1ab8e31f
-a9e5975593ed5d90d943ad98405c71e5 2ed219fe3e2003006818ddfa52aaf396
+99aeabc9ec7fe80b1b39f5e53dc7e49e 20cbfd8b1bd09b6a60c0eea0f9ca525d
+9fabb9b6f2f374c35ddcc26549ac2b65 63765c7bc2addea974ed38cb6c2733b2
+a1e8480e579614c01dabeecf0f963bcc dc33b10238e896bad155335a5e119e2e
+a9e5975593ed5d90d943ad98405c71e5 d892ffa1342e024c3e8957940bbffbfe
 ffe5790f4c605b3bd73283f7c5e57dc5 f9de507ed237ef8eab194127348de26d
 __
 meta::data('author', 'Spencer Tipping');
@@ -466,9 +466,22 @@ save();
 __
 meta::function('enable', 'hook(\'enable\', chmod_self(sub {$_[0] | $_[0] >> 2}));');
 meta::function('expanded-bootstrap', <<'__');
+# Write headers into the bootstrap section. There is some subtle stuff going on
+# here with the istate header. The idea is to provide other objects a very quick
+# way to see whether our state has changed, but we don't want false positives.
+# We would get a false positive if, for instance, we included the contents of
+# parent:: attributes in the istate hash. The reason is that the parent::
+# attribute contains a hash of every attribute provided by that parent, so any
+# change in the parent would impact the istate of the child.
+#
+# The best way to deal with this is to treat parent:: attributes as being
+# opaque; we record their existence or nonexistence, but we don't record their
+# contents. We also look only at inheritable and unique attributes and fail to
+# consider global state.
+
 my $bootstrap_text = retrieve('bootstrap::initialization');
 my $state          = state();
-my $istate         = state('-iG');
+my $istate         = state('-iGP');
 my $object_id      = identity();
 
 $bootstrap_text =~ s/__state/$state/g;
@@ -871,7 +884,9 @@ sub escape {my @results = map {s/\\/\\\\/go; s/\n/\\n/go; s/'/\\'/go; $_} @_; wa
 __
 meta::function('serialize', <<'__');
 my ($options, @criteria) = separate_options(@_);
-my $partial     = $$options{'-p'};
+delete $$options{'-P'};
+
+my $partial     = delete $$options{'-p'};
 my $criteria    = join '|', @criteria;
 my @attributes  = map serialize_single($_), select_keys(%$options, '-m' => 1, '--criteria' => $criteria), select_keys(%$options, '-M' => 1, '--criteria' => $criteria);
 my @final_array = @{$partial ? \@attributes : [expanded_bootstrap(), @attributes, 'internal::main();', '', '__DATA__', $global_data]};
@@ -934,9 +949,13 @@ meta::function('state', <<'__');
 my ($options, @attributes) = separate_options(@_);
 @attributes = grep !is($_, '-v'), sort keys %data unless @attributes;
 @attributes = grep is($_, '-iu'), @attributes if $$options{'-i'};
+@attributes = grep is($_, '-P'),  @attributes if $$options{'-P'};
 
 my $hash = fast_hash(fast_hash(scalar @attributes) . join '|', @attributes);
 $hash = fast_hash("$data{$_}|$hash") for @attributes;
+
+$hash = fast_hash(join '|', $hash, grep s/^parent:://, sort keys %data)
+if $$options{'-P'};
 
 $$options{'-G'} ? $hash : fast_hash("$global_data|$hash");
 
@@ -986,6 +1005,7 @@ around_hook('update-from-invocation', separate_options(@_), sub {
 
       my $identity = $parent_id_cache{$target} ||= $parent_metadata{id} || join '', qx($target identity);
       next if $can_skip_already_seen and
+              exists $data{"parent::$target"} and
               $already_seen{$identity} || $parent_state_cache{$identity} eq $parent_metadata{istate};
 
       my $attributes = join '', qx($target ls -ahiu);
@@ -995,7 +1015,7 @@ around_hook('update-from-invocation', separate_options(@_), sub {
       # These need to come after the reachability check so that we retry against
       # other copies in case something fails.
       ++$already_seen{$identity};
-      $parent_state_cache{$identity} = $parent_metadata{istate} || join '', qx($target state -iG);
+      $parent_state_cache{$identity} = $parent_metadata{istate} || join '', qx($target state -iPG);
 
       for my $to_rm (split /\n/, retrieve("parent::$target")) {
         my ($name, $hash) = split(/\s+/, $to_rm);
@@ -1104,6 +1124,7 @@ my %tests = ('-u' => sub {! $inherited{$a}},
              '-d' => sub {$inherited{$a} && fast_hash(retrieve($a)) ne $inherited{$a}},
              '-i' => sub {$transient{inherit}{namespace($a)}},
              '-v' => sub {$transient{virtual}{namespace($a)}},
+             '-p' => sub {$a =~ /^parent::/o},
              '-s' => sub {$a =~ /^state::/o},
              '-m' => sub {$a =~ /^meta::/o});
 
@@ -1855,14 +1876,14 @@ function::gd    cff1e868c7c69780a2263c8c7fd75f90
 function::gl    492e2750409588f8b61a8b8e339e42c1
 function::gs    4ea8aeccb36ab83702062e4359e8600b
 function::gu    fdd2e61e0ea981dda6d407df63c0e47e
-parent::object  b9a2def7969dcd4b475cae3f95be98d3
+parent::object  4426dd6f4aebae284447047265132c82
 
 __
 meta::parent('notes', <<'__');
 function::note    c6d52ffe73cd48cd95fdc561c59d9f63
 function::notes   7229b326ac8686b2db6de98496bc7527
 meta::type::note  f81bea58841a438e4ee34608ab4f54c0
-parent::object    b9a2def7969dcd4b475cae3f95be98d3
+parent::object    4426dd6f4aebae284447047265132c82
 
 __
 meta::parent('object', <<'__');
@@ -1884,7 +1905,7 @@ function::disable                       53b449708cc2ffdefa352e53bb7d847d
 function::edit                          6e5bd5f35ff9cf66edd2d2d9943a7b4e
 function::edit-self                     71790df00f941ed9b56e17f789b93871
 function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
-function::expanded-bootstrap            7ea5eb3e6a715cddcdfd85ae688286e1
+function::expanded-bootstrap            bd76713aa911d4a92936824dac06caf5
 function::export                        2374cd1dbf7616cb38cafba4e171075d
 function::extern                        1290a5223e2824763eecfb3a54961eff
 function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
@@ -1909,7 +1930,7 @@ function::rm                            6f6fd7a6c25558eb469d78ea888f8551
 function::rmparent                      fc2884910a6939a47898a778f277332c
 function::save                          3cbe5c3735ee4ff99cb60ccf68bc8b91
 function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
-function::serialize                     a6513c3e0724f9a1d85847d7002910f1
+function::serialize                     b43eb453b21c03b062efc37441bc2bf0
 function::serialize-single              8bac97e94a1162947d274421053387b0
 function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
 function::shb                           21139548efb79500d9c999dba024ab32
@@ -1917,11 +1938,11 @@ function::shell                         a87f389b94713e5855e62241d649d01d
 function::size                          69f6ab4a100c6ef05d4d41510004d645
 function::snapshot                      56939a47f2758421669641e15ebd66eb
 function::snapshot-if-necessary         1287f82135efdcc94af76dfa88029e4d
-function::state                         ef2051d9fe0684044d0f3df752e0c949
+function::state                         cf8a6613eaca36c2e80139508d0d86c5
 function::touch                         3991b1b7c7187566f50e5e58ce01fa06
 function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
 function::update                        ac391dc90e507e7586c81850e7c2ecdd
-function::update-from                   10461f1e23b645c1a64f69eabef61b4f
+function::update-from                   57d565d7ba8f5a196b6aa35a102f71f4
 function::usage                         5bdd370f5a56cfbf199e08d398091444
 function::verify                        0c0cc1dfeab7d705919df122f7850a4f
 indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
@@ -1930,7 +1951,7 @@ indicator::path                         b5e2cb524caa0283f713a0ddf9f4c162
 internal_function::around_hook          129aaec0550d3de6c00208104c0fdcef
 internal_function::associate            55f202ffdbc6b9005e53d3e82f5f9bfe
 internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
-internal_function::attribute_is         d28ac825b3937029386372c560a65775
+internal_function::attribute_is         218083f309e9d94af11f8059f4c03ba7
 internal_function::cache                eb9da45580a9ac0882baf98acd2ecd60
 internal_function::chmod_self           2035e861eedab55ba0a9f6f5a068ca70
 internal_function::dangerous            46c4baaa214ab3d05af43e28083d5141
@@ -1999,7 +2020,7 @@ function::sdoc-packed     8ec4975fca7228708baae6ccd241bdbf
 function::sdocp           c3d738d982ba87418a298ff58478a85b
 meta::type::sdoc          22cd7315641d38c9d536344e83c36bed
 meta::type::slibrary      95474943c4a5f8ff17d3cf66ddb7c386
-parent::object            b9a2def7969dcd4b475cae3f95be98d3
+parent::object            4426dd6f4aebae284447047265132c82
 retriever::code-sdoc      03b87ff8d1ecf7594db9ca0669fc69a1
 retriever::html-sdoc      8ab7705d03276945b23a71677153233c
 retriever::markdown-sdoc  67c34ba8223ec36a3ae018e411354db2
@@ -2011,7 +2032,7 @@ __
 meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
 meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
-parent::object               b9a2def7969dcd4b475cae3f95be98d3
+parent::object               4426dd6f4aebae284447047265132c82
 
 __
 meta::retriever('code-sdoc', <<'__');
