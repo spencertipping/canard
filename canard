@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  87a595bbddc3db63793b3ca994636218
-# istate: 9a12b7e1fc5fea59873e49899bfce77f
+# state:  eacb43c86d066892704ef329807756ca
+# istate: 914d3215fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -106,10 +106,6 @@ meta::define_form 'alias', sub {
   };
 };
 __
-meta::meta('type::binary', <<'__');
-meta::functor::editable 'binary', extension => '.binary', default => 'edit', inherit => 0;
-
-__
 meta::meta('type::bootstrap', <<'__');
 # Bootstrap attributes don't get executed. The reason for this is that because
 # they are serialized directly into the header of the file (and later duplicated
@@ -122,10 +118,6 @@ __
 meta::meta('type::cache', <<'__');
 meta::configure 'cache', inherit => 0;
 meta::define_form 'cache', \&meta::bootstrap::implementation;
-__
-meta::meta('type::canard', <<'__');
-meta::functor::editable 'canard', extension => '.canard', inherit => 0, default => 'edit';
-
 __
 meta::meta('type::data', 'meta::functor::editable \'data\', extension => \'\', inherit => 0, default => \'cat\';');
 meta::meta('type::function', <<'__');
@@ -178,10 +170,6 @@ meta::define_form 'internal_function', sub {
   my ($name, $value) = @_;
   *{$name} = meta::eval_in("sub {\n$value\n}", "internal_function::$name");
 };
-__
-meta::meta('type::js', <<'__');
-meta::functor::editable 'js', extension => '.js', inherit => 1;
-
 __
 meta::meta('type::library', <<'__');
 meta::configure 'library', extension => '.pl', inherit => 1;
@@ -243,39 +231,14 @@ meta::meta('type::state', <<'__');
 meta::configure 'state', inherit => 0, extension => '.pl';
 meta::define_form 'state', \&meta::bootstrap::implementation;
 __
-meta::meta('type::template', <<'__');
-meta::configure 'template', extension => '.pl', inherit => 1;
-meta::define_form 'template', sub {
-  my ($name, $value) = @_;
-  meta::externalize "template::$name", "template::$name", meta::eval_in("sub {\n$value\n}", "template::$name");
-};
-__
 meta::meta('type::vim_highlighter', <<'__');
 meta::configure 'vim_highlighter', extension => '.vim', inherit => 1;
 meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
-meta::alias('d', 'debug');
-meta::alias('eb', 'edit sdoc::binary::boot');
-meta::alias('ebb', 'edit sdoc::canard::boot/binary');
-meta::alias('edb', 'edit sdoc::boot-debug.gdb');
-meta::alias('er', 'edit sdoc::readme');
 meta::alias('erf', 'edit function::render');
-meta::alias('erwf', 'edit function::render-waul');
-meta::alias('esl', 'edit sdoc::canard::stdlib');
 meta::alias('ev', 'edit vim_highlighter::canard');
-meta::alias('l', 'edit --prefix=sdoc::canard::lib/');
-meta::alias('r', <<'__');
-sh waul -e deps/regexp.js -e deps/parser.js -e src/boot.js -c :all
-
-__
 meta::alias('repl', 'sh boot/interpreter');
-meta::alias('sls', 'sh wc stdlib.canard');
-meta::alias('sr', 'srepl');
-meta::alias('srepl', <<'__');
-sh boot/interpreter -i stdlib.canard
-
-__
 meta::bootstrap('html', <<'__');
 <html>
   <head>
@@ -430,15 +393,6 @@ my ($name, @stuff) = @_;
    : table_display([select_keys('--namespace' => 'alias')], [map retrieve($_), select_keys('--namespace' => 'alias')]);
 
 __
-meta::function('canard-pack', <<'__');
-# Packs down a canard program as text.
-my $program = cat(@_);
-$program =~ s/\s*(\]|\[)\s*/\1/g;
-$program =~ s/\s+/ /g;
-$program =~ s/^\s|\s$//g;
-$program;
-
-__
 meta::function('cat', 'join "\\n", retrieve(@_);');
 meta::function('cc', <<'__');
 # Stashes a quick one-line continuation. (Used to remind me what I was doing.)
@@ -468,126 +422,6 @@ for my $file (@files) {
       chmod(0700, $file)})})}
 
 __
-meta::function('compile-binary', <<'__');
-# Compiles binary-text to binary output. The binary-text is tokenized and then
-# compiled, where each token is one of the following:
-#
-# Literal:
-# /[0-9a-f]{2}/         <- single byte in hex
-# /o[0-3][0-7]{2}/      <- single byte in octal
-# /-[01]{8}/            <- single byte in binary
-# /'\S+/                <- bytes in ASCII
-#
-# Placement (low-level):
-# /@![0-9a-f]+/         <- place assertion (die unless next byte is at place)
-# /@[0-9a-f]+/          <- place seek (emit null bytes until next byte is place)
-# /@\?(\w\+)/           <- debugging: print \1 followed by its location
-#
-# Repetition:
-# /\/(\d+)\//           <- repeat next byte \1 times
-#
-# Assembler:
-# /::([^' ]\+)/         <- create label \1 pointing to next byte offset
-# /:\d*\[([^\]]+)\]/    <- insert bytes resulting from expression evaluation
-#
-# The assembler gives you a language you can use to evaluate expressions. It's
-# ultimately a preprocessor transform to Perl; that is, a few string
-# substitutions are made and then Perl evaluates the result, dropping that into
-# the generated image. The assembler dies unless the expression's byte size
-# matches the number before the open bracket. Here are the preprocessor
-# transformations:
-#
-# s/:</$o/g                             <- offset at beginning of expression
-# s/:>/($o + $e{size})/g                <- offset at end of expression
-# s/::?([^' ]+)/$places{'\1'}/g         <- label references
-# s/L(\d)?(.*)/&$le(\1, \2)/g           <- little-endian integer encoding
-# s/B(\d)?(.*)/&$be(\1, \2)/g           <- big-endian integer encoding
-#
-# Little-endian and big-endian encoders take a numeric argument indicating how
-# many bytes should be encoded. This number is limited only by Perl's numerical
-# precision, and by the fact that you have only one digit to specify it. Results
-# are sign-extended to the requested byte width.
-#
-# You can use 0 width to evaluate an expression with no output; that is, some
-# form of side-effect. In this case, the bracketed expression's value is ignored
-# and no length check occurs.
-#
-# Note that all expressions are evaluated after the basic image has been
-# generated. This allows you to use forward references to labels.
-
-my $text = join ' ', map split(/\s+/), split /(?:\s|^)#.*/m, retrieve($_[0]);
-my $hex_letters = '0123456789abcdef';
-
-my %places;
-my %expressions;
-my @output;
-
-my $offset     = 0;
-my $next       = 1;
-my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
-my $repetition = sub {my $count = $next; $next = 1; $count};
-my $ascii      = sub {$_[0]};
-my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
-my $octal      = sub {my $total = 0; $total = ($total << 3) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 2; chr($total) x &$repetition()};
-my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
-my $until      = sub {my $address = hex $_[0]; "\0" x ($address - $offset)};
-my $debug      = sub {printf STDERR "%s: 0x%x\n", $_[0], $offset; ''};
-my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)", hex $_[0], $offset unless $offset == hex $_[0]; ''};
-my $label      = sub {die sprintf "label %s is defined twice" if exists $places{$_[0]}; $places{$_[0]} = $offset; ''};
-my $expression = sub {push @{$expressions{$offset} ||= []}, {size => $_[0], e => $_[1]}; 'E' x $_[0]};
-
-my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
-
-my @tokens = split m#('\S+ | -[01]{8} | o[0-3][0-7]{2} | [0-9a-f]{2} | @\?\S+ |
-                      @!?[0-9a-f]+ | /\d+/ | ::\S+ | :\d*\[[^\]]+\])#x, $text;
-
-&$emit(/^'(\S+)/        ? &$ascii($1)  : /^@\?(\S+)/          ? &$debug($1) :
-       /^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/  ? &$octal($1) :
-       /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/      ? &$until($1) :
-       /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/       ? &$hex($_)   :
-
-       /^::(\S+)/            ? &$label($1)          :
-       /^:(\d*)\[([^\]]+)\]/ ? &$expression($1, $2) : '') for @tokens;
-
-# Now go through and evaluate every expression. Right now the spaces for the
-# results contain repetitions of the byte 'E'.
-my $concatenated = join '', @output;
-
-my $le = sub {join '', map chr($_[1] >> $_ * 8 & 255),         0 .. $_[0] - 1};
-my $be = sub {join '', map chr($_[1] >> $_ * 8 & 255), reverse 0 .. $_[0] - 1};
-
-for my $o (sort {$a <=> $b} keys %expressions) {
-  for my $e (@{$expressions{$o}}) {
-    my $expression = $$e{e};
-    my $size       = $$e{size};
-
-    $_ = $expression;
-
-    s/:</$o/g, s/:>/($o + $size)/g;
-
-    # :: is unchecked, : is checked
-    s/::([^' ]+)/\$places{'$1'}/g;
-    s-:([^' ]+)-(\$places{'$1'} // die '$1 is not a defined label')-g;
-
-    s/L([1-9])?(.+)/&\$le(($1) || $size, $2)/g;
-    s/B([1-9])?(.+)/&\$be(($1) || $size, $2)/g;
-
-    my $result = eval;
-    die "error evaluating $_ as $expression: $@" if $@;
-
-    if ($size) {
-      die "result of $_ as $expression is " . length($result) .
-          " bytes; expected $size"
-          if length($result) != $size;
-
-      substr($concatenated, $o, $size) = $result;
-    }
-  }
-}
-
-$concatenated;
-
-__
 meta::function('cp', <<'__');
 my $from = shift @_;
 my $value = retrieve($from);
@@ -605,11 +439,6 @@ meta::function('current-state', 'serialize(\'-pS\');');
 meta::function('cwd', <<'__');
 use Cwd qw/getcwd/;
 getcwd();
-
-__
-meta::function('debug', <<'__');
-render();
-sh('gdb -x boot/debug.gdb ./boot/image');
 
 __
 meta::function('disable', 'hook(\'disable\', chmod_self(sub {$_[0] & 0666}));');
@@ -744,10 +573,6 @@ my ($options, @stuff) = separate_options(@criteria);
 exists $data{$attribute} and attribute_is($attribute, %$options);
 
 __
-meta::function('lib', <<'__');
-create("sdoc::canard::lib/$_[0]");
-
-__
 meta::function('load-state', <<'__');
 around_hook('load-state', @_, sub {
   my ($state_name) = @_;
@@ -832,60 +657,6 @@ my @result = eval(join ' ', @_);
 $@ ? terminal::error($@) : wantarray ? @result : $result[0];
 
 __
-meta::function('preprocess', <<'__');
-# Implements a simple preprocessing language.
-# Syntax follows two forms. One is the 'line form', which gives you a way to specify arguments inline
-# but not spanning multiple lines. The other is 'block form', which gives you access to both one-line
-# arguments and a block of lines. The line parameters are passed in verbatim, and the block is
-# indentation-adjusted and then passed in as a second parameter. (Indentation is adjusted to align
-# with the name of the command.)
-#
-# Here are the forms:
-#
-# - line arguments to function
-#
-# - block line arguments << eof
-#   block contents
-#   block contents
-#   ...
-# - eof
-
-my ($string, %options) = @_;
-my $expansions         = 0;
-my $old_string         = '';
-my $limit              = $options{expansion_limit} || 100;
-my @pieces             = ();
-
-sub adjust_spaces {
-  my ($spaces, $string) = @_;
-  $string =~ s/^$spaces  //mg;
-  chomp $string;
-  $string;
-}
-
-while ($old_string ne $string and $expansions++ < $limit) {
-  $old_string = $string;
-
-  while ((my @pieces = split  /(^(\h*)-\h \S+ \h* \V* <<\h*(\w+)$ \n .*?  ^\2-\h\3$)/xms, $string) > 1 and $expansions++ < $limit) {
-    $pieces[1 + ($_ << 2)] =~ /^ (\h*)-\h(\S+)\h*(\V*)<<\h*(\w+)$ \n(.*?) ^\1-\h\4 $/xms && $externalized_functions{"template::$2"} and
-      $pieces[1 + ($_ << 2)] = &{"template::$2"}($3, adjust_spaces($1, $5))
-      for 0 .. $#pieces / 4;
-
-    @pieces[2 + ($_ << 2), 3 + ($_ << 2)] = '' for 0 .. $#pieces / 4;
-    $string = join '', @pieces;
-  }
-
-  if ((my @pieces = split     /^(\h*-\h \S+ \h* .*)$/xom, $string) > 1) {
-    $pieces[1 + ($_ << 1)] =~ /^ \h*-\h(\S+)\h*(.*)$/xom && $externalized_functions{"template::$1"} and
-      $pieces[1 + ($_ << 1)] = &{"template::$1"}($2)
-      for 0 .. $#pieces >> 1;
-
-    $string = join '', @pieces;
-  }
-}
-
-$string;
-__
 meta::function('rd', <<'__');
 if (@_) {my $pattern = join '|', @_;
          @{$transient{path}} = grep $_ !~ /^$pattern$/, @{$transient{path}}}
@@ -935,15 +706,6 @@ for my $parent (@parents) {
 
   $keep_parent_around ? terminal::info("not deleting parent::$parent so that you can run", "rmparent -D $parent if you want to nuke divergent attributes too")
                       : rm("parent::$parent")}
-
-__
-meta::function('rs', <<'__');
-render('-W');
-srepl();
-
-__
-meta::function('run-example', <<'__');
-sh("boot/interpreter examples/$_[0].canard");
 
 __
 meta::function('save', <<'__');
@@ -1179,13 +941,6 @@ $hash = fast_hash("$data{$_}|$hash") for @attributes;
 $$options{'-G'} ? $hash : fast_hash("$global_data|$hash");
 
 __
-meta::function('test', <<'__');
-render();
-sh('file boot/image');
-sh('readelf -h boot/image');
-sh('boot/image');
-
-__
 meta::function('touch', 'associate($_, \'\') for @_;');
 meta::function('unlock', 'hook(\'unlock\', chmod_self(sub {$_[0] | 0200}));');
 meta::function('update', <<'__');
@@ -1292,14 +1047,6 @@ __
 meta::function('vim', <<'__');
 # Installs VIM highlighters.
 file::write("$ENV{'HOME'}/.vim/syntax/$_.vim", retrieve("vim_highlighter::$_")) for grep s/^vim_highlighter:://o, keys %data;
-__
-meta::function('wrapped-near', <<'__');
-my ($text, $approximate_margin) = @_;
-$approximate_margin ||= 80;
-my $pattern = "^(.{$approximate_margin,}?) ";
-1 while $text =~ s/$pattern/\1\n/mg;
-$text;
-
 __
 meta::hook('before-save::render', <<'__');
 render();
@@ -2100,24 +1847,6 @@ None of this logic needs to be particularly efficient because the symbol table
 will be used at most once for each symbol.
 
 __
-meta::parent('binary', <<'__');
-function::compile-binary  fcb22854d34d5fc4f098e823c8fbf865
-meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
-parent::vim-highlighters  97a78fb60b4c851157b4cba7039e2e8a
-retriever::bin            24b2382d3f002ee325963a5c652c53ff
-vim_highlighter::binary   47bce7f1d6a2ab114ed7b1c65808bbf9
-
-__
-meta::parent('canard-object', <<'__');
-function::canard-pack   1baa1b17104517b0670946e937df3e78
-meta::type::canard      ee0b958db0f8b728c95edf7a27132ef2
-parent::binary          09fdf4cb925bb8ab04849fe99175539c
-parent::preprocessor    b78fd14e73866dc9ee7aaa5087c5ceb6
-parent::sdoc            03fac417ce40bb4512b5b50ee8dec03a
-parent::text            723058a0ac9b5b72c289904aef8b1202
-retriever::canard-pack  0752d53db63bb0fc6df5bfc16c3eac10
-
-__
 meta::parent('git-integration', <<'__');
 function::gU    f15ab8170ea981dd7b216c75af5d3f63
 function::ga    505b3d9a22ca7cf04c60bda01ff3f140
@@ -2262,19 +1991,6 @@ retriever::object                       c7633990b4e01bdc783da7e545799f4f
 retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
 
 __
-meta::parent('preprocessor', <<'__');
-function::preprocess           ab5526a02ff417d4c162357dc327e7c4
-meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
-parent::object                 b9a2def7969dcd4b475cae3f95be98d3
-retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
-template::comment              dfe273d2dad3d8159b847545e4e5c309
-template::def                  0575aedbacf922d77f3419b817b7d579
-template::eval                 1a0e2124a05056be4abc11803883c294
-template::failing_conditional  e3a4523110dd859e828f342185de7c62
-template::include              47b5552d609d97fe7f2522d5c1027014
-template::pinclude             c07ff79bf8d642cceaa9ef844bfcb189
-
-__
 meta::parent('sdoc', <<'__');
 function::sdoc            71fa4ee3ae6283a87706e74f9de1de40
 function::sdoc-html       b23152b3f5be696e5bae842ec43fc5a4
@@ -2292,28 +2008,10 @@ retriever::sdoc-packed    f7116f96adf2c748ac1991f4d7c1792b
 retriever::sdocp          fcfcf3a7de79d7d863402b9ccfcac3c4
 
 __
-meta::parent('text', <<'__');
-function::wrapped-near   b34731b33db1a4b56c724b1aa5c97f6d
-parent::object           b9a2def7969dcd4b475cae3f95be98d3
-retriever::wrapped-near  1b00aeef9dbd19633a1fedc443b846e8
-
-__
 meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
 meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
 parent::object               b9a2def7969dcd4b475cae3f95be98d3
-
-__
-meta::retriever('bin', <<'__');
-# Compiles a binary text file.
-my $name = $_[0];
-return undef unless $name =~ s/^bin::/binary::/ && defined retrieve($name);
-compile_binary($name);
-
-__
-meta::retriever('canard-pack', <<'__');
-return undef unless $_[0] =~ /^canard-pack::(.*)$/;
-defined retrieve($1) ? canard_pack($1) : undef;
 
 __
 meta::retriever('code-sdoc', <<'__');
@@ -2355,11 +2053,6 @@ return undef unless $_[0] =~ /^perl::(.*)$/;
 eval $1;
 
 __
-meta::retriever('pp', <<'__');
-return undef unless namespace($_[0]) eq 'pp';
-my $attr = retrieve(attribute($_[0]));
-defined $attr ? preprocess($attr) : undef;
-__
 meta::retriever('sdoc', <<'__');
 exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]", extension_for($_[0])) : undef;
 
@@ -2372,156 +2065,6 @@ __
 meta::retriever('sdocp', <<'__');
 return undef unless $_[0] =~ /^sdocp::(.*)$/;
 exists $data{"sdoc::$1"} ? sdocp("sdoc::$1") : undef;
-
-__
-meta::retriever('wrapped-near', <<'__');
-return undef unless $_[0] =~ /^wrapped-near\.(\d+)::(.*)$/;
-defined retrieve($2) ? wrapped_near(retrieve($2), $1) : undef;
-
-__
-meta::template('comment', '\'\';     # A mechanism for line or block comments.');
-meta::template('def', <<'__');
-# Define a new template. Analogous to the C preprocessor's #define directive.
-# For example:
-#
-# - def foo x, y, z << end
-#   hello $x, $y, and $z!
-#   This is an ${x}message.
-# - end
-#
-# You can then use that template immediately:
-#
-# - foo 3, 4, 5
-#
-# Interpolation is achieved by evaling a Perl heredoc; the usual caveats apply.
-# A variable called $body is automatically bound to the body contents if there
-# are any; for example:
-#
-# - def named x << end
-#   name $x {
-#   $body
-#   }
-# - end
-#
-# - named 'foo' << end
-#   woohoo
-# - end
-#
-# You can define a "plural" form like this:
-#
-# - def -p say_hi_to << end
-#   Hi $_!
-# - end
-#
-# - say_hi_to Foo, Bar, Baz
-#
-# Plural forms still have the $body variable (which doesn't change across
-# arguments), but they can't take formal parameters.
-
-my ($options, $name, @args) = separate_options(split /\s+/, $_[0]);
-my @formals                 = map split(/,\s*/), @args;
-my $body                    = $_[1];
-
-my $formal_list             = join(', ', map "\$$_", @formals);
-my $parameter_bindings      = "my ($formal_list) = split /,\\s*/, \$_[0]";
-my $body_binding            = "my \$body = \$_[1]";
-my $heredoc_delimiter       = state();
-
-# This will work great unless you put large hexadecimal barewords on otherwise
-# blank lines in your code. At that point there's a 2^-128 chance that it will
-# bomb out horribly.
-my $plural = $$options{'--plural'} || $$options{'-p'};
-
-die "- def $name: cannot use formal parameters with the -p option"
-if $plural && @formals;
-
-$plural ? meta::externalize "template::$name", "- def -p $name",
-            eval "sub {\n$body_binding;\n" .
-                 "join \"\\n\", map <<$heredoc_delimiter, " .
-                                    "split /,\\s*/, \$_[0];\n" .
-                 "$body\n" .
-                 "$heredoc_delimiter\n}"
-
-        : meta::externalize "template::$name", "- def $name @formals",
-            eval "sub {\n$parameter_bindings;\n$body_binding;\n" .
-                 "<<$heredoc_delimiter\n$body\n$heredoc_delimiter\n}";
-
-die $@ if $@;
-
-# No output from this template.
-'';
-
-__
-meta::template('eval', <<'__');
-my $result = eval $_[0];
-terminal::warning("Error during template evaluation: $@") if $@;
-$result;
-__
-meta::template('failing_conditional', <<'__');
-my ($commands)    = @_;
-my $should_return = $commands =~ / if (.*)$/ && ! eval $1;
-terminal::warning("eval of template condition failed: $@") if $@;
-$should_return;
-__
-meta::template('include', <<'__');
-my ($commands) = @_;
-return '' if template::failing_conditional($commands);
-join "\n", map retrieve($_), split /\s+/, $commands;
-__
-meta::template('pinclude', <<'__');
-# Just like the regular include, but makes sure to insert paragraph boundaries
-# (this is required for SDoc to function properly).
-
-my ($commands) = @_;
-return '' if template::failing_conditional($commands);
-my $text = join "\n\n", map retrieve($_), split /\s+/, $commands;
-"\n\n$text\n\n";
-__
-meta::vim_highlighter('binary', <<'__');
-" Language: Binary text
-" Creator:  Spencer Tipping <spencer@spencertipping.com>
-" License:  MIT source code license
-
-syn case match
-
-syn match bt_line_comment       /#.*/
-syn match bt_binary_octet       /-[01]\{8\}/
-syn match bt_octal_byte         /o[0-3][0-7]\{2\}/
-syn match bt_hex_octet          /[0-9a-f]\{2\}/
-syn match bt_repetition_prefix  -/\d\+/-
-syn match bt_address            -@[0-9a-f]\+-
-syn match bt_place              -@![0-9a-f]\+-
-syn match bt_debug              -@?\w\+-
-syn match bt_ascii              -'\S\+-
-
-syn match bt_label              /::\S\+/
-
-syn region bt_expression        matchgroup=bt_expression_bracket start=/:\d*\[/ end=/]/ keepend
-syn match  bt_label_definition  /::\S\+/      contained containedin=bt_expression
-syn match  bt_label_ref         /:\S\+/       contained containedin=bt_expression
-syn match  bt_here              /:</          contained containedin=bt_expression
-syn match  bt_there             /:>/          contained containedin=bt_expression
-syn match  bt_endian            /[BL][1-9]\?/ contained containedin=bt_expression
-syn match  bt_perl_number       /0x[0-9a-f]\+\|0[0-7]\+\|\d\+/ contained containedin=bt_expression
-
-hi link bt_line_comment      Comment
-hi link bt_binary_octet      Keyword
-hi link bt_octal_byte        Keyword
-hi link bt_hex_octet         Type
-hi link bt_repetition_prefix Preproc
-hi link bt_address           Preproc
-hi link bt_place             Identifier
-hi link bt_debug             Comment
-hi link bt_ascii             String
-
-hi link bt_label              Identifier
-hi link bt_expression_bracket Special
-hi link bt_label_ref          Identifier
-hi link bt_label_definition   Identifier
-hi link bt_here               Keyword
-hi link bt_there              Keyword
-hi link bt_endian             Special
-hi link bt_perl_number        Number
 
 __
 meta::vim_highlighter('canard', <<'__');
