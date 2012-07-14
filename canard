@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  92043c633c2a7150922eb2a7b4862e1b
+# state:  87a595bbddc3db63793b3ca994636218
 # istate: 9a12b7e1fc5fea59873e49899bfce77f
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -255,8 +255,6 @@ meta::configure 'vim_highlighter', extension => '.vim', inherit => 1;
 meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
-meta::alias('cl', 'ad -c canard::lib');
-meta::alias('cn', 'ad -c note::');
 meta::alias('d', 'debug');
 meta::alias('eb', 'edit sdoc::binary::boot');
 meta::alias('ebb', 'edit sdoc::canard::boot/binary');
@@ -1308,7 +1306,7 @@ render();
 
 __
 meta::hook('before-shell::ad', <<'__');
-ad('alias::c.');
+ad('note::');
 
 __
 meta::indicator('cc', 'length ::retrieve(\'data::current-continuation\') ? "\\033[1;36mcc\\033[0;0m" : \'\';');
