@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  b0e29a97529403327b1c99871f41a015
+# state:  8434d7beda3ca6d63ca3372eaf4375ce
 # istate: 98c7e05cffee10ecdfea078459d49ee4
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1668,6 +1668,20 @@ So ultimately, the only stage at which the cons tree is reversed is in the initi
 reverse, so that the parser can be treated as a projection into list-space. For now, the reverse-consing notation is fine.
 
 __
+meta::note('matchers', <<'__');
+Matchers.
+The global symbol table is a first-class function that resolves symbols by
+composing matchers. Because cons is composition, you can manipulate the symbol
+table as a list. Therefore:
+
+| symbol-table = :: ... :: :: :: [] m1 m2 m3 ... mn
+
+Each matcher function takes two continuations on the return stack. The top
+continuation takes the original symbol and indicates that no match occurred; the
+next continuation takes the resolved value and returns immediately to the symbol
+table caller.
+
+__
 meta::note('minimal-allocation', <<'__');
 Minimal allocation.
 Intel JMP instructions can be encoded in two widths, and CALL instructions can
@@ -1696,15 +1710,6 @@ functions to manipulate the stack and deal with lists, and to then provide one
 macro-definition that allows the user to type hexadecimal numbers. This macro
 definition can be used to write the machine code necessary to write new
 symbol-definition functions.
-
-__
-meta::note('numbers', <<'__');
-Numbers.
-It is philosophicall tempting to exclude numbers from the core Canard image;
-parsing numeric literals is a pain and it's unclear that they couldn't be
-implemented in some other way. Including numbers in the core image is a special
-case of providing reader macros, or at the very least, generating definitions
-from a subset of undefined symbols. (!!!)
 
 __
 meta::note('parser-role-in-compilation', <<'__');
