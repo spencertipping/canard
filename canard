@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  4fffe1ca5fd8c044f30a485e4404c129
-# istate: 98c7e05cffee10ecdfea078459d49ee4
+# state:  5aacccd1e9b6f8d486e23b1b1322741c
+# istate: 4826c5249edaa7734540693863d130ab
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -106,6 +106,10 @@ meta::define_form 'alias', sub {
   };
 };
 __
+meta::meta('type::binary', <<'__');
+meta::functor::editable 'binary', extension => '.binary', default => 'edit', inherit => 0;
+
+__
 meta::meta('type::bootstrap', <<'__');
 # Bootstrap attributes don't get executed. The reason for this is that because
 # they are serialized directly into the header of the file (and later duplicated
@@ -126,6 +130,11 @@ meta::define_form 'function', sub {
   my ($name, $value) = @_;
   meta::externalize $name, "function::$name", meta::eval_in("sub {\n$value\n}", "function::$name");
 };
+__
+meta::meta('type::gdb', <<'__');
+meta::configure 'gdb', extension => '.gdb', inherit => 1;
+meta::define_form 'gdb', \&meta::bootstrap::implementation;
+
 __
 meta::meta('type::hook', <<'__');
 meta::configure 'hook', extension => '.pl', inherit => 0;
@@ -231,11 +240,24 @@ meta::meta('type::state', <<'__');
 meta::configure 'state', inherit => 0, extension => '.pl';
 meta::define_form 'state', \&meta::bootstrap::implementation;
 __
+meta::meta('type::template', <<'__');
+meta::configure 'template', extension => '.pl', inherit => 1;
+meta::define_form 'template', sub {
+  my ($name, $value) = @_;
+  meta::externalize "template::$name", "template::$name", meta::eval_in("sub {\n$value\n}", "template::$name");
+};
+__
 meta::meta('type::vim_highlighter', <<'__');
-meta::configure 'vim_highlighter', extension => '.vim', inherit => 1;
+# Vim highlighters don't need to be inherited. The reason is that they are most
+# often configured from the parent object using the 'vim' function. They are
+# rarely sent to anyone else and configured after the fact.
+
+meta::configure 'vim_highlighter', extension => '.vim', inherit => 0;
 meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
+meta::alias('eb', 'edit sdoc::binary::boot');
+meta::alias('ed', 'edit sdoc::gdb::boot-debug');
 meta::alias('erf', 'edit function::render');
 meta::alias('ev', 'edit vim_highlighter::canard');
 meta::alias('repl', 'sh boot/interpreter');
@@ -335,6 +357,7 @@ meta::cache('parent-identification', <<'__');
 binary 93194ecf50e38f2adb6e273909e007b5
 c 8118b5c1b0aa08bce7e839df4ab80199
 canard-object 3d87f1a4b0694cfebcbfd589fa5ed5dd
+gdb-object 0991d4c4fa56bb2f5e1df44104e0c63f
 git-integration 9fabb9b6f2f374c35ddcc26549ac2b65
 notes a9e5975593ed5d90d943ad98405c71e5
 object 99aeabc9ec7fe80b1b39f5e53dc7e49e
@@ -344,10 +367,11 @@ text ffe5790f4c605b3bd73283f7c5e57dc5
 vim-highlighters 902333a0bd6ed90ff919fe8477cb4e69
 __
 meta::cache('parent-state', <<'__');
+0991d4c4fa56bb2f5e1df44104e0c63f 7cb3eb1528cd4cebd387899d594eae30
 3d87f1a4b0694cfebcbfd589fa5ed5dd 18d86397c52aeb07c61f70b50fb20703
-70dae4b46eb4e06798ec6f38d17d4c7b 406b66e1ee15bc4cd3dbca435b9ebd63
-902333a0bd6ed90ff919fe8477cb4e69 d68948b20d89140aaa40a657dcb04585
-93194ecf50e38f2adb6e273909e007b5 df2c609f23f138397515f28d792091ba
+70dae4b46eb4e06798ec6f38d17d4c7b e25c4729aff094da49d7b9903452bcea
+902333a0bd6ed90ff919fe8477cb4e69 5bb14b94b33b7e5f476e5ce905d81e6f
+93194ecf50e38f2adb6e273909e007b5 72357050e5a4792419569e6e8c61b3b3
 99aeabc9ec7fe80b1b39f5e53dc7e49e 20cbfd8b1bd09b6a60c0eea0f9ca525d
 9fabb9b6f2f374c35ddcc26549ac2b65 63765c7bc2addea974ed38cb6c2733b2
 a1e8480e579614c01dabeecf0f963bcc dc33b10238e896bad155335a5e119e2e
@@ -420,6 +444,126 @@ for my $file (@files) {
 
       file::write($file, serialize(), noclobber => 1);
       chmod(0700, $file)})})}
+
+__
+meta::function('compile-binary', <<'__');
+# Compiles binary-text to binary output. The binary-text is tokenized and then
+# compiled, where each token is one of the following:
+#
+# Literal:
+# /[0-9a-f]{2}/         <- single byte in hex
+# /o[0-3][0-7]{2}/      <- single byte in octal
+# /-[01]{8}/            <- single byte in binary
+# /'\S+/                <- bytes in ASCII
+#
+# Placement (low-level):
+# /@![0-9a-f]+/         <- place assertion (die unless next byte is at place)
+# /@[0-9a-f]+/          <- place seek (emit null bytes until next byte is place)
+# /@\?(\w\+)/           <- debugging: print \1 followed by its location
+#
+# Repetition:
+# /\/(\d+)\//           <- repeat next byte \1 times
+#
+# Assembler:
+# /::([^' ]\+)/         <- create label \1 pointing to next byte offset
+# /:\d*\[([^\]]+)\]/    <- insert bytes resulting from expression evaluation
+#
+# The assembler gives you a language you can use to evaluate expressions. It's
+# ultimately a preprocessor transform to Perl; that is, a few string
+# substitutions are made and then Perl evaluates the result, dropping that into
+# the generated image. The assembler dies unless the expression's byte size
+# matches the number before the open bracket. Here are the preprocessor
+# transformations:
+#
+# s/:</$o/g                             <- offset at beginning of expression
+# s/:>/($o + $e{size})/g                <- offset at end of expression
+# s/::?([^' ]+)/$places{'\1'}/g         <- label references
+# s/L(\d)?(.*)/&$le(\1, \2)/g           <- little-endian integer encoding
+# s/B(\d)?(.*)/&$be(\1, \2)/g           <- big-endian integer encoding
+#
+# Little-endian and big-endian encoders take a numeric argument indicating how
+# many bytes should be encoded. This number is limited only by Perl's numerical
+# precision, and by the fact that you have only one digit to specify it. Results
+# are sign-extended to the requested byte width.
+#
+# You can use 0 width to evaluate an expression with no output; that is, some
+# form of side-effect. In this case, the bracketed expression's value is ignored
+# and no length check occurs.
+#
+# Note that all expressions are evaluated after the basic image has been
+# generated. This allows you to use forward references to labels.
+
+my $text = join ' ', map split(/\s+/), split /(?:\s|^)#.*/m, retrieve($_[0]);
+my $hex_letters = '0123456789abcdef';
+
+my %places;
+my %expressions;
+my @output;
+
+my $offset     = 0;
+my $next       = 1;
+my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
+my $repetition = sub {my $count = $next; $next = 1; $count};
+my $ascii      = sub {$_[0]};
+my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
+my $octal      = sub {my $total = 0; $total = ($total << 3) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 2; chr($total) x &$repetition()};
+my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
+my $until      = sub {my $address = hex $_[0]; "\0" x ($address - $offset)};
+my $debug      = sub {printf STDERR "%s: 0x%x\n", $_[0], $offset; ''};
+my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)", hex $_[0], $offset unless $offset == hex $_[0]; ''};
+my $label      = sub {die sprintf "label %s is defined twice" if exists $places{$_[0]}; $places{$_[0]} = $offset; ''};
+my $expression = sub {push @{$expressions{$offset} ||= []}, {size => $_[0], e => $_[1]}; 'E' x $_[0]};
+
+my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
+
+my @tokens = split m#('\S+ | -[01]{8} | o[0-3][0-7]{2} | [0-9a-f]{2} | @\?\S+ |
+                      @!?[0-9a-f]+ | /\d+/ | ::\S+ | :\d*\[[^\]]+\])#x, $text;
+
+&$emit(/^'(\S+)/        ? &$ascii($1)  : /^@\?(\S+)/          ? &$debug($1) :
+       /^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/  ? &$octal($1) :
+       /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/      ? &$until($1) :
+       /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/       ? &$hex($_)   :
+
+       /^::(\S+)/            ? &$label($1)          :
+       /^:(\d*)\[([^\]]+)\]/ ? &$expression($1, $2) : '') for @tokens;
+
+# Now go through and evaluate every expression. Right now the spaces for the
+# results contain repetitions of the byte 'E'.
+my $concatenated = join '', @output;
+
+my $le = sub {join '', map chr($_[1] >> $_ * 8 & 255),         0 .. $_[0] - 1};
+my $be = sub {join '', map chr($_[1] >> $_ * 8 & 255), reverse 0 .. $_[0] - 1};
+
+for my $o (sort {$a <=> $b} keys %expressions) {
+  for my $e (@{$expressions{$o}}) {
+    my $expression = $$e{e};
+    my $size       = $$e{size};
+
+    $_ = $expression;
+
+    s/:</$o/g, s/:>/($o + $size)/g;
+
+    # :: is unchecked, : is checked
+    s/::([^' ]+)/\$places{'$1'}/g;
+    s-:([^' ]+)-(\$places{'$1'} // die '$1 is not a defined label')-g;
+
+    s/L([1-9])?(.+)/&\$le(($1) || $size, $2)/g;
+    s/B([1-9])?(.+)/&\$be(($1) || $size, $2)/g;
+
+    my $result = eval;
+    die "error evaluating $_ as $expression: $@" if $@;
+
+    if ($size) {
+      die "result of $_ as $expression is " . length($result) .
+          " bytes; expected $size"
+          if length($result) != $size;
+
+      substr($concatenated, $o, $size) = $result;
+    }
+  }
+}
+
+$concatenated;
 
 __
 meta::function('cp', <<'__');
@@ -669,6 +813,60 @@ meta::function('perl', <<'__');
 my @result = eval(join ' ', @_);
 $@ ? terminal::error($@) : wantarray ? @result : $result[0];
 
+__
+meta::function('preprocess', <<'__');
+# Implements a simple preprocessing language.
+# Syntax follows two forms. One is the 'line form', which gives you a way to specify arguments inline
+# but not spanning multiple lines. The other is 'block form', which gives you access to both one-line
+# arguments and a block of lines. The line parameters are passed in verbatim, and the block is
+# indentation-adjusted and then passed in as a second parameter. (Indentation is adjusted to align
+# with the name of the command.)
+#
+# Here are the forms:
+#
+# - line arguments to function
+#
+# - block line arguments << eof
+#   block contents
+#   block contents
+#   ...
+# - eof
+
+my ($string, %options) = @_;
+my $expansions         = 0;
+my $old_string         = '';
+my $limit              = $options{expansion_limit} || 100;
+my @pieces             = ();
+
+sub adjust_spaces {
+  my ($spaces, $string) = @_;
+  $string =~ s/^$spaces  //mg;
+  chomp $string;
+  $string;
+}
+
+while ($old_string ne $string and $expansions++ < $limit) {
+  $old_string = $string;
+
+  while ((my @pieces = split  /(^(\h*)-\h \S+ \h* \V* <<\h*(\w+)$ \n .*?  ^\2-\h\3$)/xms, $string) > 1 and $expansions++ < $limit) {
+    $pieces[1 + ($_ << 2)] =~ /^ (\h*)-\h(\S+)\h*(\V*)<<\h*(\w+)$ \n(.*?) ^\1-\h\4 $/xms && $externalized_functions{"template::$2"} and
+      $pieces[1 + ($_ << 2)] = &{"template::$2"}($3, adjust_spaces($1, $5))
+      for 0 .. $#pieces / 4;
+
+    @pieces[2 + ($_ << 2), 3 + ($_ << 2)] = '' for 0 .. $#pieces / 4;
+    $string = join '', @pieces;
+  }
+
+  if ((my @pieces = split     /^(\h*-\h \S+ \h* .*)$/xom, $string) > 1) {
+    $pieces[1 + ($_ << 1)] =~ /^ \h*-\h(\S+)\h*(.*)$/xom && $externalized_functions{"template::$1"} and
+      $pieces[1 + ($_ << 1)] = &{"template::$1"}($2)
+      for 0 .. $#pieces >> 1;
+
+    $string = join '', @pieces;
+  }
+}
+
+$string;
 __
 meta::function('rd', <<'__');
 if (@_) {my $pattern = join '|', @_;
@@ -1920,6 +2118,144 @@ This will generally be the case in practical situations, but it makes it easy
 from a GC perspective too.
 
 __
+meta::parent('/home/spencertipping/conjectures/perl-objects/object', <<'__');
+bootstrap::html                         f44dd03cb0c904b3a5f69fbda5f018d0
+bootstrap::initialization               170e6ce82d2db886e908918cb132bb4e
+bootstrap::perldoc                      5793df44bdd2526bb461272924abfd4b
+function::ad                            9220b9dc131f8f79878a6209adfe8ef2
+function::alias                         8eeeeb4e064ef3aba7edf8f254427bc2
+function::cat                           f684de6c8776617a437b76009114f52e
+function::cc                            12ea9176e388400704d823433c209b7a
+function::ccc                           d151a9793edd83f80fb880b7f0ab9b34
+function::child                         957c1bd528bbe7046442ec15ad9e2095
+function::clone                         d03e474252c7283e184f2ecddde33137
+function::cp                            3fe69d1b58d90045ad520048977538c4
+function::create                        d65deb895a848b32d3d7ed92e81e8cb0
+function::current-state                 6f03f86f1901e9ef07fdb5d4079a914c
+function::cwd                           fd9b58e76c474a8fe93dc3abdccb8857
+function::disable                       53b449708cc2ffdefa352e53bb7d847d
+function::edit                          6e5bd5f35ff9cf66edd2d2d9943a7b4e
+function::edit-self                     71790df00f941ed9b56e17f789b93871
+function::enable                        7de1cedc36841f5de8f9fdfbc3b65097
+function::expanded-bootstrap            bd76713aa911d4a92936824dac06caf5
+function::export                        2374cd1dbf7616cb38cafba4e171075d
+function::extern                        1290a5223e2824763eecfb3a54961eff
+function::grep                          55c3cea8ff4ec2403be2a9d948e59f14
+function::hash                          6ee131d093e95b80039b4df9c7c84a02
+function::hook                          675cdb98b5dd8567bdd5a02ead6184b5
+function::hooks                         3d989899c616f7440429a2d9bf1cc44b
+function::identity                      94041fcf04989fccfe1b8e54171bf603
+function::import                        5d0f0634cbd01274f2237717507198a2
+function::initial-state                 03d8ed608855a723124e79ca184d8e73
+function::is                            41564c8f21b12ab80824ac825266d805
+function::load-state                    b6cf278a1f351f316fa6e070359b6081
+function::lock                          5d8db258704e6a8623fac796f62fac02
+function::ls                            01a23d51d5b529e03943bd57e33f92df
+function::metadata-from                 51f238bfe3d4a0e98df376da46f1f70e
+function::mv                            ccd000960db4cf627d9246c43d87ba4c
+function::name                          955ba2d1fe1d67cd78651a4042283b00
+function::parents                       3da9e63b5aae9e2f5dcc946a86d166aa
+function::perl                          9f9fd744f0ed225ad8fb3b79fa53dd9a
+function::rd                            2adb16d7e819d2e87a27201744a581e7
+function::reload                        1589f4cf8374e0011991cb8907afca3e
+function::rm                            6f6fd7a6c25558eb469d78ea888f8551
+function::rmparent                      fc2884910a6939a47898a778f277332c
+function::save                          3cbe5c3735ee4ff99cb60ccf68bc8b91
+function::save-state                    5af59ebc4ad8965767e4dc106d3b557e
+function::serialize                     b43eb453b21c03b062efc37441bc2bf0
+function::serialize-single              8bac97e94a1162947d274421053387b0
+function::sh                            1b2f542ca9dd63ad437058b7f6f61aac
+function::shb                           21139548efb79500d9c999dba024ab32
+function::shell                         a87f389b94713e5855e62241d649d01d
+function::size                          69f6ab4a100c6ef05d4d41510004d645
+function::snapshot                      56939a47f2758421669641e15ebd66eb
+function::snapshot-if-necessary         1287f82135efdcc94af76dfa88029e4d
+function::state                         cf8a6613eaca36c2e80139508d0d86c5
+function::touch                         3991b1b7c7187566f50e5e58ce01fa06
+function::unlock                        b4aac02f7f3fb700acf4acfd9b180ceb
+function::update                        ac391dc90e507e7586c81850e7c2ecdd
+function::update-from                   57d565d7ba8f5a196b6aa35a102f71f4
+function::usage                         5bdd370f5a56cfbf199e08d398091444
+function::verify                        0c0cc1dfeab7d705919df122f7850a4f
+indicator::cc                           3db7509c521ee6abfedd33d5f0148ed3
+indicator::locked                       fc2b4f4ca0d6a334b9ac423d06c8f18c
+indicator::path                         b5e2cb524caa0283f713a0ddf9f4c162
+internal_function::around_hook          129aaec0550d3de6c00208104c0fdcef
+internal_function::associate            55f202ffdbc6b9005e53d3e82f5f9bfe
+internal_function::attribute            dd6f010f9688977464783f60f5b6d3dd
+internal_function::attribute_is         218083f309e9d94af11f8059f4c03ba7
+internal_function::cache                eb9da45580a9ac0882baf98acd2ecd60
+internal_function::chmod_self           2035e861eedab55ba0a9f6f5a068ca70
+internal_function::dangerous            46c4baaa214ab3d05af43e28083d5141
+internal_function::debug_trace          0faf9d9f4159d72dfe4481f6f3607ce1
+internal_function::execute              f0924e087d978ff2ab1e117124db3042
+internal_function::exported             ae35afef7d4762f2818aee5872c75be0
+internal_function::extension_for        9de8261d69cc93e9b92072b89c89befd
+internal_function::fast_hash            ee5eba48f837fda0fe472645fdd8899a
+internal_function::file::read           e647752332c8e05e81646a3ff98f9a8e
+internal_function::file::write          460e2343283eb9fd0e1815389f4e07e6
+internal_function::fnv_hash             c36d56f1e13a60ae427afc43ba025afc
+internal_function::hypothetically       1ce03d85e21d0e97f650ffdf46bbac53
+internal_function::internal::main       6635b98bd1cc44c0dd4b2f2f2b5f05e6
+internal_function::invoke_editor_on     5eb976796f0ec172d6ec036116a2f41e
+internal_function::is_locked            da12ced6aa38295251f7e748ffd22925
+internal_function::namespace            784d2e96003550681a4ae02b8d6d0a27
+internal_function::parent_attributes    f6ccfaa982ab1a4d066043981aaca277
+internal_function::parent_ordering      57b6da88f76b59f3fed9abfa61280e5e
+internal_function::retrieve             721a6800f328da05047fd7392758f55d
+internal_function::retrieve_with_hooks  0f1b0220ccd973d57a2e96ff00458cf2
+internal_function::select_keys          a5e3532ec6d58151d0ee24416ea1e2b5
+internal_function::separate_options     2dd1026a0f157c7c65bb9f3d18936206
+internal_function::strip                14f490b10ebd519e829d8ae20ea4d536
+internal_function::table_display        d575f4dc873b2e0be5bd7352047fd904
+internal_function::temporary_name       6f548d101fc68356515ffd0fc9ae0c93
+internal_function::translate_backtrace  d77a56d608473b3cd8a3c6cb84185e10
+internal_function::with_cwd             928bae9caa3cb212f0c5c977ba55166c
+internal_function::with_exported        df345d5095d5ed13328ddd07ea922b36
+internal_function::with_fork            b252464d1efd12dc4a5ee6890076b6a9
+library::process                        9fe4e2320eae9f6661a6eb6e777fb6ca
+library::shell                          f561500cf223df1bf6daf43af93577a5
+library::terminal                       7e2d045782405934a9614fe04bcfe559
+message_color::cc                       2218ef0f7425de5c717762ffb100eb43
+message_color::state                    03621cd6ac0b1a40d703f41e26c5807f
+message_color::states                   ac66eeeff487b5f43f88a78ea18b3d56
+meta::configure                         69c2e727c124521d074fde21f8bbc4db
+meta::externalize                       aa44e27e0bbee6f0ca4de25d603a1fc7
+meta::functor::editable                 48246c608f363de66511400e00b26164
+meta::type::alias                       889d26d2df385e9ff8e2da7de4e48374
+meta::type::bootstrap                   51108ab2ddb8d966e927c8f62d9ef3e5
+meta::type::cache                       9267171f2eace476f64a1a670eaaf2c7
+meta::type::data                        120e1649a468d3b3fd3fb783b4168499
+meta::type::function                    8ea626198861dc59dd7f303eecb5ff88
+meta::type::hook                        ff92aef328b6bdc6f87ddd0821f3e42f
+meta::type::inc                         78e0375b6725487cb1f0deca41e96bbe
+meta::type::indicator                   feb54a2624e6983617685047c717427f
+meta::type::internal_function           eff3cf31e2635f51c83836f116c99d2f
+meta::type::library                     7622e8d65e03066668bade74715d65ad
+meta::type::message_color               557a1b44979cbf77a7251fbdc4c5b82c
+meta::type::meta                        c6250056816b58a9608dd1b2614246f8
+meta::type::parent                      09d1d03379e4e0b262e06939f4e00464
+meta::type::retriever                   71a29050bf9f20f6c71afddff83addc9
+meta::type::state                       84da7d5220471307f1f990c5057d3319
+retriever::file                         3bbc9d8a887a536044bafff1d54def7e
+retriever::global                       4fe8df0cca548075169968772843a156
+retriever::id                           4da6080168d32445150cc4200af7af6e
+retriever::object                       c7633990b4e01bdc783da7e545799f4f
+retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
+
+__
+meta::parent('binary', <<'__');
+function::compile-binary  fcb22854d34d5fc4f098e823c8fbf865
+meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
+parent::vim-highlighters  98dc835e12038ddcd04630e62175fa90
+retriever::bin            24b2382d3f002ee325963a5c652c53ff
+
+__
+meta::parent('gdb-object', <<'__');
+meta::type::gdb                                               d11b5bb7fbf55c7455faceae52048d83
+parent::/home/spencertipping/conjectures/perl-objects/object  4426dd6f4aebae284447047265132c82
+
+__
 meta::parent('git-integration', <<'__');
 function::gU    f15ab8170ea981dd7b216c75af5d3f63
 function::ga    505b3d9a22ca7cf04c60bda01ff3f140
@@ -2064,6 +2400,19 @@ retriever::object                       c7633990b4e01bdc783da7e545799f4f
 retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
 
 __
+meta::parent('preprocessor', <<'__');
+function::preprocess           ab5526a02ff417d4c162357dc327e7c4
+meta::type::template           bc4b0c80b5efc716b19e99b832c22bf3
+parent::object                 4426dd6f4aebae284447047265132c82
+retriever::pp                  3b5f5c5d30c5a04f72056dedaacfe7b7
+template::comment              dfe273d2dad3d8159b847545e4e5c309
+template::def                  0575aedbacf922d77f3419b817b7d579
+template::eval                 1a0e2124a05056be4abc11803883c294
+template::failing_conditional  e3a4523110dd859e828f342185de7c62
+template::include              47b5552d609d97fe7f2522d5c1027014
+template::pinclude             c07ff79bf8d642cceaa9ef844bfcb189
+
+__
 meta::parent('sdoc', <<'__');
 function::sdoc            71fa4ee3ae6283a87706e74f9de1de40
 function::sdoc-html       b23152b3f5be696e5bae842ec43fc5a4
@@ -2083,8 +2432,15 @@ retriever::sdocp          fcfcf3a7de79d7d863402b9ccfcac3c4
 __
 meta::parent('vim-highlighters', <<'__');
 function::vim                cf9e37026f6cd1499a6dd258fbbcd060
-meta::type::vim_highlighter  27990fddb6d7bd383b55dbdfee0d148d
+meta::type::vim_highlighter  2a74673e7c2c9093acbbaa2a562eb905
 parent::object               4426dd6f4aebae284447047265132c82
+
+__
+meta::retriever('bin', <<'__');
+# Compiles a binary text file.
+my $name = $_[0];
+return undef unless $name =~ s/^bin::/binary::/ && defined retrieve($name);
+compile_binary($name);
 
 __
 meta::retriever('code-sdoc', <<'__');
@@ -2126,6 +2482,11 @@ return undef unless $_[0] =~ /^perl::(.*)$/;
 eval $1;
 
 __
+meta::retriever('pp', <<'__');
+return undef unless namespace($_[0]) eq 'pp';
+my $attr = retrieve(attribute($_[0]));
+defined $attr ? preprocess($attr) : undef;
+__
 meta::retriever('sdoc', <<'__');
 exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]", extension_for($_[0])) : undef;
 
@@ -2139,6 +2500,1171 @@ meta::retriever('sdocp', <<'__');
 return undef unless $_[0] =~ /^sdocp::(.*)$/;
 exists $data{"sdoc::$1"} ? sdocp("sdoc::$1") : undef;
 
+__
+meta::sdoc('binary::boot', <<'__');
+Canard bootstrap interpreter | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This file is written in preprocessed binary text, a format defined by the
+'binary' and 'preprocessor' self-modifying Perl objects. You can get these
+objects from http://github.com/spencertipping/perl-objects; the HTML files allow
+you to inspect them online:
+
+| http://spencertipping.com/perl-objects/binary.html
+  http://spencertipping.com/perl-objects/preprocessor.html
+
+  Conventions.
+  The most consistent convention I use is encoding the ModR/M and SIB bytes in
+  octal rather than hex. This better reflects their structure; so, for instance:
+
+  | movq %rax, %rbx             # copy %rax into %rbx
+    488b o330                   # clearer than 488b d8
+     | |  |||
+     | |  ||+-- r/m = 000, %rax
+     | |  |+--- reg = 011, %rbx
+     | |  +---- mod = 11, reg/reg
+     | +------- opcode = 8b (move right -> left)
+     +--------- REX.W prefix (0100 = REX, 1000 = WRXB)
+
+  I avoid using any prefix aside from REX.W, which is encoded as 48 and is a
+  fairly good giveaway that something is an opcode. (I also use 66 as needed.)
+
+  Constants.
+  These dictate where the image goes and how big it is in memory. This is
+  related to virtual addressing.
+
+  :[::image_base = 0x400000]
+  :[::image_size = 0x100000]
+  :[sub b { shift(@_) + :image_base }]
+
+  :[::image_end  = b:image_size]
+
+ELF header.
+See elf(5) for details about what this is made of.
+
+::bootstrap_begin
+
+::elf_ehdr_begin                # e_ident array
+  ::elf_e_ident    7f 'ELF      # ELF magic
+  ::elf_ei_class   02           # 64-bit binary
+  ::elf_ei_data    01           # Two's complement little-endian
+  ::elf_ei_version 01           # Current ELF version
+  ::elf_ei_osabi   00           # System V UNIX ABI
+
+  ::elf_ei_abiversion 00        # ABI version
+  ::elf_ei_padding /7/00        # padding; end of e_ident
+
+  ::elf_e_type      :2[L 2]     # Executable file
+  ::elf_e_machine   :2[L 0x3e]  # x86-64
+  ::elf_e_version   :4[L 1]     # current version
+
+  ::elf_e_entry     :8[L b:entry]
+
+  ::elf_e_phoff     :8[L :phdr_begin]
+  ::elf_e_shoff     :8[L 0]     # no section headers
+
+  ::elf_e_flags     :4[L 0]
+  ::elf_e_ehsize    :2[L :elf_ehdr_end - :elf_ehdr_begin]
+  ::elf_e_phentsize :2[L :phdr_end     - :phdr_begin]
+  ::elf_e_phnum     :2[L 1]
+
+  ::elf_e_shentsize :2[L 0]
+  ::elf_e_shnum     :2[L 0]
+  ::elf_e_shstrndx  :2[L 0]
+::elf_ehdr_end
+
+Program header for main image.
+This section is read/write/execute and contains the bootstrap code, data stack,
+and heap. It doesn't contain the return stack since we use the OS-provided one.
+
+:[::bootstrap_size = :bootstrap_end - :bootstrap_begin]
+
+::phdr_begin
+  ::phdr_p_type   :4[L 1]         # PT_LOAD
+  ::phdr_p_flags  :4[L 4 | 2 | 1] # PT_R | PT_W | PT_X
+  ::phdr_p_offset :8[L 0]
+  ::phdr_p_vaddr  :8[L :image_base]
+  ::phdr_p_paddr  :8[L 0]
+  ::phdr_p_filesz :8[L :bootstrap_size]
+  ::phdr_p_memsz  :8[L :image_size]
+  ::phdr_p_align  :8[L 0x1000]
+::phdr_end
+
+Core image layout.
+The core image consists of two stacks and a heap. The stacks go in opposite
+directions; the return stack is provided by the host operating system and uses
+the processor's native push/pop instructions. The data stack grows forwards from
+the first free address mapped into the interpreter's address space. The commands
+used to manipulate the data stack are inlined into use sites.
+
+The heap grows downwards and is used for allocating cons cells and other
+contiguous blocks of memory. Register mapping is:
+
+| %rsp (register 4) return stack pointer (grows downwards)
+  %rdi (register 7) data stack pointer (grows upwards towards %rsi)
+  %rsi (register 6) heap pointer (grows downwards towards %rdi)
+
+All other general-purpose registers are available for clobbering. The choices
+for the above registers are not arbitrary; they are chosen to minimize the
+number of spurious SIB bytes and displacements required to access memory. (See
+the Intel Instruction Set Reference for the machine-level exception cases for
+various registers.)
+
+At the top (high addresses) of the heap is the symbol table, which consists of
+heap-allocated cons cells as more definitions occur. When Canard boots up, it
+immediately invokes the 'main' symbol; this function contains logic for the
+interpreter/REPL. The original value of %rsp (the one that the OS provided) is
+pushed onto the data stack prior to invoking 'main'.
+
+  Global state.
+  The interpreter has one global variable aside from the stack/heap registers.
+  This variable is the symbol table, which is used by the bootstrap interpreter
+  to resolve any symbols entered by the user.
+
+  ::symbol_table :8[L 0]
+
+  Symbol constants.
+  We refer to some constants throughout the code below, most of which are
+  symbols. The bootstrap image is smaller if we pull them out of the code
+  itself, since this way we won't have to jump around them or write the
+  constants as the immediate data of a mov instruction.
+
+  This constant table is used two ways. The first way is as a space for us to
+  use later on when grabbing symbol references -- for example, when we push the
+  'main' symbol onto the stack in the toplevel code.
+
+  The second way is as an initial binding table. The toplevel bootstrap code
+  reads through this table and conses up bindings before executing main. All of
+  these are offset-encoded from the beginning of the file to save space; this
+  way we can get away with using only two bytes instead of three or four.
+
+  Code labels are prefixed with a /; symbol labels are prefixed with @. This
+  allows us to duplicate the names and factor the binding table generation into
+  a preprocessor macro. (It also makes it more obvious when a label is used as a
+  symbol binding.)
+
+  ::binding_table
+  - def -p binding << end
+    :2[L:/$_] ::\@$_ @{[sprintf "%02x", length $_]}00'$_
+  - end
+
+  - binding main, /:k, @:k, @?k, @<, @>, r<, r>, @<x, @<o, !<
+  - binding %x, %v, %0, %1
+  - binding i+, i&, i|, i^, i<<, i>>, i>>>, i-, i~
+  - binding ., ?
+  - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
+  - binding &read, &write, &open, &close, &stat
+
+  The binary-text compiler can't handle a label called /:: -- the two colons
+  make it think it's supposed to use a label reference. It also fails for things
+  containing single-quotes.
+
+  :2[L:/@<q]     ::@<q       0300'@<'
+  :2[L:cons]     ::@cons     0200'::
+  :2[L:swons]    ::@swons    0300':$:
+  :2[L:allocate] ::@allocate 0200':v
+  :2[L:uncons]   ::@uncons   0200':^
+
+  /2/00         # end marker
+  ::end_binding_table
+
+  Register initialization.
+  Set up these registers to point to useful places. %rsp is provided by the OS,
+  so we don't need to do anything else with it. We set up %rdi and %rsi like
+  this:
+
+  | +-- 400000   +-- 0x4000c9     +-- 40xxxx            +-- 500000
+    V            V                V                     V
+    | ELF header | bootstrap code | data stack ... heap | .... | %rsp stack
+
+  I'm leaving the data stack lower bound as a variable here because it depends
+  on the amount of bootstrap code that we use. But the idea is the same either
+  way; the data stack begins immediately after the bootstrap logic.
+
+  :[::file_end = b:bootstrap_size]
+
+  ::entry
+  ::rdi_init 48c7 o307:4[L:file_end]
+  ::rsi_init 48c7 o306:4[L:image_end]
+
+  At this point the registers are initialized, so we can write to both stacks
+  and to the heap. We need to set up a 'return' into the exit function so that
+  when the main function exits (i.e. we hit a nil at the end of the main program
+  list) it will die gracefully.
+
+  Two things need to happen here. First, we need to put the system-provided %rsp
+  value onto the data stack; this lets 'main' inspect argv and environment
+  variables. Then we need to push 'exit' as the continuation for 'main'.
+
+  ::push_rsp    488bo304 48ab
+  ::init_return 68:4[Lb:/&exit]
+
+Symbol table.
+There are several pieces of machinery involved in creating the symbol table.
+First, the symbol table is ultimately a function composition, which is
+represented in Canard as a linked list of cons cells. So the general form is
+something like this:
+
+| symbol_table: 00000000ssssssss
+  ssssssss: e8 xxxxxxxx | e8 yyyyyyyy | e9 zzzzzzzz
+  zzzzzzzz: e8 qqqqqqqq | ... | c3
+
+Specifically, when executed it will use an x86 CALL to each entry, and when
+examined as a cons tree it will give you each symbol resolver directly. At the
+very end is a RET instruction; the result of this is that if no resolver can
+handle the symbol you pass in, the symbol table just hands you your symbol back.
+In list form, this corresponds to a nil as the final tail.
+
+e8:4[L:/nil - :>]
+
+At this point, the heap looks like this:
+
+| %rsi -> | c3 | :image_end
+
+This is necessary for the initialization we're going to do below.
+
+  Undefined symbol handlers.
+  These handle undefined symbols and construct symbol-specific functions for
+  quoted or literal constructs. These can go in basically any order.
+
+  b8:4[Lb:/@<x] 48ab e8:4[L:cons - :>]  # Hexadecimal literals
+  b8:4[Lb:/@<o] 48ab e8:4[L:cons - :>]  # Octal literals
+  b8:4[Lb:/@<q] 48ab e8:4[L:cons - :>]  # Quoted literals
+
+  Default bindings.
+  Set up a few bindings by default. These comprise the bootstrap image. The
+  definitions themselves are below.
+
+  Right now the symbol table as such doesn't exist; we need to build it by
+  consing up a bunch of symbol matchers, each of which is generated by one of
+  the functions below. These functions will then be added to the symbol table
+  and will be part of the image.
+
+  Entries in the binding table are formatted like this:
+
+  | [16-bit value] | [16-bit symbol length] | [symbol data]
+
+  The last entry has a zero value and no following symbol. To parse this out, we
+  read the values into %rbx and then point %rax at the symbol length. If we have
+  a value, push the value and the symbol pointer (which is simply the integer
+  value of %rax).
+
+  ::read_binding_table
+  48c7 o305:4[Lb:binding_table]
+
+  ::rbt_loop
+  480fb7 o13500                         # %rbx = Z< 16-byte (%rbp)
+  488d   o10502                         # %rax = %rbp + 2
+  480fb7 o010                           # %rcx = Z< 16-byte (%rax)
+  6685   o311 74:1[L:rbt_loop_end - :>] # break if value == 0
+
+  4893 05:4[L:image_base] 48ab          # push %rbx + image_base (value)
+  4893 48ab                             # push %rax (= %rbp + 2)
+
+  488d o154o015 02                      # %rbp += %rcx + 2
+  55 e8:4[L:/@:k - :>]                  # stash %rbp
+     e8:4[L:cons - :>] 5d               # restore %rbp
+
+  eb:1[L:rbt_loop - :>]
+  ::rbt_loop_end
+
+  Now we have a complete symbol table. Bind it to the global address and start
+  up the interpreter.
+
+  488b o137f8                           # copy the symbol table to %rbx
+  e8:4[L:/@< - :>]                      # and install it globally
+
+  Push the 'main' function and use the symbol table to resolve it to a code
+  address. Once we have it, tail-call into the 'main' function and let it return
+  into 'exit'. (main needs to push an exit code for this to work.)
+
+  ::push_main b8:4[Lb:@main] 48ab       # push symbol 'main'
+  ff   o323                             # resolve 'main' (using table in %rbx)
+  488b o107f8 4883 o357 08              # data-pop %rax (address of main)
+  ff   o340                             # tail-jump into main
+
+  And that concludes the bootstrap logic. Everything below here is a library
+  function that is referenced statically from the above.
+
+Internals.
+Everything from here down is referenced or called by the above to build out the
+image, but is not executed in the toplevel stream.
+
+  Main function.
+  This will end up tying together a number of pieces, but for the moment it just
+  pushes a zero to return.
+
+  ::/main
+  4831o300 48ab                         # data-push 0
+  c3                                    # return (to exit function)
+
+Consing and memory allocation.
+We need a way to allocate new cons cells without manually getting memory from
+the heap. To do this, we define the cons function, which will ultimately be
+stored in the symbol table as ::.
+
+Right now we have some leftover stuff on the stack. The data stack top is the
+symbol matcher for @:k, which we'll ultimately need to cons onto the nil we put
+into a single byte on the heap.
+
+  Nil.
+  This is easy; it's just a single byte on the heap. We then push a pointer to
+  that byte onto the data stack.
+
+  ::/nil
+  48ffo316                              # allocate one byte for nil
+  c6  o006 c3                           # move the byte c3 to this address
+  488bo306 48ab                         # push the c3 reference onto the stack
+  c3                                    # return
+
+  Cons definition.
+  As described in the design documentation, cons has a few different cases that
+  it knows how to deal with. If the tail matches the current heap pointer, we
+  can omit the e9 jump and just rely on sequence to execute the tail as-is,
+  saving five bytes. Otherwise we write the e9 jump.
+
+  Cons takes the head on top of the stack and the tail beneath that. This is
+  counterintuitive from code, as arguments appear to be in the wrong order:
+
+  | :: 3 []             <- [3]
+    :: [] 3             <- improper list
+
+  However, generally it's more useful to access the head of a list than the
+  tail, so we want it to be immediately available.
+
+  There are cases where you want the other ordering; for that you can use
+  'swons' ('swap cons'), which is identical to 'cons' except that its arguments
+  are reversed:
+
+  | :$: 3 []            <- improper list
+    :$: [] 3            <- [3]
+
+  Given all of that, here's the algorithm for both cons and swons (referred to
+  as :: and :$: respectively):
+
+  | swons:
+      data-pop %rbx             <- tail
+      data-pop %rax             <- head
+      jmp cons_body             <- reuse logic below
+    cons:
+      data-pop %rax             <- head
+      data-pop %rbx             <- tail
+    cons_body:
+      cmpq %rbx, %rsi           <- check for contiguous segment
+    je cons_head                <- skip tail allocation if contiguous
+      subq %rsi, %rbx           <- absolute->relative
+      movl %ebx, -4(%rsi)       <- write address of e9 jump instruction
+      subq $5, %rsi             <- reserve space
+      movb $0xe9, (%rsi)        <- write e9 jmp opcode
+    cons_head:
+      subq %rsi, %rax           <- absolute->relative
+      movl %eax, -4(%rsi)       <- write address of e8 call instruction
+      subq $5, %rsi             <- reserve space
+      movb $0xe8, (%rsi)        <- write e8 call opcode
+    data-push %rsi              <- return reference to this cons cell
+    ret
+
+  Some optimization has been done around the stack parameters. In particular,
+  since we end up pushing the result, we can just pop one instead of popping
+  both; then we can write the result over the parameter that we didn't pop.
+
+  ::swons
+  488b o137f8                           # tail element
+  488b o107f0                           # head element
+  eb:1[L:cons_body - :>]                # reuse code below
+
+  ::cons
+  488b o107f8                           # head element
+  488b o137f0                           # tail element
+
+  ::cons_body
+  4883 o357 08                          # pop one
+  4839 o336 74:1[L:cons_head - :>]      # tail allocation check
+  482b o336 89 o136fc                   # relative, write e9 jump offset
+  4883 o356 05 c6 o006 e9               # allocate space, write e9 jump opcode
+
+  ::cons_head
+  482b o306 89 o106fc                   # relative, write e8 call offset
+  4883 o356 05 c6 o006 e8               # allocate space, write e8 call opcode
+
+  4889 o167f8 c3                        # return new cons cell
+
+  Jump dereferencing.
+  Cons tails are encoded as e9 jumps. This function follows an e9 jump until the
+  destination is some other opcode. If a circular path of e9 jumps is
+  constructed, this function will never return.
+
+  ::/!<
+  488b o107f8                           # load initial value into %rax
+
+  ::/!<_loop
+  80   o070 e9                          # is e9 the byte at that location?
+  75:1[L:/!<_bail - :>]                 # it isn't, so we're done
+  4863 o13701                           # sign-extend address into %rbx
+  488d o104o00205                       # %rax += %rbx + 5
+  eb:1[L:/!<_loop - :>]                 # dereference this pointer
+
+  ::/!<_bail
+  4889 o107f8 c3                        # %rax -> stack top; return
+
+  Unconsing.
+  This is quite straightforward; we just need to decode the relative addresses.
+  Fortunately, as demonstrated above, this can be done in two instructions using
+  movsx and lea.
+
+  This function has the following behavior:
+
+  | :^ :: a b = a b             <- :^ applied to cons cell
+    :^ x      = [] x            <- :^ applied to some other value
+
+  Note that this will be misleading for the nil value, since it will appear as
+  though nil is infinitely nested in itself. It's written this way to reduce the
+  number of cases in code dealing with lists, and to provide the equivalence
+  that [:: :^] is a list monad 'return' function.
+
+  ::uncons
+  - call /!<                            # dereference automatically
+  488b o107f8                           # data-pop %rax
+
+  80 o070 e8                            # do we have a real cons cell?
+  75:1[L:uncons_nil - :>]               # if not, jump to the nil case
+
+  4863 o13701                           # sign-extend address into %rbx
+  4883 o300 05                          # %rax += 5    (move past e8 call)
+  488d o034o002                         # %rbx += %rax (absolute -> relative)
+  4889 o137f8                           # data-push %rbx (head)
+  48ab                                  # data-push %rax (tail)
+  c3
+
+  ::uncons_nil
+  - call /nil                           # just push a nil as the tail
+  c3
+
+  Heap allocation.
+  Allocates the given number of bytes onto the heap and returns a pointer to
+  them. Use this carefully; if you allocate too much stuff you'll make the heap
+  collide with the data stack and terrible things will happen.
+
+  ::allocate
+  482b o167f8                           # %rsi -= data-pop
+  4889 o167f8 c3                        # data-push heap; ret
+
+  Low-level memory access.
+  This is necessary to define a number of things in the standard library. Memory
+  can be read and written in a few different sizes, and the processor's
+  endianness is used. (This is relevant since all stack values are the same
+  width -- so for small reads/writes, you're working with a byte slice.)
+
+  ::/@1 488b o137f8 480fb6 o003 4889 o107f8 c3
+  ::/@2 488b o137f8 480fb7 o003 4889 o107f8 c3
+  ::/@4 488b o137f8     8b o003 4889 o107f8 c3
+  ::/@8 488b o137f8   488b o003 4889 o107f8 c3
+
+  Writes take the value on the top of the stack, followed by the address. We use
+  %rax for the value and %rbx for the address.
+
+  ::/=1 488b o107f8 488b o137f0 4883 o357 10   88 o003 c3
+  ::/=2 488b o107f8 488b o137f0 4883 o357 10 6689 o003 c3
+  ::/=4 488b o107f8 488b o137f0 4883 o357 10   89 o003 c3
+  ::/=8 488b o107f8 488b o137f0 4883 o357 10 4889 o003 c3
+
+  Return stack manipulation.
+  These two functions allow you to move values between the data and return
+  stacks. r> pulls from the return stack, r< pushes onto it.
+
+  Each of these uses a nonstandard return operator because it needs to ignore
+  its own immediate return address. However, this doesn't impact the calling
+  convention.
+
+  ::/r> 59 58 48ab ff o051
+  ::/r< 59 488b o107f8 4883 o357 08 50 ff o051
+
+  Trivial stack permutation.
+  I don't want to do too much here because it turns out that there is a nice way
+  to encode stack permutation in terms of numerical digits; we're better off
+  JIT-compiling the specific transformations we need rather than relying on
+  compositions of basic ones like these.
+
+  However, in the interests of getting a bootstrap compiler off the ground, here
+  are a few:
+
+  ::/%x                                 # Swap two entries
+  488b o107f8                           # data-pop %rax
+  488b o137f0                           # data-pop $rbx
+  4883 o357 10                          # deallocate two entries
+  48ab 4893 48ab                        # push the two entries in reverse
+  c3
+
+  ::/%v                                 # Drop one entry
+  4883 o357 08 c3
+
+  ::/%0                                 # Duplicate top entry
+  488b o107f8 48ab c3
+
+  ::/%1                                 # %1 a b ... = b a b ...
+  488b o107f0 48ab c3
+
+  Arithmetic.
+  A few functions to make it possible to do basic arithmetic on stack entries.
+
+  # Binary op: load %rax from stack, use entry below as lvalue
+  ::/i+   488b o107f8 4801 o107f0 4883 o357 08 c3
+  ::/i&   488b o107f8 4821 o107f0 4883 o357 08 c3
+  ::/i|   488b o107f8 4809 o107f0 4883 o357 08 c3
+  ::/i^   488b o107f8 4831 o107f0 4883 o357 08 c3
+
+  # Shifts: load %rcx from stack (shift amount), entry below is lvalue
+  ::/i<<  488b o117f8 48d3 o147f0 488c o357 08 c3
+  ::/i>>  488b o117f8 48d3 o177f0 488c o357 08 c3
+  ::/i>>> 488b o117f8 48d3 o157f0 488c o357 08 c3
+
+  # Unary: operate on stack top in-place
+  ::/i-   48f7 o137 f8 c3
+  ::/i~   48f7 o127 f8 c3
+
+  Evaluation.
+  There are two ways to evaluate things. One is to use the . operator, which
+  evaluates the thing on the top of the stack (and segfaults if the stack top
+  doesn't point to a valid list). The other is to use the ? operator, which
+  chooses between two conditions. Here are the equations:
+
+  | . [x] y ...       = x y ...
+    ? [t] [f] 0 x ... = f x ...
+    ? [t] [f] N x ... = t x ...         <- N != 0
+
+  First the . function. This is really simple: all we need to do is jump into
+  the destination since lists are executable. This can be a tail call, so the
+  'return' that we would expect to see inside the . function is actually
+  provided by the function it's calling.
+
+  ::/. 488b o107f8 4883 o357 08 ff o340
+
+  Now the decisional function. This is a value-oriented form of if/then/else. We
+  optimistically load the true-case into a register, then load the false case if
+  the condition is zero. Like . above, this function also tail-calls the branch.
+
+  ::/?
+  488b o107f8                           # true branch -> %rax
+  488b o137e8                           # condition -> %rbx
+  4883 o357 18                          # pop three entries
+
+  4885 o333 480f44 o10708               # false branch -> %rax if cond == 0
+  ff   o340                             # jmp *%rax
+
+Closures.
+Canard doesn't have closures in the same sense that Lisp or Haskell does, but
+you can construct functions that push specific values onto the stack so that the
+next function has something to work with. For instance, consider something like
+this:
+
+| adder x y = x + y
+  f = adder 5
+  f 10                          <- returns 15
+
+We can define adder like this in Canard:
+
+| = [adder] [+ /:k]             <- quotation here; we want composition
+  = [f] adder 5                 <- notice: no quotation!
+  f 10                          <- returns 15
+
+The key is the /:k function, which is analogous to the 'k' combinator in
+functional programming. For any value, /:k returns a function that pushes that
+value each time it is called.
+
+  Constant function.
+  This is fairly simple. Values are represented as 64-bit numbers internally, so
+  we just need to write a function that pushes a fixed number onto the stack.
+  The processor supports a 64-bit move-immediate into %rax using the 48b8
+  operation, so the generated code will look something like this:
+
+  | 48b8 xxxxxxxx xxxxxxxx      <- value to be pushed
+    48ab c3                     <- push and return
+
+  This requires 13 bytes of heap space, which we can obtain by subtracting
+  directly from %rsi.
+
+  :://:k
+  488b o107f8                   # data-pop into %rax
+  4883 o356 0d                  # allocate heap space
+  66c7 o006 48b8                # write 48b8 instruction at (%rsi)
+    c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
+  4889 o10602                   # write value to be pushed
+  4889 o167f8                   # data-push %rsi
+  c3
+
+  Notice that we're writing the end opcodes first. Doing it this way lets us use
+  a wider 4-byte mov, which makes the code smaller and decreases the instruction
+  count. However, in doing this we also overwrite the last byte of the value
+  that we want to push; so we wait to write the value until after we've written
+  all of the opcodes.
+
+Definition and invocation.
+This is the last piece of the symbol table. Remember from earlier that the
+symbol table pointer is mutable and is stored at a fixed address. The simplest
+way to deal with this value in memory is just to build two special-purpose
+functions that read or write it.
+
+  Symbol table getter.
+  We refer to this as @> from now on. This function pushes the symbol table
+  address onto the data stack.
+
+  ::/@>
+  488b o005:4[L:symbol_table - :>] 48ab c3      # st -> %rax; push; ret
+
+  Symbol table setter.
+  This function is only slightly more complex than @> due to the fact that we
+  don't have a shortcut quite as nice as stosq. The setter is called @<.
+
+  ::/@<
+  488b o107f8 4883 o357 08                      # data-pop -> %rax;
+  4889 o005:4[L:symbol_table - :>] c3           # %rax -> (symbol_table); ret
+
+  Matchers and symbol resolution.
+  Each function in the symbol table composition is a matcher. This means that it
+  uses a calling convention that allows it to operate in conjunction with other
+  matchers in the symbol table. The calling convention is a consequence of the
+  way the symbol table works. For example, here's a matching process:
+
+  | call resolve_symbol                 <- %rsp is now 'return'
+    resolve_symbol:
+      call first_matcher                <- %rsp is now 'next'
+      call second_matcher               <- %rsp is now 'next'
+      ...
+      ret                               <- %rsp is now 'no match'
+
+  Matchers are always run in order like this, and their return values are not
+  checked by any conditional. It would appear as though we need to thread some
+  sort of state through the rest of the calls to communicate when a matcher has
+  succeeded. This is not the case, however. Matchers can elect to return early
+  by popping a continuation off of %rsp and then using a RET instruction to
+  return directly to the caller of resolve_symbol:
+
+  | first_matcher:
+      ...
+      stosq                             <- push result onto data stack
+      pop %rax                          <- discard 'next' continuation
+      ret                               <- invoke 'return' continuation
+
+  If a matcher fails, it should leave the data stack alone and invoke the 'next'
+  continuation as if nothing had happened:
+
+  | first_matcher:
+      ...
+      ret                               <- invoke 'next' continuation
+
+  Philosophically this is sort of like having the functions take multiple
+  continuations as parameters, with the convention that continuations are passed
+  on the return stack instead of the data stack. [TODO: Figure out whether this
+  is maintainable given that r> and r< are used to stash data items...]
+
+  Constant symbol matcher generator.
+  This function takes a symbol and an address on the stack and returns a pointer
+  to a matcher that matches the symbol and returns the address. If the match
+  fails, the matcher invokes the 'next' continuation as described above.
+
+  It turns out that this is quite easy given that we've defined /:k already. All
+  we need to do is construct two cons cells, one for each argument to @?k. We're
+  basically building up this list:
+
+  | :: (/:k value) :: (/:k symbol) [@?k]
+
+  The symbol is on the top of the stack, the value beneath it. @:k consumes both
+  and returns a single matcher function.
+
+  Here's an initial implementation:
+
+  | ::/@:k
+    e8:4[L://:k  - :>]                  # symbol -> k symbol
+    e8:4[L:/%x   - :>]                  # swap
+    e8:4[L://:k  - :>]                  # value -> k value
+    48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
+    e8:4[L:swons - :>]                  # first composition
+    e8:4[L:swons - :>]                  # final composition
+    c3
+
+  This implementation looks suspiciously similar to a list. The only exceptional
+  piece is the reference to @?k, but conveniently can use /:k to do this for us.
+  If we were going to build @:k in code, it would look roughly like this:
+
+  | = [@:k] :++ :$: [:: /:k /%x :$:] /:k '@?k [/:k]
+
+  Here's a preprocessor macro to help create code that consists only of function
+  calls:
+
+  - def call x << end
+    e8:4[L:$x - :>]
+  - end
+
+  - def -p composition << end
+    - call $_
+  - end
+
+  The only thing is that you'll have to add the final return:
+
+  | - composition x, y, z
+    c3                          <- don't forget this!
+
+  Constant matcher definition.
+  The constant matcher just compares bytes within a contiguous region of memory.
+  It takes two symbols and a binding address as data stack arguments; the
+  binding address will be sent to the second continuation if the two symbols
+  match; otherwise the immediate continuation will be used and the binding
+  address and one of the symbols will be popped from the data stack. (This is
+  basically how it needs to work in order to adhere to the calling convention
+  for symbol table matchers.)
+
+  Here's the logic:
+
+  | @?k:
+      data-pop %rbp                     <- binding address
+      data-pop %rax                     <- first symbol
+      movq -8(%rdi), %rbx               <- second symbol (peek, not pop)
+      xorq %rcx, %rcx                   <- clear high bits
+      movw (%rax), %cx                  <- get length
+      cmpw %cx, (%rbx)                  <- both same length?
+      jne bail                          <- if not, bail
+    length_ok:
+      movb 2(%rbx,%rcx,1), %dl
+      cmpb %dl, 2(%rax,%rcx,1)
+      jne bail                          <- mismatched character
+      loop                              <- else do the next one
+    success:
+      movq %rbp, -8(%rdi)               <- set data stack result
+      pop %rax                          <- drop 'next' continuation
+    bail:                               <- success falls through
+      ret                               <- invoke 'return' continuation
+
+  This function ends up being bound as @?k in the symbol table. We bind this
+  once we've defined cons and bind below.
+
+  ::/@?k
+  488b o157f8                   # -8(%rdi) -> %rbp
+  488b o107f0                   # -16(%rdi) -> %rax
+  488b o137e8                   # -24(%rdi) -> %rbx
+  4883 o357 10                  # %rdi -= 16 (pop two entries)
+
+  4831o311 668b o010            # %rcx = length
+  6639 o013                     # length check
+  75:1[L:/@?k_bail - :>]
+
+  ::/@?k_loop
+  8a o124o01302                 # top of loop: populate %dl
+  38 o124o01002                 # compare characters
+  75:1[L:/@?k_bail - :>]        # bail if not equal
+  e2:1[L:/@?k_loop - :>]        # loop if more characters (%cx != 0)
+
+  4889 o157f8                   # %rbp -> -8(%rdi)
+  58                            # pop
+
+  ::/@?k_bail                   # fall through either way
+  c3                            # invoke return or next continuation
+
+  Here's @:k. I chose to write the closure thunk manually just to get things
+  done; otherwise it would have been allocated using /:k and consed into @:k
+  using the real cons function. (However, @:k is a valid list anyway.)
+
+  Also, this closure is slightly smaller than the one that would have been
+  written by /:k. (Maybe I should optimize /:k for cases like these...)
+
+  ::/@:k-closure
+  c7 o300:4[Lb:/@?k] 48ab c3
+
+  ::/@:k
+  - composition //:k, /%x, //:k, /@:k-closure, swons, swons
+  c3
+
+  Numeric symbol parsers.
+  We want to generate number-pushing constant functions for any numeric symbol
+  we observe. It isn't as simple as looking for strings of digits, since these
+  are valid identifiers.
+
+  What we really want to do is use some kind of prefix that is unique to numeric
+  symbols in various bases. Canard does not assume decimal at all; in fact, it
+  doesn't even support literal decimal numbers. Here are the prefixes:
+
+  | x[0-9a-f]+                  <- hexadecimal number
+    o[0-7]+                     <- octal number
+
+  Numbers don't have intrinsic size beyond the size of a stack cell, which for
+  this implementation is 64 bits. Also, no floating-point numbers are supported
+  yet.
+
+  Because these functions are symbol resolvers, they use the usual calling
+  convention. However, instead of returning a binding that they were preloaded
+  with (which is what functions generated by @:k do), they allocate a new
+  constant function for each literal number observed. No attempt is made to
+  cache previously used number functions even though doing this would save
+  memory.
+
+  The code-generation step is trivial because we have /:k. We just take the
+  parsed number, push it onto the stack, call /:k, and return a reference to the
+  resulting closure. The result is a function that pushes the number whenever it
+  is invoked.
+
+  Each digit is checked for membership within two ranges. The first is 0-9,
+  which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
+  0x61 - 0x66.
+
+  ::/@<x                        # Resolve hexadecimal number
+  488b o137f8                   # data-pop -> %rbx
+  4831 o300 8b o310 8b o320     # %rdx = %rcx = %rax = 0
+  668b o013                     # symbol length -> %cx
+  ff   o311                     # --%cx (adjusting for the 'x' prefix)
+  4883 o303 03                  # %rbx += 3 (length + 'x' prefix)
+
+  80 o073 'x                    # is the prefix x?
+  75:1[L:/@<x_bail - :>]        # if not, bail; we can't convert this symbol
+
+  ::/@<x_digit_loop
+  88 o003                       # current digit byte -> %al
+  3c 'a                         # check this byte against lowercase A
+  7d:1[L:/@<x_letter - :>]      # greater? if so, go to letter case
+  2c '0                         # digit case: subtract '0 offset
+  eb:1[L:/@<x_shift_add - :>]   # go to shift/add section
+  ::/@<x_letter
+  2c 57                         # letter case: subtract (0x61 - 10 = 0x57)
+
+  ::/@<x_shift_add
+  48c1 o342 04                  # %rdx <<= 4
+  480b o302                     # %rdx |= %rax
+  48ff o303                     # ++%rbx
+  e2:1[L:/@<x_digit_loop - :>]  # loop while --%rcx
+
+  4889 o127f8                   # %rdx -> stack top
+  e8:4[L://:k]                  # create closure
+  58                            # pop 'next' continuation
+
+  ::/@<x_bail
+  c3                            # end of @<x
+
+  The function for octal is similar but much simpler, since we don't have to
+  deal with the piecewise nature of digits vs letters.
+
+  ::/@<o                        # Resolve octal number
+  488b o137f8                   # data-pop -> %rbx
+  4831 o300 8b o310 8b o320     # %rdx = %rcx = %rax = 0
+  668b o013                     # symbol length -> %cx
+  ff   o311                     # --%cx (adjusting for the 'o' prefix)
+  4883 o303 03                  # %rbx += 3 (length + 'o' prefix)
+
+  80 o073 'o                    # is the prefix o?
+  75:1[L:/@<o_bail - :>]        # if not, bail; we can't convert this symbol
+
+  ::/@<o_digit_loop
+  88 o003                       # current digit byte -> %al
+  2c '0                         # digit case: subtract '0 offset
+  48c1 o342 03                  # %rdx <<= 3
+  480b o302                     # %rdx |= %rax
+  48ff o303                     # ++%rbx
+  e2:1[L:/@<o_digit_loop - :>]  # loop while --%rcx
+
+  4889 o127f8                   # %rdx -> stack top
+  e8:4[L://:k]                  # create closure
+  58                            # pop 'next' continuation
+
+  ::/@<o_bail
+  c3                            # end of @<o
+
+  Quoted symbol parser.
+  If we observe a symbol that begins with ', we push a closure that pushes a
+  reference to that symbol. This greatly simplifies the process of defining new
+  symbols. (The alternative would be to use the quotation property of lists to
+  say something like :h [symbol].)
+
+  Like /@<x above, this function allocates a new closure for every symbol it
+  resolves.
+
+  Note that this function destroys the symbols it converts. Specifically, it
+  removes the leading ' and moves the length. Here's the specific
+  transformation:
+
+  | +--- original symbol pointer
+    |
+    06 00  ' hello                <- original
+    06 05 00 hello                <- converted
+       |
+       +--- new symbol pointer
+
+  ::/@<q                        # Resolve quoted symbol
+  488b o107f8                   # data-pop -> %rax
+
+  80 o17002 ''                  # is the prefix '?
+  75:1[L:/@<q_bail - :>]        # if not, bail; we can't convert this symbol
+
+  4831 o311                     # %rcx = 0
+  668b o010 ff o311             # %cx = length - 1
+  6689 o11001                   # write new length
+  48ff o300                     # ++%rax
+  4889 o107f8                   # %rax -> stack top
+  e8:4[L://:k]                  # create closure
+  58                            # pop 'next' continuation
+
+  ::/@<q_bail
+  c3
+
+Reader.
+Canard source is parsed by a mechanism similar to Lisp's reader. The primary
+difference is that the Canard reader is much simpler and is not extensible by
+mechanisms like reader macros. It recognizes the following constructs:
+
+| 1. Lists, which are contained within square brackets.
+  2. Symbols, which are comprised of any non-whitespace, non-bracket character.
+
+UTF-8 is handled transparently as a symbol character, since any UTF-8 byte is
+non-whitespace and non-bracket.
+
+  State tracking and continuations.
+  The reader works incrementally. You can pass it one buffer of input and it
+  will update its state, but it doesn't need to return a completed parse. This
+  works because it consumes and produces an explicit continuation that marks its
+  state. As usual, the initial continuation is represented by nil.
+
+  The continuation structure is simple: it's a cons list of intermediate values,
+  each of which represents one layer of nesting. The consume-one-character
+  function takes one of these lists and returns another one; the second may
+  share arbitrarily much structure with the first.
+
+  Each intermediate value is a cons that contains the tail of the list being
+  read. (Remember that the head of a list is written to the right of the tail.)
+
+System functions.
+Some definitions that will be required for the interpreter to work correctly
+with the system it's running on. All of these end up using syscall functions,
+bound in the symbol table as &0, &1, &2, &3, etc (depending on the arity).
+
+  System calling convention.
+  The top argument to any syscallX function is the number of the syscall that
+  you want to execute. The other arguments are pulled from the data stack
+  left-to-right; so, for example:
+
+  | &1 x3c x0   <- 0x3c = exit(status = 0)
+
+  The only reason syscall wrappers are particularly interesting is that they
+  have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
+  %r10, etc, are not saved.
+
+  ::/&0
+  56
+  488b o107f8 4883 o357 08      # data-pop -> %rax
+  57 0f05 5f5e 48ab c3          # syscall; pop %rdi, %rsi; data-push
+
+  ::/&1
+  56                            # push %rsi
+  488b o107f8                   # data-pop -> %rax
+  4c8b o117f0 4883 o357 10      # data-pop -> %rcx
+  57 4887 o317                  # push %rdi; swap %rcx, %rdi
+  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+  ::/&2
+  56                            # push %rsi
+  488b o107f8                   # data-pop -> %rax
+  488b o117f0                   # data-pop -> %rcx
+  488b o167e8 4883 o357 18      # data-pop -> %rsi
+  57 4887 o317                  # push %rdi; swap %rcx, %rdi
+  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+  ::/&3
+  56                            # push %rsi
+  488b o107f8                   # data-pop -> %rax
+  488b o117f0                   # data-pop -> %rcx
+  488b o167e8                   # data-pop -> %rsi
+  488b o127e0 4883 o357 20      # data-pop -> %rdx
+  57 4887 o317                  # push %rdi; swap %rcx, %rdi
+  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+  Utility functions.
+  These use the above and abstract away some of the details of system calling.
+  System call numbers are from /usr/include/asm/unistd_64.h on Linux, and where
+  applicable they're encoded like this:
+
+  | 4831o300              <- xor %rax, %rax
+    b0NN                  <- mov $0xNN, %al
+
+  This ends up being two bytes smaller than the equivalent 48c7 o300 NN000000.
+  The only case where b0NN is not present is for the read() syscall, which is
+  number 0.
+
+  Arguments to these system calls pass through directly, as do return values.
+
+  ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # n, buf, fd -> n
+  ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n, buf, fd -> n
+  ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path, f, m -> fd
+  ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # fd -> status
+  ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # path, buf -> n
+
+  ::/&exit  4831o300 b03c 48ab e9:4[L:/&1 - :>]        # code -> _
+
+::bootstrap_end
+
+__
+meta::sdoc('gdb::boot-debug', <<'__');
+Canard bootstrap debugging script.
+GDB definitions to make it easier to debug the main image.
+
+break *0x40014d
+run
+
+set $stack_end = 0
+
+define s
+  ni
+
+  if $stack_end == 0
+    set $stack_end = $rsp
+  end
+
+  print_data_stack
+  print_return_stack
+  print_heap
+
+  printf "%c[1;32m%%rax = %lx\n", 27, $rax
+  printf "%c[1;32m%%rcx = %lx\n", 27, $rcx
+
+  printf "%c[1;32minstruction queue%c[1;30m\n", 27, 27
+  x/8i $pc
+  printf "%c[0;0m", 27
+end
+
+Stack inspectors.
+Print the top few items on any given stack. Generally, all stack items will be
+pointers, so dereference those.
+
+define print_data_stack
+  printf "%c[1;32mdata stack%c[1;30m: %lx\n", 27, 27, $rdi
+  set $x = $rdi
+  set $lower = 0x400000 + *0x400060
+  while $x > $lower
+    set $x = $x - 8
+    print_cell $x
+  end
+end
+
+define print_return_stack
+  printf "%c[1;32mreturn stack%c[1;30m: %lx\n", 27, 27, $rsp
+  set $x = $rsp
+  while $x < $stack_end
+    print_cell $x
+    set $x = $x + 8
+  end
+end
+
+define print_heap
+  printf "%c[1;32mheap%c[1;30m: %lx\n", 27, 27, $rsi
+  set $count = 0
+  x/i $rsi
+  while $_ < 0x4fffff && $count < 10
+    x/i
+    set $count = $count + 1
+  end
+end
+
+define print_cell
+  x/g $arg0
+  if $__ >= 0x400000 && $__ < 0x500000
+    x/i $__
+  end
+end
+
+
+__
+meta::template('comment', '\'\';     # A mechanism for line or block comments.');
+meta::template('def', <<'__');
+# Define a new template. Analogous to the C preprocessor's #define directive.
+# For example:
+#
+# - def foo x, y, z << end
+#   hello $x, $y, and $z!
+#   This is an ${x}message.
+# - end
+#
+# You can then use that template immediately:
+#
+# - foo 3, 4, 5
+#
+# Interpolation is achieved by evaling a Perl heredoc; the usual caveats apply.
+# A variable called $body is automatically bound to the body contents if there
+# are any; for example:
+#
+# - def named x << end
+#   name $x {
+#   $body
+#   }
+# - end
+#
+# - named 'foo' << end
+#   woohoo
+# - end
+#
+# You can define a "plural" form like this:
+#
+# - def -p say_hi_to << end
+#   Hi $_!
+# - end
+#
+# - say_hi_to Foo, Bar, Baz
+#
+# Plural forms still have the $body variable (which doesn't change across
+# arguments), but they can't take formal parameters.
+
+my ($options, $name, @args) = separate_options(split /\s+/, $_[0]);
+my @formals                 = map split(/,\s*/), @args;
+my $body                    = $_[1];
+
+my $formal_list             = join(', ', map "\$$_", @formals);
+my $parameter_bindings      = "my ($formal_list) = split /,\\s*/, \$_[0]";
+my $body_binding            = "my \$body = \$_[1]";
+my $heredoc_delimiter       = state();
+
+# This will work great unless you put large hexadecimal barewords on otherwise
+# blank lines in your code. At that point there's a 2^-128 chance that it will
+# bomb out horribly.
+my $plural = $$options{'--plural'} || $$options{'-p'};
+
+die "- def $name: cannot use formal parameters with the -p option"
+if $plural && @formals;
+
+$plural ? meta::externalize "template::$name", "- def -p $name",
+            eval "sub {\n$body_binding;\n" .
+                 "join \"\\n\", map <<$heredoc_delimiter, " .
+                                    "split /,\\s*/, \$_[0];\n" .
+                 "$body\n" .
+                 "$heredoc_delimiter\n}"
+
+        : meta::externalize "template::$name", "- def $name @formals",
+            eval "sub {\n$parameter_bindings;\n$body_binding;\n" .
+                 "<<$heredoc_delimiter\n$body\n$heredoc_delimiter\n}";
+
+die $@ if $@;
+
+# No output from this template.
+'';
+
+__
+meta::template('eval', <<'__');
+my $result = eval $_[0];
+terminal::warning("Error during template evaluation: $@") if $@;
+$result;
+__
+meta::template('failing_conditional', <<'__');
+my ($commands)    = @_;
+my $should_return = $commands =~ / if (.*)$/ && ! eval $1;
+terminal::warning("eval of template condition failed: $@") if $@;
+$should_return;
+__
+meta::template('include', <<'__');
+my ($commands) = @_;
+return '' if template::failing_conditional($commands);
+join "\n", map retrieve($_), split /\s+/, $commands;
+__
+meta::template('pinclude', <<'__');
+# Just like the regular include, but makes sure to insert paragraph boundaries
+# (this is required for SDoc to function properly).
+
+my ($commands) = @_;
+return '' if template::failing_conditional($commands);
+my $text = join "\n\n", map retrieve($_), split /\s+/, $commands;
+"\n\n$text\n\n";
 __
 meta::vim_highlighter('canard', <<'__');
 " Canard language highlighter | Spencer Tipping
