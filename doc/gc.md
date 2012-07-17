@@ -28,4 +28,5 @@ this case is impossible because we don't know where it will be placed.
 Because of all this, we may need to figure out a simpler way to mark objects as
 being in use. A great way is just to use the heuristic that objects referred to
 by the data stack or return stack, or bound in the global symbol table, are
-marked.
+marked. This places a burden on the programmer: any value you care about needs
+to have a solid reference.

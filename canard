@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  8434d7beda3ca6d63ca3372eaf4375ce
+# state:  4fffe1ca5fd8c044f30a485e4404c129
 # istate: 98c7e05cffee10ecdfea078459d49ee4
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1654,7 +1654,8 @@ this case is impossible because we don't know where it will be placed.
 Because of all this, we may need to figure out a simpler way to mark objects as
 being in use. A great way is just to use the heuristic that objects referred to
 by the data stack or return stack, or bound in the global symbol table, are
-marked.
+marked. This places a burden on the programmer: any value you care about needs
+to have a solid reference.
 
 __
 meta::note('left-associative-consing', <<'__');
@@ -1904,6 +1905,19 @@ continuation with the string to be matched:
 
 None of this logic needs to be particularly efficient because the symbol table
 will be used at most once for each symbol.
+
+__
+meta::note('type-closure', <<'__');
+Type closure.
+Canard doesn't really have types, but garbage collection makes it crucial to
+preserve a certain degree of information about objects. Currently, the following
+is assumed:
+
+| 1. Data and return stack entries are absolute addresses.
+  2. Heap (and therefore symbol table) entries are instruction-encoded data.
+
+This will generally be the case in practical situations, but it makes it easy
+from a GC perspective too.
 
 __
 meta::parent('git-integration', <<'__');
