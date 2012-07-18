@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  b247e80ddcce58ddcb5c81ef0144192b
-# istate: 28e7bd632e7c15e4b3c1ed9d5c5d431b
+# state:  8f8109a43ffdefdc76539da94da5407b
+# istate: 84fc2ec78eece646d3c6c5891f5f0883
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -883,6 +883,8 @@ my ($options, @stuff) = separate_options(@_);
 
 file::write('bin/canard',    compile_binary('pp::binary::boot'), mkpath => 1);
 file::write('bin/canard.md', retrieve('markdown::binary::boot'));
+
+chmod 0700, 'bin/canard';
 
 file::write('doc/canard.vim', retrieve('vim_highlighter::canard'), mkpath => 1);
 
@@ -2927,7 +2929,7 @@ into a single byte on the heap.
   that [:: :^] is a list monad 'return' function.
 
   ::uncons
-  - call /!<                            # dereference automatically
+  e8:4[L:/!< - :>]                      # dereference automatically
   488b o107f8                           # data-pop %rax
 
   80 o070 e8                            # do we have a real cons cell?
@@ -2940,9 +2942,8 @@ into a single byte on the heap.
   48ab                                  # data-push %rax (tail)
   c3
 
-  ::uncons_nil
-  - call /nil                           # just push a nil as the tail
-  c3
+  ::uncons_nil                          # this section is a tail call
+  e9:4[L:/nil - :>]                     # just push a nil as the tail
 
   Heap allocation.
   Allocates the given number of bytes onto the heap and returns a pointer to
@@ -3195,17 +3196,13 @@ functions that read or write it.
   Here's a preprocessor macro to help create code that consists only of function
   calls:
 
-  - def call x << end
-    e8:4[L:/$x - :>]
-  - end
-
   - def -p composition << end
-    - call $_
+    e8:4[L:$_ - :>]
   - end
 
   The only thing is that you'll have to add the final return:
 
-  | - composition x, y, z
+  | - composition /x, /y, /z
     c3                          <- don't forget this!
 
   Constant matcher definition.
@@ -3274,7 +3271,7 @@ functions that read or write it.
   c7 o300:4[Lb:/@?k] 48ab c3
 
   ::/@:k
-  - composition /:k, %x, /:k, @:k-closure, swons, swons
+  - composition //:k, /%x, //:k, /@:k-closure, swons, swons
   c3
 
   Numeric symbol parsers.
