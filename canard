@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  16a41da32de1075d4bb11719b803b8a7
+# state:  eb4f04170f667f94a5797542851de01e
 # istate: 61229be3ad736c98e798899f67b72b1b
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -1741,6 +1741,22 @@ Here are the cases (... indicates the original position of %rsi):
 Cons cells are more structural than they are referential. This is mostly because
 the single byte c3 is more efficient to encode than a jmp instruction that
 points to c3.
+
+__
+meta::note('cps-and-the-return-stack', <<'__');
+CPS and the return stack.
+The reader should leverage implicit CPS if possible; this would allow it to be
+resumable across system I/O, for example, allowing for inversion of control.
+However, there are a couple of good reasons this doesn't necessarily make sense:
+
+| 1. What does it mean to reuse or alias a previous parse state? If this is
+     allowed, then it imposes considerable GC overhead.
+  2. The return stack is linear, not in a tree form. This means that proper
+     continuations can't be stored without copying the return stack, which at
+     this point is not possible.
+
+Given this, it may be simpler to have the reader hard-wired to call a
+buffer-fill function and use the jonesforth strategy.
 
 __
 meta::note('dynamic-tail-call-optimization', <<'__');
