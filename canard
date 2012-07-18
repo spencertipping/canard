@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  eb4f04170f667f94a5797542851de01e
-# istate: 61229be3ad736c98e798899f67b72b1b
+# state:  90074f9587187dfbd7764b3edd66f6fe
+# istate: 77e5405b73f003c53735d5ae63d61ad9
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -883,6 +883,7 @@ my ($options, @stuff) = separate_options(@_);
 
 file::write('bin/canard',    compile_binary('pp::binary::boot'), mkpath => 1);
 file::write('bin/canard.md', retrieve('markdown::binary::boot'));
+terminal::info('image size is ' . length(compile_binary('pp::binary::boot')));
 
 chmod 0700, 'bin/canard';
 
@@ -3010,11 +3011,9 @@ into a single byte on the heap.
   are a few:
 
   ::/%x                                 # Swap two entries
-  488b o107f8                           # data-pop %rax
-  488b o137f0                           # data-pop $rbx
-  4883 o357 10                          # deallocate two entries
-  48ab 4893 48ab                        # push the two entries in reverse
-  c3
+  488b o107f8                           # first entry -> %rax
+  4887 o107f0                           # %rax <-> next entry
+  4889 o107f8 c3                        # rewrite first entry
 
   ::/%v                                 # Drop one entry
   4883 o357 08 c3
@@ -3024,6 +3023,18 @@ into a single byte on the heap.
 
   ::/%1                                 # %1 a b ... = b a b ...
   488b o107f0 48ab c3
+
+  ::/%r                                 # %r a b c ... = c a b ...
+  488b o107f8                           # a -> %rax
+  4887 o107f0                           # *b <-> %rax
+  4887 o107e8                           # *c <-> %rax
+  4889 o107f8 c3                        # rewrite *a; return
+
+  ::/%R                                 # %R a b c ... = b c a ...
+  488b o107e8                           # c -> %rax
+  4887 o107f0                           # *b <-> %rax
+  4887 o107f8                           # *a <-> %rax
+  4889 o107e8 c3                        # rewrite *c; return
 
   Arithmetic.
   A few functions to make it possible to do basic arithmetic on stack entries.
@@ -3432,8 +3443,85 @@ UTF-8 is handled transparently as a symbol character, since any UTF-8 byte is
 non-whitespace and non-bracket.
 
   Continuations and partial parsing.
-  TODO: figure this out. There should be a general-purpose CPS transform
-  available by this point; arguably a first-class stack is already this...
+  The reader is not resumable -- that is, you can't hand it a chunk of input,
+  say 'read this', and then give it the rest of the input later on. The reason
+  is that doing this well means that you could reuse a state, which in turn
+  means that Canard needs some form of built-in alias detection to minimize
+  garbage.
+
+  This, in turn, implies that garbage collection should be present in the
+  bootstrap image, which is not where it belongs. So the reader's state is
+  linearized by wrapping the reader function around the character-retrieval
+  function, making the interaction non-replayable.
+
+  Character retrieval.
+  Like jonesforth, Canard uses a small buffer and the read() syscall to populate
+  it. Unlike jonesforth, Canard allows you to reuse this logic on things besides
+  stdin. Buffers are organized like this:
+
+  | length | current | upper-bound | data ...
+
+  Length, current, and upper-bound are all 4-byte unsigned integers. 'length'
+  refers to the number of bytes of data, which does not include 'current' and
+  'upper-bound'. So the total size of an input buffer is actually 12 + length
+  bytes.
+
+  ::/|:                         # allocate buffer
+  488b o107f8                   # data-pop size into %rax
+  488d o1300c                   # %rax + 12 -> %rbx
+  482b o363                     # %rsi -= %rbx (total size)
+  89   o036                     # %rbx -> (%rsi) (length field)
+  4831 o300 4889 o10604         # zero out current and upper-bound
+  4889 o167f8 c3                # data-push %rsi; return
+
+  Buffer helper functions.
+  There are two helper functions used here. One is |=, which returns the number
+  of bytes we can read from a buffer. The other is |., which returns one byte
+  from the buffer and advances it.
+
+  ::/|=                         # amount of data readable from buffer
+  488b o107f8                   # data-pop buffer pointer
+  8b   o13008                   # upper bound
+  2b   o13004                   # current size
+  4889 o137f8 c3                # data-push; return
+
+  This function advances the buffer, returning the next byte. Behavior is
+  undefined if the buffer has no available data (you should check it first using
+  |= above).
+
+  ::/|.                         # advance buffer by one byte
+  488b o117f8                   # data-pop buffer into %rcx
+  8b   o13104                   # %ebx = current
+  ff   o10104                   # ++current
+  4831 o300                     # %rax = 0
+  8a   o104o0010c               # %al = 12(%rax,%rbx,1) -- next byte
+  4889 o107f8 c3                # return result
+
+  Buffer read function.
+  Reads data from a buffer one byte at a time, invoking a function on each byte.
+  The function is not invoked if there is no data in the buffer. Here's the
+  derivation:
+
+  | |* f buf = ? [|* f buf (f *buf++)] [] (|= buf)
+    [] |= %1      f buf   = [] (|= buf) f buf
+    %1 %x         f buf   = f buf f
+    |* %R . |. %1 f buf f = f buf (f *buf++)
+
+  We can use the composition macro; this makes it possible to inspect the
+  definition of |* after the fact. We preallocate closures for the auxiliary
+  functions.
+
+  ::/|*_k_false c7 o300:4[Lb:/|*_false] 48ab c3
+  ::/|*_k_true  c7 o300:4[Lb:/|*_true]  48ab c3
+
+  ::/|*_false c3
+  ::/|*_true
+  - composition /%x, /%1, /%1, /|., /., /%R, /|*
+  c3
+
+  ::/|*
+  - composition /%1, /|=, /|*_k_false, /|*_k_true, /?
+  c3
 
 System functions.
 Some definitions that will be required for the interpreter to work correctly
