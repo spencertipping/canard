@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  8f8109a43ffdefdc76539da94da5407b
-# istate: 84fc2ec78eece646d3c6c5891f5f0883
+# state:  16a41da32de1075d4bb11719b803b8a7
+# istate: 61229be3ad736c98e798899f67b72b1b
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3410,23 +3410,14 @@ mechanisms like reader macros. It recognizes the following constructs:
 
 | 1. Lists, which are contained within square brackets.
   2. Symbols, which are comprised of any non-whitespace, non-bracket character.
+  3. Quoted nil, written as [].
 
 UTF-8 is handled transparently as a symbol character, since any UTF-8 byte is
 non-whitespace and non-bracket.
 
-  State tracking and continuations.
-  The reader works incrementally. You can pass it one buffer of input and it
-  will update its state, but it doesn't need to return a completed parse. This
-  works because it consumes and produces an explicit continuation that marks its
-  state. As usual, the initial continuation is represented by nil.
-
-  The continuation structure is simple: it's a cons list of intermediate values,
-  each of which represents one layer of nesting. The consume-one-character
-  function takes one of these lists and returns another one; the second may
-  share arbitrarily much structure with the first.
-
-  Each intermediate value is a cons that contains the tail of the list being
-  read. (Remember that the head of a list is written to the right of the tail.)
+  Continuations and partial parsing.
+  TODO: figure this out. There should be a general-purpose CPS transform
+  available by this point; arguably a first-class stack is already this...
 
 System functions.
 Some definitions that will be required for the interpreter to work correctly
