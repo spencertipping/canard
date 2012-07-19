@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  35e7dbda914eb67da71e632050ecb7c6
-# istate: 2dfc1e74af9f403ad54dd911ffd82376
+# state:  2951a1c281a418dcd95d399c64e83004
+# istate: b4914b00dfc08dc86b5dbbe2d1f7a814
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2672,11 +2672,12 @@ pushed onto the data stack prior to invoking 'main'.
   - end
 
   - binding main, /:k, @:k, @?k, @<, @>, r<, r>, @<x, @<o, !<
-  - binding %x, %v, %0, %1
+  - binding %x, %v, %0, %1, %r, %R
   - binding i+, i&, i|, i^, i<<, i>>, i>>>, i-, i~
   - binding ., ?
   - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
   - binding &read, &write, &open, &close, &stat
+  - binding |:, |., |*, |=, |<
 
   The binary-text compiler can't handle a label called /:: -- the two colons
   make it think it's supposed to use a label reference. It also fails for things
@@ -3481,8 +3482,8 @@ non-whitespace and non-bracket.
 
   ::/|=                         # amount of data readable from buffer
   488b o107f8                   # data-pop buffer pointer
-  8b   o13008                   # upper bound
-  2b   o13004                   # current size
+  8b   o13008                   # %rbx = upper bound
+  2b   o13004                   # %rbx -= current size
   4889 o137f8 c3                # data-push; return
 
   This function advances the buffer, returning the next byte. Behavior is
@@ -3556,6 +3557,96 @@ non-whitespace and non-bracket.
   89   o12104                   # store position
   89   o10108                   # store read() result (count)
   4883 o357 08 c3               # deallocate fd from stack; return
+
+  Reader function.
+  The reader is an odd bit of code in that it doesn't actually create objects.
+  It just invokes functions that will end up creating those objects, but which
+  functions those are is up to you.
+
+  The reader is implemented as a finite state machine with a pushdown stack for
+  list allocation. The finite state machine has two states, inside-symbol and
+  not-inside-symbol, and transitions between them based on brackets and
+  whitespace:
+
+  | 1. Whitespace, [, or ]: transition to not inside symbol
+    2. Symbol character:    transition to inside symbol
+
+  Some state transitions are accompanied by parser actions:
+
+  | 1. Inside symbol -> not inside symbol: emit the symbol
+    2. Open bracket:                       push current list continuation
+    3. Close bracket:                      emit the list, pop current list
+
+  Step ordering is important; they have to occur as listed above. With all of
+  this stated, here's the behavior of the reader, using string notation to
+  indicate buffer state. The reader state is always not-inside-symbol anytime $<
+  is called; it forces the buffer internally until the end of each symbol is
+  reached. Parentheses specify that something will be evaluated eagerly:
+
+  | $< [l] [s] [f] "sym"  []      = s "sym"
+    $< [l] [s] [f] ""     []      = $< [l] [s] [f] (f buf) []
+    $< [l] [s] [f] "[..." []      = $< [l] [s] [f] "..." [[]]
+    $< [l] [s] [f] "[..." [[]]    = $< [l] [s] [f] "..." [[] []]
+    $< [l] [s] [f] "]..." [[...]] = l [...]
+    $< [l] [s] [f] "]..." [x y]   = $< [l] [s] [f] "..." [x (l y)]
+
+  There are a couple more internal rules that deal with things like intermediate
+  consing, but this covers most of the edge cases. All recursion is done using
+  tail calls.
+
+  There is one strange case that the reader deals with. The algorithm above
+  would loop indefinitely if there were any error reading from the input source
+  (i.e. the buffer never filled up), since the reader would observe the empty
+  buffer and try again to fill it. This is not useful, however; a more
+  constructive strategy is to check the buffer size twice and exit early if the
+  file has ended. And that's exactly what we do:
+
+  | # The following is true when |= (f buf) == 0:
+    $< [l] [s] [f] "" [xn ... x2 x1] = l (:: xn ... l (:: x2 (l x1)) ...)
+
+  Therefore, we treat an empty buffer as being equivalent to an infinite series
+  of close brackets. This lets us return useful values from partial parses,
+  which allows us to implement a REPL by prefiltering the buffer, introducing
+  empty reads when we observe newlines.
+
+  ::/$<_get_byte
+  # Check for available input.
+  488b o107e0 48ab                              # pull buffer pointer
+  e8:4[L:/|= - :>]                              # check available
+  488b o107f8 4883 o357 08                      # data-pop(%rax = available)
+  4885 o300                                     # is it zero?
+  74:1[L:/$<_fill_buffer - :>]                  # if so, fill the buffer
+
+  # Given available input, read a byte and advance the reader.
+  488b o107e0 48ab e8:4[L:/|. - :>]             # read a byte...
+  488b o107f8 4883 o357 08 c3                   # ... and store it in %al
+
+  ::/$<_fill_buffer
+  # TODO
+
+  ::/$<_open
+  ::/$<_close
+  ::/$<_space
+  # TODO
+
+  ::/$<
+  e8:4[L:/$<_get_byte - :>]                     # get a byte of input
+
+  # Categorize the input and handle accordingly.
+  3c'[ 74:1[L:/$<_open - :>]                    # handle open brackets
+  3c'] 74:1[L:/$<_close - :>]                   # handle close brackets
+  3c20 76:1[L:/$<_space - :>]                   # handle whitespace (<= ' ')
+
+  # Handle the symbol case. We do this by copying the symbol data onto the heap
+  # backwards. Once we're done reading symbol characters, we reverse the
+  # characters and prepend the length.
+  4831 o311 48ff o301                           # %rcx = 1 (length)
+
+  ::/$<_symbol_byte
+  48ff o016                                     # --%rsi (symbol byte)
+  88   o060                                     # (%rsi) = %al (write byte)
+  51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
+  # TODO
 
 System functions.
 Some definitions that will be required for the interpreter to work correctly
