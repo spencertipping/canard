@@ -923,6 +923,9 @@ transformation:
        |
        +--- new symbol pointer
 
+This shouldn't be a problem in most cases, since symbols themselves are rarely
+aliased. However, it's important to know that this is what's going on.
+
     ::/@<q                        # Resolve quoted symbol
     488b o107f8                   # data-pop -> %rax
 
@@ -1125,30 +1128,12 @@ of close brackets. This lets us return useful values from partial parses,
 which allows us to implement a REPL by prefiltering the buffer, introducing
 empty reads when we observe newlines.
 
-    ::/$<_get_byte
-    # Check for available input.
-    488b o107e0 48ab                              # pull buffer pointer
-    e8:4[L:/|= - :>]                              # check available
-    488b o107f8 4883 o357 08                      # data-pop(%rax = available)
-    4885 o300                                     # is it zero?
-    74:1[L:/$<_fill_buffer - :>]                  # if so, fill the buffer
-
-    # Given available input, read a byte and advance the reader.
-    488b o107e0 48ab e8:4[L:/|. - :>]             # read a byte...
-    488b o107f8 4883 o357 08 c3                   # ... and store it in %al
-
-    ::/$<_fill_buffer
-    # TODO
-
-    ::/$<_open
-    ::/$<_close
-    ::/$<_space
-    # TODO
-
     ::/$<
     e8:4[L:/$<_get_byte - :>]                     # get a byte of input
 
-    # Categorize the input and handle accordingly.
+    ::/$<_next_byte                               # handle byte in %al
+    4885 o300                                     # did we get a byte?
+    78:1[L:/$<_eof - :>]                          # if not, eof
     3c'[ 74:1[L:/$<_open - :>]                    # handle open brackets
     3c'] 74:1[L:/$<_close - :>]                   # handle close brackets
     3c20 76:1[L:/$<_space - :>]                   # handle whitespace (<= ' ')
@@ -1156,12 +1141,88 @@ empty reads when we observe newlines.
     # Handle the symbol case. We do this by copying the symbol data onto the heap
     # backwards. Once we're done reading symbol characters, we reverse the
     # characters and prepend the length.
-    4831 o311 48ff o301                           # %rcx = 1 (length)
+    4831 o311 48ff o311                           # %rcx = -1 (length)
 
     ::/$<_symbol_byte
     48ff o016                                     # --%rsi (symbol byte)
     88   o060                                     # (%rsi) = %al (write byte)
     51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
+
+    4885 o300                                     # check sign of %rax
+    78:1[L:/$<_end_symbol - :>]                   # if negative, end this symbol
+    3c'[ 74:1[L:/$<_end_symbol - :>]              # ... or if open bracket
+    3c'] 74:1[L:/$<_end_symbol - :>]              # ... or if close bracket
+    3c20 76:1[L:/$<_end_symbol - :>]              # ... or if whitespace
+    e2:1[L:/$<_symbol_byte]                       # else decrement %rcx, next
+
+    ::/$<_end_symbol
+    48f7 o331                                     # negate %rcx (negative length)
+    4883 o356 02                                  # reserve space
+    4883 o322                                     # zero out %rdx
+    6689 o016                                     # %cx -> length slot for symbol
+    8a   o13602                                   # %bl <- last byte
+
+    ::/$<_reverse_loop                            # reverse bytes in symbol
+    86 o134o06101                                 # swap with end byte
+    86 o134o06202                                 # swap with beginning byte
+    ff o302                                       # increment %edx
+    3a o321                                       # compare %edx with %ecx
+    73:1[L:/$<_reverse_loop_end]                  # break if above or equal
+    e2:1[L:/$<_reverse_loop]                      # decrement %rcx, next byte
+    ::/$<_reverse_loop_end
+
+    50 488b o306 48ab                             # stash %rax, push symbol
+       488b o107e8 48ab                           # push [s]
+       e8:4[L:/. - :>]                            # invoke [s] on symbol
+       # TODO
+       58                                         # restore %rax (contains byte)
+
+    ::/$<_available                               # %rax <- set buf available
+    488b o107e0 48ab                              # pull buffer pointer
+    e8:4[L:/|= - :>]                              # check available
+    488b o107f8 4883 o357 08 c3                   # data-pop(%rax = available)
+
+    ::/$<_eof
+    # TODO
+
+    ::/$<_get_byte
+    e8:4[L:/$<_available - :>]                    # get available count
+    4885 o300                                     # is it zero?
+    75:1[L:/$<_got_input - :>]                    # if not, read the byte
+
+    # Otherwise, fill the buffer and check available bytes again. If it's still
+    # zero, then the read failed and we need to set %rax to -1 to indicate this.
+    e8:4[L:/$<_fill_buffer - :>]                  # otherwise, fill the buffer
+    e8:4[L:/$<_available - :>]                    # get available count
+    4885 o300                                     # is it zero?
+    75:1[L:/$<_got_input - :>]                    # if not, read the byte
+
+    # Otherwise, set %rax to -1 and return. This will indicate an error to the
+    # caller, who should be checking for the high bit of %ax, %eax, or %rax (none
+    # of these will be set on valid input, since we're just reading bytes).
+    4831 o300 48f7 o320 c3                        # %rax = -1; ret
+
+    # Given available input, read a byte and advance the reader. Then return to
+    # the caller of get_byte.
+    ::/$<_got_input
+    488b o107e0 48ab e8:4[L:/|. - :>]             # read a byte...
+    488b o107f8 4883 o357 08 c3                   # ... and store it in %al, ret
+
+    ::/$<_fill_buffer
+    0f10 o107f0                                   # %xmm0 <- two top entries
+    4883 o354 10                                  # allocate 128 bits
+    0f11 o004o044                                 # push onto return stack
+    0f10 o107e0                                   # grab buffer and [f]
+    0f11 o107f0                                   # dup2 to top of stack
+    e8:4[L:/. - :>]                               # invoke [f] on buffer
+    4883 o307 08                                  # allocate one more cell
+    0f10 o004o044                                 # load stashed [l] [s]
+    0f11 o107f0                                   # store [l] [s] on data stack
+    c3                                            # return
+
+    ::/$<_open
+    ::/$<_close
+    ::/$<_space
     # TODO
 
 # System functions
