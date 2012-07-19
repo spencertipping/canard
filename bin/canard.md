@@ -477,13 +477,13 @@ width -- so for small reads/writes, you're working with a byte slice.)
     ::/@4 488b o137f8     8b o003 4889 o107f8 c3
     ::/@8 488b o137f8   488b o003 4889 o107f8 c3
 
-Writes take the value on the top of the stack, followed by the address. We use
+Writes take the address on the top of the stack, followed by the value. We use
 %rax for the value and %rbx for the address.
 
-    ::/=1 488b o107f8 488b o137f0 4883 o357 10   88 o003 c3
-    ::/=2 488b o107f8 488b o137f0 4883 o357 10 6689 o003 c3
-    ::/=4 488b o107f8 488b o137f0 4883 o357 10   89 o003 c3
-    ::/=8 488b o107f8 488b o137f0 4883 o357 10 4889 o003 c3
+    ::/=1 488b o137f8 488b o107f0 4883 o357 10   88 o003 c3
+    ::/=2 488b o137f8 488b o107f0 4883 o357 10 6689 o003 c3
+    ::/=4 488b o137f8 488b o107f0 4883 o357 10   89 o003 c3
+    ::/=8 488b o137f8 488b o107f0 4883 o357 10 4889 o003 c3
 
 ## Return stack manipulation
 
@@ -1016,10 +1016,10 @@ Reads data from a buffer one byte at a time, invoking a function on each byte.
 The function is not invoked if there is no data in the buffer. Here's the
 derivation:
 
-    |* f buf = ? [|* f buf (f *buf++)] [] (|= buf)
+    |* f buf -> ? [|* f buf (f *buf++)] [] (|= buf)
     [] |= %1      f buf   = [] (|= buf) f buf
     %1 %x         f buf   = f buf f
-    |* %R . |. %1 f buf f = f buf (f *buf++)
+    |* %R . |. %1 f buf f = |* f buf (f *buf++)
 
 We can use the composition macro; this makes it possible to inspect the
 definition of |* after the fact. We preallocate closures for the auxiliary
@@ -1036,6 +1036,41 @@ functions.
     ::/|*
     - composition /%1, /|=, /|*_k_false, /|*_k_true, /?
     c3
+
+## Buffer fill function
+
+We can generate a fill function by closing over a file descriptor and
+providing a buffer as the second argument. We then return the buffer.
+
+    |< fd buf = buf
+
+Here's the behavior:
+
+    |< fd buf -> buf (=4 buf (&read (@4 buf) (buf + 12) fd))
+
+This function, however, is written in machine code since introspection is not
+likely to be particularly useful.
+
+Note that any data in the buffer is obliterated when you call |<. You should
+check this by using |= first.
+
+    ::/|<
+    56                            # store %rsi for later
+    4831 o300                     # %rax = 0 (read syscall)
+    488b o117f8                   # %rcx = fd
+    488b o167f0                   # %rsi = buf
+    4883 o306 0c                  # %rsi += 12 (skip buffer header)
+    8b   o026                     # %rdx = buffer size
+    57 0f05 5f5e                  # syscall; restore %rsi and %rdi
+
+    # At this point %rax contains an error or a count. Clear the buffer position
+    # and set the upper bound accordingly. We don't differentiate between errors
+    # and legitimate return values.
+    488b o117f0                   # %rcx = buffer
+    4831 o322                     # %rdx = 0 (position)
+    89   o12104                   # store position
+    89   o10108                   # store read() result (count)
+    4883 o357 08 c3               # deallocate fd from stack; return
 
 # System functions
 
@@ -1099,11 +1134,11 @@ number 0.
 
 Arguments to these system calls pass through directly, as do return values.
 
-    ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # n, buf, fd -> n
-    ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n, buf, fd -> n
-    ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path, f, m -> fd
+    ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # n buf fd -> n
+    ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n buf fd -> n
+    ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path f m -> fd
     ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # fd -> status
-    ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # path, buf -> n
+    ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # path buf -> n
 
     ::/&exit  4831o300 b03c 48ab e9:4[L:/&1 - :>]        # code -> _
 
