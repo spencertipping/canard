@@ -1134,9 +1134,9 @@ empty reads when we observe newlines.
     ::/$<_next_byte                               # handle byte in %al
     4885 o300                                     # did we get a byte?
     78:1[L:/$<_eof - :>]                          # if not, eof
-    3c'[ 74:1[L:/$<_open - :>]                    # handle open brackets
-    3c'] 74:1[L:/$<_close - :>]                   # handle close brackets
-    3c20 76:1[L:/$<_space - :>]                   # handle whitespace (<= ' ')
+    3c'[ 74:1[L:/$<_open_bridge - :>]             # handle open brackets
+    3c'] 74:1[L:/$<_close_bridge - :>]            # handle close brackets
+    3c20 76:1[L:/$<_space_bridge - :>]            # handle whitespace (<= ' ')
 
     # Handle the symbol case. We do this by copying the symbol data onto the heap
     # backwards. Once we're done reading symbol characters, we reverse the
@@ -1153,7 +1153,7 @@ empty reads when we observe newlines.
     3c'[ 74:1[L:/$<_end_symbol - :>]              # ... or if open bracket
     3c'] 74:1[L:/$<_end_symbol - :>]              # ... or if close bracket
     3c20 76:1[L:/$<_end_symbol - :>]              # ... or if whitespace
-    e2:1[L:/$<_symbol_byte]                       # else decrement %rcx, next
+    e2:1[L:/$<_symbol_byte - :>]                  # else decrement %rcx, next
 
     ::/$<_end_symbol
     48f7 o331                                     # negate %rcx (negative length)
@@ -1167,8 +1167,8 @@ empty reads when we observe newlines.
     86 o134o06202                                 # swap with beginning byte
     ff o302                                       # increment %edx
     3a o321                                       # compare %edx with %ecx
-    73:1[L:/$<_reverse_loop_end]                  # break if above or equal
-    e2:1[L:/$<_reverse_loop]                      # decrement %rcx, next byte
+    73:1[L:/$<_reverse_loop_end - :>]             # break if above or equal
+    e2:1[L:/$<_reverse_loop - :>]                 # decrement %rcx, next byte
     ::/$<_reverse_loop_end
 
     50 488b o306 48ab                             # stash %rax, push symbol
@@ -1181,6 +1181,12 @@ empty reads when we observe newlines.
     488b o107e0 48ab                              # pull buffer pointer
     e8:4[L:/|= - :>]                              # check available
     488b o107f8 4883 o357 08 c3                   # data-pop(%rax = available)
+
+    # Bridging to split one-byte relative offsets. This is more space-efficient
+    # than using jumps to (or around) four-byte relative offsets.
+    ::/$<_open_bridge  eb:1[L:/$<_open  - :>]
+    ::/$<_close_bridge eb:1[L:/$<_close - :>]
+    ::/$<_space_bridge eb:1[L:/$<_space - :>]
 
     ::/$<_eof
     # TODO
