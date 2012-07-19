@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  6ad0e1c455e3fc617315eb24cb5561bb
+# state:  a171ee768d545216b132fb2f6331f78a
 # istate: 9ff86410de6baf6f57284b22edb2c8ec
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
@@ -353,6 +353,7 @@ meta::cache('parent-identification', <<'__');
 /home/spencertipping/bin/object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 /home/spencertipping/bin/waul-object 4e04fdb8e560f4dd2ca4880b91a8e2ea
 /home/spencertipping/conjectures/perl-objects/js 246bc56c88e8e8daae3737dbb16a2a2c
+/home/spencertipping/conjectures/perl-objects/object 99aeabc9ec7fe80b1b39f5e53dc7e49e
 /home/spencertipping/conjectures/perl-objects/sdoc a1e8480e579614c01dabeecf0f963bcc
 binary 93194ecf50e38f2adb6e273909e007b5
 c 8118b5c1b0aa08bce7e839df4ab80199
@@ -371,7 +372,7 @@ meta::cache('parent-state', <<'__');
 3d87f1a4b0694cfebcbfd589fa5ed5dd 18d86397c52aeb07c61f70b50fb20703
 70dae4b46eb4e06798ec6f38d17d4c7b e25c4729aff094da49d7b9903452bcea
 902333a0bd6ed90ff919fe8477cb4e69 5bb14b94b33b7e5f476e5ce905d81e6f
-93194ecf50e38f2adb6e273909e007b5 72357050e5a4792419569e6e8c61b3b3
+93194ecf50e38f2adb6e273909e007b5 515d0c8be8ab353120d66fe9a80a5a3c
 99aeabc9ec7fe80b1b39f5e53dc7e49e 20cbfd8b1bd09b6a60c0eea0f9ca525d
 9fabb9b6f2f374c35ddcc26549ac2b65 63765c7bc2addea974ed38cb6c2733b2
 a1e8480e579614c01dabeecf0f963bcc dc33b10238e896bad155335a5e119e2e
@@ -484,7 +485,8 @@ meta::function('compile-binary', <<'__');
 # Little-endian and big-endian encoders take a numeric argument indicating how
 # many bytes should be encoded. This number is limited only by Perl's numerical
 # precision, and by the fact that you have only one digit to specify it. Results
-# are sign-extended to the requested byte width.
+# are sign-extended to the requested byte width. An error occurs if the value
+# produces a signed overflow given its width.
 #
 # You can use 0 width to evaluate an expression with no output; that is, some
 # form of side-effect. In this case, the bracketed expression's value is ignored
@@ -531,6 +533,12 @@ my @tokens = split m#('\S+ | -[01]{8} | o[0-3][0-7]{2} | [0-9a-f]{2} | @\?\S+ |
 # results contain repetitions of the byte 'E'.
 my $concatenated = join '', @output;
 
+my $check_overflow = sub {
+  my ($upper, $lower) = ((1 << $_[0] * 8 - 1) - 1, -(1 << $_[0] * 8 - 1));
+  die "$_[1] signed-overflows $_[0] bytes ($lower, $upper)"
+  unless $_[1] <= $upper and $_[1] >= $lower;
+  @_};
+
 my $le = sub {join '', map chr($_[1] >> $_ * 8 & 255),         0 .. $_[0] - 1};
 my $be = sub {join '', map chr($_[1] >> $_ * 8 & 255), reverse 0 .. $_[0] - 1};
 
@@ -547,8 +555,8 @@ for my $o (sort {$a <=> $b} keys %expressions) {
     s/::([^' ]+)/\$places{'$1'}/g;
     s-:([^' ]+)-(\$places{'$1'} // die '$1 is not a defined label')-g;
 
-    s/L([1-9])?(.+)/&\$le(($1) || $size, $2)/g;
-    s/B([1-9])?(.+)/&\$be(($1) || $size, $2)/g;
+    s/L([1-9])?(.+)/&\$le(&\$check_overflow(($1) || $size, $2))/g;
+    s/B([1-9])?(.+)/&\$be(&\$check_overflow(($1) || $size, $2))/g;
 
     my $result = eval;
     die "error evaluating $_ as $expression: $@" if $@;
@@ -2267,7 +2275,7 @@ retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
 
 __
 meta::parent('binary', <<'__');
-function::compile-binary  fcb22854d34d5fc4f098e823c8fbf865
+function::compile-binary  6f8dafa4fa5a7fe21e972dc5e26b1b15
 meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
 parent::vim-highlighters  98dc835e12038ddcd04630e62175fa90
 retriever::bin            24b2382d3f002ee325963a5c652c53ff
