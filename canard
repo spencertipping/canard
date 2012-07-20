@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  6fca435b30c200c86579b157f1e52ec1
-# istate: 8c19172e300850ac6b9683200ecfad84
+# state:  262de1cca6659e9b6a23cde227ef1bca
+# istate: 166a726b911c24e76814d1e5613ff432
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2971,6 +2971,35 @@ into a single byte on the heap.
   ::uncons_nil                          # this section is a tail call
   e9:4[L:/nil - :>]                     # just push a nil as the tail
 
+  Cons detection.
+  Any e8 call is the head of a cons cell, regardless of what comes after it. So
+  we simply compare a byte to e8. If a cons cell, the dereferenced cons cell
+  remains on the stack. Otherwise zero is pushed in its place.
+
+  ::cons?
+  e8:4[L:/!< - :>]                      # dereference automatically
+  488b o107f8                           # load pointer into %rax
+  80   o070 e8                          # is the byte e8?
+  74:1[L:cons?_return]                  # if so, return now; it is a cons
+  4831 o300 4889 o107f8                 # otherwise, write zero to the stack
+
+  ::cons?_return
+  c3
+
+  Nil detection.
+  This is very similar to cons detection, but we look for c3 instead of e8. Same
+  behavior with respect to return values.
+
+  ::nil?
+  e8:4[L:/!< - :>]                      # dereference automatically
+  488b o107f8                           # load pointer into %rax
+  80   o070 c3                          # is the byte c3?
+  74:1[L:nil?_return]                   # if so, return now; it is nil
+  4831 o300 4889 o107f8                 # otherwise, write zero to the stack
+
+  ::nil?_return
+  c3
+
   Heap allocation.
   Allocates the given number of bytes onto the heap and returns a pointer to
   them. Use this carefully; if you allocate too much stuff you'll make the heap
@@ -3625,7 +3654,7 @@ non-whitespace and non-bracket.
 
   ::/$<_next_byte                               # handle byte in %al
   4885 o300                                     # did we get a byte?
-  78:1[L:/$<_eof - :>]                          # if not, eof
+  78:1[L:/$<_eof_bridge - :>]                   # if not, eof
   3c'[ 74:1[L:/$<_open_bridge - :>]             # handle open brackets
   3c'] 74:1[L:/$<_close_bridge - :>]            # handle close brackets
   3c20 76:1[L:/$<_space_bridge - :>]            # handle whitespace (<= ' ')
@@ -3666,8 +3695,9 @@ non-whitespace and non-bracket.
   50 488b o306 48ab                             # stash %rax, push symbol
      488b o107e8 48ab                           # push [s]
      e8:4[L:/. - :>]                            # invoke [s] on symbol
-     # TODO
+     e8:4[L:$<_got_value]                       # cons value onto result
      58                                         # restore %rax (contains byte)
+  eb:1[L:/$<_next_byte]                         # process next byte
 
   ::/$<_available                               # %rax <- set buf available
   488b o107e0 48ab                              # pull buffer pointer
@@ -3676,12 +3706,10 @@ non-whitespace and non-bracket.
 
   # Bridging to split one-byte relative offsets. This is more space-efficient
   # than using jumps to (or around) four-byte relative offsets.
+  ::/$<_eof_bridge   eb:1[L:/$<_eof   - :>]
   ::/$<_open_bridge  eb:1[L:/$<_open  - :>]
   ::/$<_close_bridge eb:1[L:/$<_close - :>]
   ::/$<_space_bridge eb:1[L:/$<_space - :>]
-
-  ::/$<_eof
-  # TODO
 
   ::/$<_get_byte
   e8:4[L:/$<_available - :>]                    # get available count
@@ -3718,7 +3746,26 @@ non-whitespace and non-bracket.
   0f11 o107f0                                   # store [l] [s] on data stack
   c3                                            # return
 
+  ::/$<_got_value
+  488b o107f8                                   # %rax <- new value
+  488b o137d8 4889 o137f8                       # copy state to top of stack
+  e8:4[L:uncons - :>]                           # uncons it to get the head
+  48ab                                          # push new value
+  e8:4[L:cons - :>]                             # :: new value, head
+  e8:4[L:cons - :>]                             # :: new head, old tail
+  488b o107f8 4883 o357 08                      # data-pop into %rax
+  4889 o107d8 c3                                # write back to state cell; ret
+
+  ::/$<_eof
+  # TODO
+
   ::/$<_open
+  488b o107d8 48ab                              # pull state to stack top
+  e8:4[L:cons? - :>]                            # is it a cons?
+  488b o137
+  e8:4[L:/nil - :>]                             # push nil
+  # TODO
+
   ::/$<_close
   ::/$<_space
   # TODO
