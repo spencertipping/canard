@@ -1560,8 +1560,17 @@ Specifically:
 Notice that xn-2 is the tail; this is important. Although it appears backwards
 here, the stack elements are in the right order already.
 
+Unlike the other branches, this one has a terminal case. If there is only one
+element on the stack, then the ] is an end-of-input delimiter and we return
+immediately. We handle this case by jumping into the eof branch.
+
     ::/$<_close
     488b o117f8                                   # data-pop(%rcx = count)
+    4881 o371 feffffff                            # count is -1?
+    75:1[L:/$<_close_normal - :>]                 # we have at least two items
+    e9:4[L:/$<_eof - :>]                          # otherwise, eof case
+
+    ::/$<_close_normal
     488b o104o371f0 4889 o107f8                   # push [l]
     51 e8:4[L:/. - :>] 59                         # apply [l] to list
     4891 48ab                                     # push original count
