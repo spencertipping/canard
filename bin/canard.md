@@ -1365,7 +1365,7 @@ where it decreases the code size.
 
     ::/$<
     e8:4[L:/nil - :>]                             # push nil as initial state
-    b8 feffffff 48ab 488b o310                    # %rcx = data-push(-1)
+    4831 o300 48ff o310 48ab 488b o310            # %rcx = data-push(-1)
 
     e8:4[L:/$<_get_byte - :>]                     # get a byte of input
 
@@ -1415,7 +1415,7 @@ This function is used after reading a symbol or closing a sublist.
     488b o117f0                                   # load n into %rcx
     4883 o357 08                                  # pop one stack cell
     488b o007 4889 o107f8                         # move value into place
-    ff   o107                                     # subtract one (increment)
+    48ff o107                                     # subtract one (increment)
     51 e8:4[L:cons - :>] 59                       # cons the two top values
     4891 48ab c3                                  # push new count; ret
 
@@ -1535,7 +1535,7 @@ Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
 
     50                                            # stash %rax
        488b o117f8                                # pull count into %rcx
-       488b o114o371e8                            # pull [s] from closure state
+       488b o114o317e8                            # pull [s] from closure state
        488b o306 48ab                             # push symbol
        4891 48ab                                  # push [s]
        e8:4[L:/. - :>]                            # invoke [s] on symbol
@@ -1557,7 +1557,7 @@ this list to be consed into its parent.
 
     ::/$<_open                                    # create a new quoted list
     488b o117f8 4883 o357 08                      # pop current count
-    ff   o311                                     # increase count (decrement)
+    48ff o311                                     # increase count (decrement)
     51 e8:4[L:/nil - :>] 59                       # push nil
     4891 48ab                                     # push new count
     e9:4[L:/$<_each_continuation - :>]            # continue reading
@@ -1585,7 +1585,7 @@ immediately. We handle this case by jumping into the eof branch.
     e9:4[L:/$<_eof - :>]                          # otherwise, eof case
 
     ::/$<_close_normal
-    488b o104o371f0 4889 o107f8                   # push [l]
+    488b o104o317f0 4889 o107f8                   # push [l]
     51 e8:4[L:/. - :>] 59                         # apply [l] to list
     4891 48ab                                     # push original count
     e8:4[L:/$<_got_value - :>]                    # cons onto previous value
@@ -1598,7 +1598,7 @@ for the above parsing logic.
 
     ::/$<_available                               # result will be in %rax
     488b o117f8                                   # %rcx <- count
-    488b o104o371d8 48ab                          # push buffer pointer
+    488b o104o317d8 48ab                          # push buffer pointer
     e8:4[L:/|= - :>]                              # check available
     488b o107f8 4883 o357 08 c3                   # data-pop(%rax = available)
 
@@ -1626,18 +1626,18 @@ caller of get_byte.
 
     ::/$<_got_input
     488b o117f8                                   # %rcx <- count
-    488b o104o371d8 48ab                          # push buffer pointer
+    488b o104o317d8 48ab                          # push buffer pointer
     e8:4[L:/|. - :>]                              # read a byte...
     488b o107f8 4883 o357 08 c3                   # ... and store it in %al, ret
 
     ::/$<_fill_buffer
     488b o117f8                                   # %rcx <- count
-    0f10 o104o371d8                               # %xmm0 <- [f] buf
+    0f10 o104o317d8                               # %xmm0 <- [f] buf
     4883 o307 10                                  # allocate two data slots
     0f11 o107f0                                   # %xmm0 -> stack top
     51 e8:4[L:/. - :>] 59                         # invoke [f] on buffer
     488b o107f8 4883 o357 08                      # pop (. [f] buf) -> %rax
-    4889 o104o371d8                               # %rax -> buf
+    4889 o104o317d8                               # %rax -> buf
     c3                                            # return
 
 # Symbol generator
