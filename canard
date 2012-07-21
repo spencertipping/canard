@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  284d763ddf85600e2a44930bdc13e556
-# istate: fd7d278aebf7ed3d08610acdab6738ba
+# state:  ced6136dff4c7cd1fcb5ba402e9915b6
+# istate: a3daff7cac2a3ef0c7b4c4bc3e0bd275
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -892,6 +892,8 @@ my ($options, @stuff) = separate_options(@_);
 file::write('bin/canard',    compile_binary('pp::binary::boot'), mkpath => 1);
 file::write('bin/canard.md', retrieve('markdown::binary::boot'));
 terminal::info('image size is ' . length(compile_binary('pp::binary::boot')));
+
+file::write('bin/canard.debug.gdb', retrieve('gdb::boot-debug'));
 
 chmod 0700, 'bin/canard';
 
