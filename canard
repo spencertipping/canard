@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  62823188a75d330c499acb5aac623736
-# istate: f1424317058aa434b748912aba109d57
+# state:  dff9696973956db3c405b145bfa189e0
+# istate: fb56df4c68846ab0369c391348d83ed4
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3667,7 +3667,7 @@ algorithm if possible.
   488b o167f0                   # %rsi = buf
   8b   o026                     # %rdx = buffer size
   4883 o306 0c                  # %rsi += 12 (skip buffer header)
-  4887 o361                     # swap %rcx and %rdi
+  4887 o371                     # swap %rcx and %rdi
   51 0f05 5f5e                  # stash %rdi; syscall; restore %rdi and %rsi
 
   At this point %rax contains an error or a count. Clear the buffer position and

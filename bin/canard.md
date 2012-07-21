@@ -1174,7 +1174,7 @@ make sure that |= returns zero for the buffer before using |<.
     488b o167f0                   # %rsi = buf
     8b   o026                     # %rdx = buffer size
     4883 o306 0c                  # %rsi += 12 (skip buffer header)
-    4887 o361                     # swap %rcx and %rdi
+    4887 o371                     # swap %rcx and %rdi
     51 0f05 5f5e                  # stash %rdi; syscall; restore %rdi and %rsi
 
 At this point %rax contains an error or a count. Clear the buffer position and
