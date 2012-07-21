@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  36bdcb0e8764aef09be0d52e0f9cb72e
-# istate: 4f29810c736c9c820fd623907cf30c97
+# state:  62823188a75d330c499acb5aac623736
+# istate: f1424317058aa434b748912aba109d57
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3623,7 +3623,7 @@ algorithm if possible.
   ::/|=                         # amount of data readable from buffer
   488b o107f8                   # data-pop buffer pointer
   8b   o13008                   # %rbx = upper bound
-  2b   o13004                   # %rbx -= current size
+  2b   o13004                   # %rbx -= current position
   4889 o137f8 c3                # data-push; return
 
   This function advances the buffer, returning the next byte. Behavior is
@@ -3665,13 +3665,17 @@ algorithm if possible.
   4831 o300                     # %rax = 0 (read syscall)
   488b o117f8                   # %rcx = fd
   488b o167f0                   # %rsi = buf
-  4883 o306 0c                  # %rsi += 12 (skip buffer header)
   8b   o026                     # %rdx = buffer size
-  57 0f05 5f5e                  # syscall; restore %rsi and %rdi
+  4883 o306 0c                  # %rsi += 12 (skip buffer header)
+  4887 o361                     # swap %rcx and %rdi
+  51 0f05 5f5e                  # stash %rdi; syscall; restore %rdi and %rsi
 
-  # At this point %rax contains an error or a count. Clear the buffer position
-  # and set the upper bound accordingly. We don't differentiate between errors
-  # and legitimate return values.
+  At this point %rax contains an error or a count. Clear the buffer position and
+  set the upper bound accordingly. We don't differentiate between errors and
+  legitimate return values at this point; we store negative values in the
+  buffer's upper-bound field. You can check for this condition using a 32-bit
+  test and js/jns.
+
   488b o117f0                   # %rcx = buffer
   4831 o322                     # %rdx = 0 (position)
   89   o12104                   # store position
@@ -3992,7 +3996,7 @@ non-whitespace and non-bracket.
   88   o060                                     # (%rsi) = %al (write byte)
   51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
 
-  4885 o300                                     # check sign of %rax
+  85   o300                                     # check sign of %eax
   78:1[L:/$<_end_symbol - :>]                   # if negative, end this symbol
   3c'[ 74:1[L:/$<_end_symbol - :>]              # ... or if open bracket
   3c'] 74:1[L:/$<_end_symbol - :>]              # ... or if close bracket
@@ -4083,8 +4087,11 @@ non-whitespace and non-bracket.
   488b o107f8 4883 o357 08 c3                   # data-pop(%rax = available)
 
   ::/$<_get_byte
-  e8:4[L:/$<_available - :>]                    # get available count
-  4885 o300                                     # is it zero?
+  e8:4[L:/$<_available - :>]                    # get available count (32-bit)
+  85 o300                                       # is it zero or negative?
+  79:1[L:/$<_get_byte_ok_1 - :>]                # if nonnegative, ok so far
+  e9:4[L:/$<_eof - :>]                          # negative = read error
+  ::/$<_get_byte_ok_1
   75:1[L:/$<_got_input - :>]                    # if not, read the byte
 
   Otherwise, fill the buffer and check available bytes again. If it's still
@@ -4092,7 +4099,10 @@ non-whitespace and non-bracket.
 
   e8:4[L:/$<_fill_buffer - :>]                  # otherwise, fill the buffer
   e8:4[L:/$<_available - :>]                    # get available count
-  4885 o300                                     # is it zero?
+  85 o300                                       # is it zero or negative?
+  79:1[L:/$<_get_byte_ok_2 - :>]                # if nonnegative, ok so far
+  e9:4[L:/$<_eof - :>]                          # negative = read error
+  ::/$<_get_byte_ok_2
   75:1[L:/$<_got_input - :>]                    # if not, read the byte
 
   Otherwise, set %rax to -1 and return. This will indicate an error to the
