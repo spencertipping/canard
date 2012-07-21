@@ -6,10 +6,13 @@ Licensed under the terms of the MIT source code license
 This file is written in preprocessed binary text, a format defined by the
 'binary' and 'preprocessor' self-modifying Perl objects. You can get these
 objects from http://github.com/spencertipping/perl-objects; the HTML files allow
-you to inspect them online:
+you to inspect them online: http://spencertipping.com/perl-objects/binary.html
+(binary text compiler in function::compile-binary) and
+http://spencertipping.com/perl-objects/preprocessor.html (general-purpose
+preprocessor in function::preprocess).
 
-    http://spencertipping.com/perl-objects/binary.html
-    http://spencertipping.com/perl-objects/preprocessor.html
+It also uses SDoc (http://github.com/spencertipping/sdoc), though this is not
+particularly interesting or difficult to read through.
 
 ## Conventions
 
@@ -160,6 +163,7 @@ symbol binding.)
     - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
     - binding &read, &write, &open, &close, &stat
     - binding |:, |., |=, |<
+    - binding $<, $<@
 
 The binary-text compiler can't handle a label called /:: -- the two colons
 make it think it's supposed to use a label reference. It also fails for things
@@ -1593,21 +1597,23 @@ for the above parsing logic.
     4885 o300                                     # is it zero?
     75:1[L:/$<_got_input - :>]                    # if not, read the byte
 
-    # Otherwise, fill the buffer and check available bytes again. If it's still
-    # zero, then the read failed and we need to set %rax to -1 to indicate this.
+Otherwise, fill the buffer and check available bytes again. If it's still
+zero, then the read failed and we need to set %rax to -1 to indicate this.
+
     e8:4[L:/$<_fill_buffer - :>]                  # otherwise, fill the buffer
     e8:4[L:/$<_available - :>]                    # get available count
     4885 o300                                     # is it zero?
     75:1[L:/$<_got_input - :>]                    # if not, read the byte
 
-    # Otherwise, set %rax to -1 and return. This will indicate an error to the
-    # caller, who should be checking for the high bit of %ax, %eax, or %rax
-    # (none of these will be set on valid input, since we're just reading
-    # bytes).
+Otherwise, set %rax to -1 and return. This will indicate an error to the
+caller, who should be checking for the high bit of %ax, %eax, or %rax (none of
+these will be set on valid input, since we're just reading bytes).
+
     4831 o300 48f7 o320 c3                        # %rax = -1; ret
 
-    # Given available input, read a byte and advance the reader. Then return to
-    # the caller of get_byte.
+Given available input, read a byte and advance the reader. Then return to the
+caller of get_byte.
+
     ::/$<_got_input
     488b o117f8                                   # %rcx <- count
     488b o104o371d8 48ab                          # push buffer pointer
@@ -1623,5 +1629,93 @@ for the above parsing logic.
     488b o107f8 4883 o357 08                      # pop (. [f] buf) -> %rax
     4889 o104o371d8                               # %rax -> buf
     c3                                            # return
+
+# Symbol generator
+
+This is the last definition required to have a working interpreter. This
+function returns a self-modifying resolver for the symbols parsed by the reader
+(or any other symbol, for that matter). Specifically, the function initially
+closes over the symbol. When invoked for the first time, it uses the global
+symbol table to resolve the symbol and rewrites itself to immediately jump to
+the right place.
+
+The original design involved rewriting the caller, which is both awesome and
+horribly erroneous. It's awesome because it saves a jump and ends up being as
+fast as a static compiler once all of the symbols have been resolved. However,
+it is fraught with peril and will fail in several fairly common scenarios:
+
+    1. If any tail call is made to the caller-rewriting code, the wrong caller
+       will be rewritten. This will cause unpredictable and erroneous results, and
+       the error will be nearly impossible to debug because the rewritten caller
+       is indistinguishable from any other invocation site.
+    2. It will alter the structure of lists after read-time, and potentially in a
+       way that makes them impossible to reconstruct after the fact.
+       (Specifically, if two symbols have the same definition.) Further, this
+       transformation will happen only once the lists are executed, not at
+       read-time.
+
+Because of this, the bootstrap interpreter uses the more conservative
+callee-rewrite strategy.
+
+## Callee-rewriting function
+
+Initially, the function needs to behave as a resolver. To do this, it needs to
+maintain a pointer to the symbol, invoke the symbol table, rewrite itself, and
+then jump into the result. The code looks like this:
+
+    48b8 xxxxxxxx xxxxxxxx 48ab         <- push symbol pointer
+    e8 (relative address of @>)         <- push symbol table
+    e8 (relative address of .)          <- resolve symbol
+    488b o117f8                         <- %rcx = resolved
+    488b o331                           <- %rbx = resolved (we use this later)
+    48b8 yyyyyyyy yyyyyyyy              <- %rax = hard-coded address to rewrite
+    482b o310                           <- resolved -= code address
+    4883 o301 05                        <- resolved += 5 (size of instruction)
+    c6   o000 e9                        <- write e9 jump opcode
+    89   o10101                         <- write relative jump address
+    ff   o343                           <- jump to resolved address
+
+This is clearly a lot of work to generate, not to mention the fact that it
+takes up a lot of space. Better is to use closure variables and reuse the
+common logic by factoring it into a separate function.
+
+    ::/$<@_rewriter
+    e8:4[L:/@> - :>]                      # get symbol table
+    e8:4[L:/.  - :>]                      # resolve symbol
+    488b o107f8                           # %rax = resolved
+    59                                    # %rcx = calling continuation
+    4883 o351 0c                          # calling entry point
+    482b o301                             # resolved -= calling address
+    4883 o300 05                          # adjust for jmp instruction size
+    c6   o001 e9                          # write jmp opcode
+    89   o10101                           # write jmp displacement
+    ff   o341                             # jump back to calling entry point
+
+This interfaces with symbol closures, each of which looks like this:
+
+    48b8 xxxxxxxx xxxxxxxx 48ab e8 (relative address of /$<@_rewriter)
+
+Notice that we don't encode the self-address here. The reason is that we can
+get it from the call stack for free; in doing so, we also consume the extra
+address generated by the closure's e8. In the end this whole operation will
+reduce to an expensive tail call on the first invocation, and a cheap tail
+call on subsequent ones.
+
+## Closure generator
+
+This function just generates the symbol closures described above. Each closure
+is 17 bytes long.
+
+    ::/$<@
+    488b o107f8                           # symbol pointer -> %rax
+    488b o316                             # %rsi -> displacement base (%rcx)
+    4883 o356 11                          # allocate 17 bytes on the heap
+    66c7 o006 48b8                        # encode 48b8 instruction
+    c7   o10609 0048abe8                  # encode 48ab and e8 instructions
+    4889 o10602                           # write symbol pointer (for 48b8)
+    b8:4[Lb:/$<@_rewriter]                # load absolute address of rewriter
+    482b o310                             # compute displacement
+    89   o1160d                           # write displacement
+    488b o306 48ab c3                     # return closure
 
     ::bootstrap_end
