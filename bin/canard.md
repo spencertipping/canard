@@ -307,12 +307,22 @@ image, but is not executed in the toplevel stream.
 
 ## Main function
 
-This will end up tying together a number of pieces, but for the moment it just
-pushes a zero to return.
+In an act of insane optimism, use the reader on file descriptor 0 (stdin) and
+give it some functions to cons things together. Once it reads things, execute
+the result.
 
     ::/main
-    4831o300 48ab                         # data-push 0
-    c3                                    # return (to exit function)
+    b8 40000000 e8:4[L:/|: - :>]          # allocate buffer
+    b8:4[Lb:/main_fill_buffer] 48ab       # push buffer fill function
+    b8:4[Lb:/$<@] 48ab                    # push symbol generator
+    b8:4[Lb://:k] 48ab                    # push list generator (closure fn)
+    e8:4[L:/$< - :>]                      # invoke reader
+    e9:4[L:/. - :>]                       # execute the result
+
+    ::/main_stdin 4831 o300 48ab c3       # k(0)
+    ::/main_fill_buffer
+    - composition /main_stdin, /|<
+    c3
 
 # Consing and memory allocation
 

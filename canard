@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  e17a92709193ef02e2158a5d1a33fe3d
-# istate: 1ea9076940fb9105c7eae43d8ba89054
+# state:  284d763ddf85600e2a44930bdc13e556
+# istate: fd7d278aebf7ed3d08610acdab6738ba
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2827,12 +2827,22 @@ Everything from here down is referenced or called by the above to build out the
 image, but is not executed in the toplevel stream.
 
   Main function.
-  This will end up tying together a number of pieces, but for the moment it just
-  pushes a zero to return.
+  In an act of insane optimism, use the reader on file descriptor 0 (stdin) and
+  give it some functions to cons things together. Once it reads things, execute
+  the result.
 
   ::/main
-  4831o300 48ab                         # data-push 0
-  c3                                    # return (to exit function)
+  b8 40000000 e8:4[L:/|: - :>]          # allocate buffer
+  b8:4[Lb:/main_fill_buffer] 48ab       # push buffer fill function
+  b8:4[Lb:/$<@] 48ab                    # push symbol generator
+  b8:4[Lb://:k] 48ab                    # push list generator (closure fn)
+  e8:4[L:/$< - :>]                      # invoke reader
+  e9:4[L:/. - :>]                       # execute the result
+
+  ::/main_stdin 4831 o300 48ab c3       # k(0)
+  ::/main_fill_buffer
+  - composition /main_stdin, /|<
+  c3
 
 Consing and memory allocation.
 We need a way to allocate new cons cells without manually getting memory from
