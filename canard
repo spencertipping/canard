@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  387baf57a25050edafeb76f07ae8901b
-# istate: 7e83283727d0e6b7e5e8b5849646d335
+# state:  0a0aac43d053218e93f004d14ca71fc4
+# istate: 0d1a98394fd27e916f5e214d853f8cc9
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3822,15 +3822,14 @@ non-whitespace and non-bracket.
   actually store these variables beneath the state and refer to them using
   displaced SIB byte addressing. Values on the stack have negative addresses
   relative to %rdi, so we store the count as a negative number. It has the
-  property that -10(%rsi, %rcx, 8) refers to the first non-state cell on the
+  property that -10(%rdi, %rcx, 8) refers to the first non-state cell on the
   data stack. Here's what this looks like:
 
   | buf | [f] | [s] | [l] | 0 | <- %rdi         %rcx = 0 (no state items)
     buf | [f] | [s] | [l] | x0 | -1 | <- %rdi   %rcx = -1 (one item)
 
-  The number on top of the stack is not always stored in %rcx, but we use it
-  frequently enough that I try to keep the two synchronized most of the time.
-  When they differ, the stack is authoritative.
+  I generally use %rcx to store the count, but occasionally %rax in situations
+  where it decreases the code size.
 
   ::/$<
   e8:4[L:/nil - :>]                             # push nil as initial state
@@ -3999,11 +3998,14 @@ non-whitespace and non-bracket.
   e2:1[L:/$<_reverse_loop - :>]                 # decrement %rcx, next byte
   ::/$<_reverse_loop_end
 
-  50 488b o306 48ab                             # stash %rax, push symbol
-     488b o107e8 48ab                           # push [s]
+  50                                            # stash %rax
+     488b o117f8                                # pull count into %rcx
+     488b o114o371e8                            # pull [s] from closure state
+     488b o306 48ab                             # push symbol
+     4891 48ab                                  # push [s]
      e8:4[L:/. - :>]                            # invoke [s] on symbol
      e8:4[L:/$<_got_value - :>]                 # cons value onto result
-     58                                         # restore %rax (contains byte)
+  58                                            # restore %rax (contains byte)
   e9:4[L:/$<_next_byte - :>]                    # process next byte
 
   Open-bracket branch.
@@ -4022,7 +4024,7 @@ non-whitespace and non-bracket.
   ff   o311                                     # increase count (decrement)
   51 e8:4[L:/nil - :>] 59                       # push nil
   4891 48ab                                     # push new count
-  eb:1[L:/$<_each_continuation - :>]            # continue processing bytes
+  e9:4[L:/$<_each_continuation - :>]            # continue reading
 
   Close-bracket branch.
   We need to do two things here. First we call the [l] function to transform the
@@ -4036,20 +4038,24 @@ non-whitespace and non-bracket.
   here, the stack elements are in the right order already.
 
   ::/$<_close
-  488b o117f8 4883 o357 08                      # data-pop %rcx
-  ff   o301                                     # decrement count (increment)
-  # TODO
+  488b o117f8                                   # data-pop(%rcx = count)
+  488b o104o371f0 4889 o107f8                   # push [l]
+  51 e8:4[L:/. - :>] 59                         # apply [l] to list
+  4891 48ab                                     # push original count
+  e8:4[L:/$<_got_value - :>]                    # cons onto previous value
+  e9:4[L:/$<_each_continuation - :>]            # continue reading
 
   Low-level buffer management.
   These functions interface with the buffer to pull individual bytes into %al
   for the above parsing logic.
 
-  ::/$<_available       # FIXME                 # %rax <- set buf available
-  488b o107e0 48ab                              # pull buffer pointer
+  ::/$<_available                               # result will be in %rax
+  488b o117f8                                   # %rcx <- count
+  488b o104o371d8 48ab                          # push buffer pointer
   e8:4[L:/|= - :>]                              # check available
   488b o107f8 4883 o357 08 c3                   # data-pop(%rax = available)
 
-  ::/$<_get_byte        # FIXME
+  ::/$<_get_byte
   e8:4[L:/$<_available - :>]                    # get available count
   4885 o300                                     # is it zero?
   75:1[L:/$<_got_input - :>]                    # if not, read the byte
@@ -4069,20 +4075,20 @@ non-whitespace and non-bracket.
 
   # Given available input, read a byte and advance the reader. Then return to
   # the caller of get_byte.
-  ::/$<_got_input       # FIXME
-  488b o107e0 48ab e8:4[L:/|. - :>]             # read a byte...
+  ::/$<_got_input
+  488b o117f8                                   # %rcx <- count
+  488b o104o371d8 48ab                          # push buffer pointer
+  e8:4[L:/|. - :>]                              # read a byte...
   488b o107f8 4883 o357 08 c3                   # ... and store it in %al, ret
 
-  ::/$<_fill_buffer     # FIXME
-  0f10 o107f0                                   # %xmm0 <- two top entries
-  4883 o354 10                                  # allocate 128 bits
-  0f11 o004o044                                 # push onto return stack
-  0f10 o107e0                                   # grab buffer and [f]
-  0f11 o107f0                                   # dup2 to top of stack
-  e8:4[L:/. - :>]                               # invoke [f] on buffer
-  4883 o307 08                                  # allocate one more cell
-  0f10 o004o044                                 # load stashed [l] [s]
-  0f11 o107f0                                   # store [l] [s] on data stack
+  ::/$<_fill_buffer
+  488b o117f8                                   # %rcx <- count
+  0f10 o104o371d8                               # %xmm0 <- [f] buf
+  4883 o307 10                                  # allocate two data slots
+  0f11 o107f0                                   # %xmm0 -> stack top
+  51 e8:4[L:/. - :>] 59                         # invoke [f] on buffer
+  488b o107f8 4883 o357 08                      # pop (. [f] buf) -> %rax
+  4889 o104o371d8                               # %rax -> buf
   c3                                            # return
 
 ::bootstrap_end

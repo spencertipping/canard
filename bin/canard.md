@@ -1317,7 +1317,7 @@ part of the closure state of the reader, so they are invariant.
     $<lsf "[..." n xn-1   = $<lsf "..." n+1 [] xn-1
     $<lsf "]..." n+1 xn   = $<lsf "..." n (:: (l xn) xn-1)
     $<lsf "]..." 1 x0     = x0
-    $<lsf ""              = $<lsf (f buf)       <- almost true
+    $<lsf ""              = $<lsf (f buf)       <- almost true; see below
 
 There is one strange case that the reader deals with. The algorithm above
 would loop indefinitely if there were any error reading from the input source
@@ -1333,7 +1333,26 @@ file has ended. And that's exactly what we do:
 Therefore, we treat an EOF as being syntactically equivalent to an infinite
 series of closing brackets.
 
+## Closure arguments
+
+The [l], [s], [f], and 'buf' parameters are all invariants, so there isn't
+much sense in moving them around each time we update the stack. As such, we
+actually store these variables beneath the state and refer to them using
+displaced SIB byte addressing. Values on the stack have negative addresses
+relative to %rdi, so we store the count as a negative number. It has the
+property that -10(%rdi, %rcx, 8) refers to the first non-state cell on the
+data stack. Here's what this looks like:
+
+    buf | [f] | [s] | [l] | 0 | <- %rdi         %rcx = 0 (no state items)
+    buf | [f] | [s] | [l] | x0 | -1 | <- %rdi   %rcx = -1 (one item)
+
+I generally use %rcx to store the count, but occasionally %rax in situations
+where it decreases the code size.
+
     ::/$<
+    e8:4[L:/nil - :>]                             # push nil as initial state
+    b8 feffffff 48ab 488b o310                    # %rcx = data-push(-1)
+
     e8:4[L:/$<_get_byte - :>]                     # get a byte of input
 
     ::/$<_next_byte                               # handle byte in %al
@@ -1341,8 +1360,15 @@ series of closing brackets.
     78:1[L:/$<_eof_bridge - :>]                   # if not, eof
     3c'[ 74:1[L:/$<_open_bridge - :>]             # handle open brackets
     3c'] 74:1[L:/$<_close_bridge - :>]            # handle close brackets
-    3c20 76:1[L:/$<_space_bridge - :>]            # handle whitespace (<= ' ')
+    3c20 76:1[L:/$<_each_continuation - :>]       # handle whitespace (<= ' ')
     eb:1[L:/$<_symbol - :>]                       # handle symbol
+
+Each of the above cases is responsible for pulling a byte and heading back to
+the loop. Here's a quick bit of code to do that.
+
+    ::/$<_each_continuation                       # continuation for each byte
+    e8:4[L:/$<_get_byte - :>]                     # pull a byte
+    eb:1[L:/$<_next_byte - :>]                    # back to the main loop
 
 State transition functions. These have large displacements, so we can't use
 one-byte conditional jumps to get to the right place in code. Instead, we jump
@@ -1360,15 +1386,64 @@ I wanted to keep the conditional logic as compact as possible.
     ::/$<_eof_bridge   e9:4[L:/$<_eof   - :>]
     ::/$<_open_bridge  e9:4[L:/$<_open  - :>]
     ::/$<_close_bridge e9:4[L:/$<_close - :>]
-    ::/$<_space_bridge e9:4[L:/$<_space - :>]
 
-### Symbol reader
+## New value function
 
-  Right now, all we know is that we have something that begins a symbol (which
-  is basically any non-control, non-bracket character). The algorithm here is
-  kind of strange in that everything is backwards. We track the symbol length
-  in %rcx, but this is a negative number; and we write the characters to the
-  heap, but they are written in reverse.
+Once we have a new value, we cons it onto the topmost state entry. For
+instance, suppose we had just read a symbol. The next state entry would be a
+list, so we would have this:
+
+    (s symbol) n [...]        -> n-1 (:: (s symbol) [...])
+
+This function is used after reading a symbol or closing a sublist.
+
+    ::/$<_got_value
+    488b o117f0                                   # load n into %rcx
+    4883 o357 08                                  # pop one stack cell
+    488b o007 4889 o107f8                         # move value into place
+    ff   o107                                     # subtract one (increment)
+    51 e8:4[L:cons - :>] 59                       # cons the two top values
+    4891 48ab c3                                  # push new count; ret
+
+## EOF branch
+
+This is sort of a hack, but I think it makes sense considering what we have to
+work with. If we observe the end of the input, we recover as much as we can by
+automatically closing every unclosed sublist. So, for example, the user may
+have typed '[[[foo' -- we would act as though they had typed '[[[foo]]]'. We
+do this by pretending that each pending list is followed by a close-bracket,
+then returning.
+
+In the 'done' branch, we deallocate six values and then return. Here's why:
+
+    ... | buf | [f] | [s] | [l] | x0 | -1 | <- %rdi     <- initial state
+    ... | <- %rdi                                       <- after deallocating
+    ... | x0 | <- %rdi                                  <- after pushing value
+
+This gets rid of the closure data, which the caller presumably doesn't care
+about after the read is complete.
+
+    ::/$<_eof
+    488b o107f8                                   # move count into %rax
+    3d   01000000                                 # exactly one item left?
+    74:1[L:/$<_eof_done - :>]                     # if so, pop and return
+
+    e8:4[L:/%x - :>]                              # swap count and value
+    e8:4[L:/$<_got_value - :>]                    # merge the value down
+    eb:1[L:/$<_eof - :>]                          # repeat until we're done
+
+    ::/$<_eof_done
+    488b o107f0                                   # last value -> %rax
+    4883 o357 30                                  # deallocate six cells
+    48ab c3                                       # push value, return
+
+## Symbol branch
+
+Right now, all we know is that we have something that begins a symbol (which
+is basically any non-control, non-bracket character). The algorithm here is
+kind of strange in that everything is backwards. We track the symbol length in
+%rcx, but this is a negative number; and we write the characters to the heap,
+but they are written in reverse.
 
 So, for example, here's how we would go about reading the symbol 'foo':
 
@@ -1394,16 +1469,16 @@ relative to %rsi; so in this diagram, %rdx == 2 and %rcx == 4):
                       ^       ^
                    %rdx       %rcx
 
-Each step involves a three-move exchange to reverse the two bytes. We use
-%bl as temporary space:
+Each step involves a three-move exchange to reverse the two bytes. We use %bl
+as temporary space:
 
     %bl = (%rdx)      03 00 <o> o <f>         %bl = 'o'
     swap (%rcx)       03 00 <o> o <o>         %bl = 'f'
     swap (%rdx)       03 00 <f> o <o>         %bl = 'o'
 
 We compare %rdx and %rcx to detect collision, at which point we're done.
-Finally, we decrement %rcx using the loop instruction. After one iteration
-of the loop, we have this:
+Finally, we decrement %rcx using the loop instruction. After one iteration of
+the loop, we have this:
 
     %rsi -> | 03 00 | f | o | o | ...
                           ^
@@ -1413,152 +1488,131 @@ of the loop, we have this:
 Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
 
     ::/$<_symbol
-    4831 o311 48ff o311                         # %rcx = -1 (length)
+    4831 o311 48ff o311                           # %rcx = -1 (length)
 
     ::/$<_symbol_byte
-    48ff o016                                   # --%rsi (symbol byte)
-    88   o060                                   # (%rsi) = %al (write byte)
-    51 e8:4[L:/$<_get_byte - :>] 59             # load next byte, saving %rcx
+    48ff o016                                     # --%rsi (symbol byte)
+    88   o060                                     # (%rsi) = %al (write byte)
+    51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
 
-    4885 o300                                   # check sign of %rax
-    78:1[L:/$<_end_symbol - :>]                 # if negative, end this symbol
-    3c'[ 74:1[L:/$<_end_symbol - :>]            # ... or if open bracket
-    3c'] 74:1[L:/$<_end_symbol - :>]            # ... or if close bracket
-    3c20 76:1[L:/$<_end_symbol - :>]            # ... or if whitespace
-    e2:1[L:/$<_symbol_byte - :>]                # else decrement %rcx, next
+    4885 o300                                     # check sign of %rax
+    78:1[L:/$<_end_symbol - :>]                   # if negative, end this symbol
+    3c'[ 74:1[L:/$<_end_symbol - :>]              # ... or if open bracket
+    3c'] 74:1[L:/$<_end_symbol - :>]              # ... or if close bracket
+    3c20 76:1[L:/$<_end_symbol - :>]              # ... or if whitespace
+    e2:1[L:/$<_symbol_byte - :>]                  # else decrement %rcx, next
 
     ::/$<_end_symbol
-    48f7 o331                                   # negate %rcx (negative length)
-    4883 o356 02                                # reserve space
-    ba   02000000                               # %rdx = 2
-    6689 o016                                   # %cx -> length slot for symbol
-    ff   o301                                   # ++%ecx
+    48f7 o331                                     # negate %rcx (negative length)
+    4883 o356 02                                  # reserve space
+    ba   02000000                                 # %rdx = 2
+    6689 o016                                     # %cx -> length slot for symbol
+    ff   o301                                     # ++%ecx
 
-    ::/$<_reverse_loop                          # reverse bytes in symbol
-    3a   o321                                   # compare %edx with %ecx
-    73:1[L:/$<_reverse_loop_end - :>]           # break if above or equal
-    8a   o034o062                               # %bl <- (%rsi, %rdx)
-    86   o034o061                               # swap with (%rsi, %rcx)
-    86   o034o062                               # swap with (%rsi, %rdx)
-    ff   o302                                   # increment %edx
-    e2:1[L:/$<_reverse_loop - :>]               # decrement %rcx, next byte
+    ::/$<_reverse_loop                            # reverse bytes in symbol
+    3a   o321                                     # compare %edx with %ecx
+    73:1[L:/$<_reverse_loop_end - :>]             # break if above or equal
+    8a   o034o062                                 # %bl <- (%rsi, %rdx)
+    86   o034o061                                 # swap with (%rsi, %rcx)
+    86   o034o062                                 # swap with (%rsi, %rdx)
+    ff   o302                                     # increment %edx
+    e2:1[L:/$<_reverse_loop - :>]                 # decrement %rcx, next byte
     ::/$<_reverse_loop_end
 
-    50 488b o306 48ab                           # stash %rax, push symbol
-       488b o107e8 48ab                         # push [s]
-       e8:4[L:/. - :>]                          # invoke [s] on symbol
-       e8:4[L:/$<_got_value - :>]               # cons value onto result
-       58                                       # restore %rax (contains byte)
-    e9:4[L:/$<_next_byte - :>]                  # process next byte
+    50                                            # stash %rax
+       488b o117f8                                # pull count into %rcx
+       488b o114o371e8                            # pull [s] from closure state
+       488b o306 48ab                             # push symbol
+       4891 48ab                                  # push [s]
+       e8:4[L:/. - :>]                            # invoke [s] on symbol
+       e8:4[L:/$<_got_value - :>]                 # cons value onto result
+    58                                            # restore %rax (contains byte)
+    e9:4[L:/$<_next_byte - :>]                    # process next byte
 
-### State manipulation functions
+## Open-bracket branch
 
-Remember from above that the reader function has a signature of this:
+When we see an open bracket, we add a new list to the state. Here's the exact
+transformation:
 
-       f8  f0  e8  e0  d8     <- offset from %rdi
-       |   |   |   |   |
-    $< [s] [l] [f] buf state
+    x0 | x1 | ... | xn-1 | -n | <- %rdi                         <- initial
+    x0 | x1 | ... | xn-1 | [] | -(n+1) | <- %rdi                <- afterwards
 
-Generally, %rdi is invariant inside this code. This means that we can rely
-on these same offsets and treat the stack more like a traditional invocation
-frame than as an argument queue.
+Any symbols or other values that we read will then be consed onto this new
+list instead of the one below it. The corresponding closing bracket will cause
+this list to be consed into its parent.
 
-### New value function
+    ::/$<_open                                    # create a new quoted list
+    488b o117f8 4883 o357 08                      # pop current count
+    ff   o311                                     # increase count (decrement)
+    51 e8:4[L:/nil - :>] 59                       # push nil
+    4891 48ab                                     # push new count
+    e9:4[L:/$<_each_continuation - :>]            # continue reading
 
-Each time we generate a new value, we cons it onto the head of the state
-list. So, if the new value is called 'v', then here's what happens to the
-state:
+## Close-bracket branch
 
-    :: h t -> :: (:: v h) t
+We need to do two things here. First we call the [l] function to transform the
+newly-read list. Then we merge the list down into the previous value.
+Specifically:
 
-This function is used after reading a symbol or closing a sublist.
+    x0 | x1 | ... | xn-2 | xn-1 | -n | <- %rdi                  <- initial
+    x0 | x1 | ... | (:: (. [l] xn-1) xn-2) | -(n-1) | <- %rdi   <- afterwards
 
-    ::/$<_got_value
-    488b o107f8                                 # %rax <- new value
-    488b o137d8 4889 o137f8                     # copy state to top of stack
-    50 e8:4[L:uncons - :>] 58                   # uncons it to get the head
-    48ab                                        # push new value
-    e8:4[L:cons - :>]                           # :: new value, head
-    e8:4[L:cons - :>]                           # :: new head, old tail
-    488b o107f8 4883 o357 08                    # data-pop into %rax
-    4889 o107d8 c3                              # write back to state cell; ret
+Notice that xn-2 is the tail; this is important. Although it appears backwards
+here, the stack elements are in the right order already.
 
-### EOF function
+    ::/$<_close
+    488b o117f8                                   # data-pop(%rcx = count)
+    488b o104o371f0 4889 o107f8                   # push [l]
+    51 e8:4[L:/. - :>] 59                         # apply [l] to list
+    4891 48ab                                     # push original count
+    e8:4[L:/$<_got_value - :>]                    # cons onto previous value
+    e9:4[L:/$<_each_continuation - :>]            # continue reading
 
-This is sort of a hack, but I think it makes sense considering what we have
-to work with. If we observe the end of the input, we recover as much as we
-can by automatically closing every unclosed sublist. So, for example, the
-user may have typed '[[[foo' -- we would act as though they had typed
-'[[[foo]]]'. We do this by pretending that each pending list is followed by
-a close-bracket, then returning.
-
-    ::/$<_eof                                   # fold stack under [l]
-    # TODO
-
-    ::/$<_each_continuation                     # continuation for each byte
-    e8:4[L:/$<_get_byte - :>]                   # pull a byte
-    e9:4[L:/$<_next_byte - :>]                  # back to the main loop
-
-    ::/$<_open                                  # create a new quoted list
-    488b o107d8 48ab                            # pull state to stack top
-    e8:4[L:uncons - :>]                         # uncons it to get the head
-    e8:4[L:/nil - :>]                           # push nil
-    e8:4[L:cons - :>]                           # cons onto current value
-    e8:4[L:cons - :>]                           # cons onto state
-    488b o107f8 4883 o357 08                    # data-pop into %rax
-    4889 o107d8                                 # write back to state cell
-    eb:1[L:/$<_each_continuation - :>]          # continue processing bytes
-
-    ::/$<_close                                 # 
-    # TODO
-
-    ::/$<_space                                 # do nothing; it's whitespace
-    eb:1[L:/$<_each_continuation - :>]          # continue processing bytes
-
-### Low-level buffer management
+## Low-level buffer management
 
 These functions interface with the buffer to pull individual bytes into %al
 for the above parsing logic.
 
-    ::/$<_available                             # %rax <- set buf available
-    488b o107e0 48ab                            # pull buffer pointer
-    e8:4[L:/|= - :>]                            # check available
-    488b o107f8 4883 o357 08 c3                 # data-pop(%rax = available)
+    ::/$<_available                               # result will be in %rax
+    488b o117f8                                   # %rcx <- count
+    488b o104o371d8 48ab                          # push buffer pointer
+    e8:4[L:/|= - :>]                              # check available
+    488b o107f8 4883 o357 08 c3                   # data-pop(%rax = available)
 
     ::/$<_get_byte
-    e8:4[L:/$<_available - :>]                  # get available count
-    4885 o300                                   # is it zero?
-    75:1[L:/$<_got_input - :>]                  # if not, read the byte
+    e8:4[L:/$<_available - :>]                    # get available count
+    4885 o300                                     # is it zero?
+    75:1[L:/$<_got_input - :>]                    # if not, read the byte
 
     # Otherwise, fill the buffer and check available bytes again. If it's still
     # zero, then the read failed and we need to set %rax to -1 to indicate this.
-    e8:4[L:/$<_fill_buffer - :>]                # otherwise, fill the buffer
-    e8:4[L:/$<_available - :>]                  # get available count
-    4885 o300                                   # is it zero?
-    75:1[L:/$<_got_input - :>]                  # if not, read the byte
+    e8:4[L:/$<_fill_buffer - :>]                  # otherwise, fill the buffer
+    e8:4[L:/$<_available - :>]                    # get available count
+    4885 o300                                     # is it zero?
+    75:1[L:/$<_got_input - :>]                    # if not, read the byte
 
     # Otherwise, set %rax to -1 and return. This will indicate an error to the
     # caller, who should be checking for the high bit of %ax, %eax, or %rax
     # (none of these will be set on valid input, since we're just reading
     # bytes).
-    4831 o300 48f7 o320 c3                      # %rax = -1; ret
+    4831 o300 48f7 o320 c3                        # %rax = -1; ret
 
     # Given available input, read a byte and advance the reader. Then return to
     # the caller of get_byte.
     ::/$<_got_input
-    488b o107e0 48ab e8:4[L:/|. - :>]           # read a byte...
-    488b o107f8 4883 o357 08 c3                 # ... and store it in %al, ret
+    488b o117f8                                   # %rcx <- count
+    488b o104o371d8 48ab                          # push buffer pointer
+    e8:4[L:/|. - :>]                              # read a byte...
+    488b o107f8 4883 o357 08 c3                   # ... and store it in %al, ret
 
     ::/$<_fill_buffer
-    0f10 o107f0                                 # %xmm0 <- two top entries
-    4883 o354 10                                # allocate 128 bits
-    0f11 o004o044                               # push onto return stack
-    0f10 o107e0                                 # grab buffer and [f]
-    0f11 o107f0                                 # dup2 to top of stack
-    e8:4[L:/. - :>]                             # invoke [f] on buffer
-    4883 o307 08                                # allocate one more cell
-    0f10 o004o044                               # load stashed [l] [s]
-    0f11 o107f0                                 # store [l] [s] on data stack
-    c3                                          # return
+    488b o117f8                                   # %rcx <- count
+    0f10 o104o371d8                               # %xmm0 <- [f] buf
+    4883 o307 10                                  # allocate two data slots
+    0f11 o107f0                                   # %xmm0 -> stack top
+    51 e8:4[L:/. - :>] 59                         # invoke [f] on buffer
+    488b o107f8 4883 o357 08                      # pop (. [f] buf) -> %rax
+    4889 o104o371d8                               # %rax -> buf
+    c3                                            # return
 
     ::bootstrap_end
