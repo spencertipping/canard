@@ -1,7 +1,7 @@
 # Canard bootstrap debugging script.
 # GDB definitions to make it easier to debug the main image.
 
-break *0x40014d
+break *0x4001ef
 run
 
 set $stack_end = 0
@@ -17,9 +17,7 @@ define s
   print_return_stack
   print_heap
 
-  printf "%c[1;32m%%rax = %lx\n", 27, $rax
-  printf "%c[1;32m%%rcx = %lx\n", 27, $rcx
-
+  printf "%c[1;32m%%rx = %lx, %lx, %lx, %lx\n", 27, $rax, $rbx, $rcx, $rdx
   printf "%c[1;32minstruction queue%c[1;30m\n", 27, 27
   x/8i $pc
   printf "%c[0;0m", 27

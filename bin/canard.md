@@ -312,7 +312,7 @@ give it some functions to cons things together. Once it reads things, execute
 the result.
 
     ::/main
-    b8 40000000 e8:4[L:/|: - :>]          # allocate buffer
+    b8 40000000 48ab e8:4[L:/|: - :>]     # allocate buffer
     b8:4[Lb:/main_fill_buffer] 48ab       # push buffer fill function
     b8:4[Lb:/$<@] 48ab                    # push symbol generator
     b8:4[Lb://:k] 48ab                    # push list generator (closure fn)

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  ced6136dff4c7cd1fcb5ba402e9915b6
-# istate: a3daff7cac2a3ef0c7b4c4bc3e0bd275
+# state:  66ebbd9e3a42f2a0125256c837868290
+# istate: a7df707a87bff48074da6caece17b1c9
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -256,10 +256,12 @@ meta::configure 'vim_highlighter', extension => '.vim', inherit => 0;
 meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
+meta::alias('d', 'sh gdb -x bin/canard.debug.gdb bin/canard');
 meta::alias('eb', 'edit sdoc::binary::boot');
 meta::alias('ed', 'edit sdoc::gdb::boot-debug');
 meta::alias('erf', 'edit function::render');
 meta::alias('ev', 'edit vim_highlighter::canard');
+meta::alias('r', 'sh readelf -h bin/canard');
 meta::alias('repl', 'sh boot/interpreter');
 meta::bootstrap('html', <<'__');
 <html>
@@ -2834,7 +2836,7 @@ image, but is not executed in the toplevel stream.
   the result.
 
   ::/main
-  b8 40000000 e8:4[L:/|: - :>]          # allocate buffer
+  b8 40000000 48ab e8:4[L:/|: - :>]     # allocate buffer
   b8:4[Lb:/main_fill_buffer] 48ab       # push buffer fill function
   b8:4[Lb:/$<@] 48ab                    # push symbol generator
   b8:4[Lb://:k] 48ab                    # push list generator (closure fn)
@@ -4210,7 +4212,7 @@ meta::sdoc('gdb::boot-debug', <<'__');
 Canard bootstrap debugging script.
 GDB definitions to make it easier to debug the main image.
 
-break *0x40014d
+break *0x4001ef
 run
 
 set $stack_end = 0
@@ -4226,9 +4228,7 @@ define s
   print_return_stack
   print_heap
 
-  printf "%c[1;32m%%rax = %lx\n", 27, $rax
-  printf "%c[1;32m%%rcx = %lx\n", 27, $rcx
-
+  printf "%c[1;32m%%rx = %lx, %lx, %lx, %lx\n", 27, $rax, $rbx, $rcx, $rdx
   printf "%c[1;32minstruction queue%c[1;30m\n", 27, 27
   x/8i $pc
   printf "%c[0;0m", 27
