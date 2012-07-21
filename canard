@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  8e22605afb01bb458d14c5da38782948
-# istate: 7bb738325723e8dda91fcca19e3519c5
+# state:  84cc33dbfd7c318de9b6295a27995c01
+# istate: 2a74fdccfeb262e3bbe33c733db33342
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -2685,7 +2685,7 @@ pushed onto the data stack prior to invoking 'main'.
   - binding ., ?
   - binding =1, =2, =4, =8, @1, @2, @4, @8, &0, &1, &2, &3
   - binding &read, &write, &open, &close, &stat
-  - binding |:, |., |*, |=, |<
+  - binding |:, |., |=, |<
 
   The binary-text compiler can't handle a label called /:: -- the two colons
   make it think it's supposed to use a label reference. It also fails for things
@@ -3121,6 +3121,73 @@ into a single byte on the heap.
   4885 o333 480f44 o10708               # false branch -> %rax if cond == 0
   ff   o340                             # jmp *%rax
 
+System functions.
+Some definitions that will be required for the interpreter to work correctly
+with the system it's running on. All of these end up using syscall functions,
+bound in the symbol table as &0, &1, &2, &3, etc (depending on the arity).
+
+  System calling convention.
+  The top argument to any syscallX function is the number of the syscall that
+  you want to execute. The other arguments are pulled from the data stack
+  left-to-right; so, for example:
+
+  | &1 x3c x0   <- 0x3c = exit(status = 0)
+
+  The only reason syscall wrappers are particularly interesting is that they
+  have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
+  %r10, etc, are not saved.
+
+  ::/&0
+  56
+  488b o107f8 4883 o357 08      # data-pop -> %rax
+  57 0f05 5f5e 48ab c3          # syscall; pop %rdi, %rsi; data-push
+
+  ::/&1
+  56                            # push %rsi
+  488b o107f8                   # data-pop -> %rax
+  4c8b o117f0 4883 o357 10      # data-pop -> %rcx
+  57 4887 o317                  # push %rdi; swap %rcx, %rdi
+  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+  ::/&2
+  56                            # push %rsi
+  488b o107f8                   # data-pop -> %rax
+  488b o117f0                   # data-pop -> %rcx
+  488b o167e8 4883 o357 18      # data-pop -> %rsi
+  57 4887 o317                  # push %rdi; swap %rcx, %rdi
+  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+  ::/&3
+  56                            # push %rsi
+  488b o107f8                   # data-pop -> %rax
+  488b o117f0                   # data-pop -> %rcx
+  488b o167e8                   # data-pop -> %rsi
+  488b o127e0 4883 o357 20      # data-pop -> %rdx
+  57 4887 o317                  # push %rdi; swap %rcx, %rdi
+  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+  Utility functions.
+  These use the above and abstract away some of the details of system calling.
+  System call numbers are from /usr/include/asm/unistd_64.h on Linux, and where
+  applicable they're encoded like this:
+
+  | 4831o300              <- xor %rax, %rax
+    b0NN                  <- mov $0xNN, %al
+
+  This ends up being two bytes smaller than the equivalent 48c7 o300 NN000000.
+  The only case where b0NN is not present is for the read() syscall, which is
+  number 0.
+
+  Arguments to these system calls pass through directly, as do return values.
+
+  ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # n buf fd -> n
+  ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n buf fd -> n
+  ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path f m -> fd
+  ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # fd -> status
+  ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # path buf -> n
+
+  ::/&exit  4831o300 b03c 48ab e9:4[L:/&1 - :>]        # code -> _
+
 Closures.
 Canard doesn't have closures in the same sense that Lisp or Haskell does, but
 you can construct functions that push specific values onto the stack so that the
@@ -3269,6 +3336,10 @@ functions that read or write it.
 
   | - composition /x, /y, /z
     c3                          <- don't forget this!
+
+  Slightly more efficient is tail-calling the last element using e9, though this
+  makes the composition more difficult to inspect since it will no longer be a
+  proper list.
 
   Constant matcher definition.
   The constant matcher just compares bytes within a contiguous region of memory.
@@ -3471,29 +3542,21 @@ functions that read or write it.
   ::/@<q_bail
   c3
 
-Reader.
-Canard source is parsed by a mechanism similar to Lisp's reader. The primary
-difference is that the Canard reader is much simpler and is not extensible by
-mechanisms like reader macros. It recognizes the following constructs:
+Buffer functions.
+Canard does not provide strings. Instead, it uses streams, or buffers, that
+incrementally read data and mark their position. You could in theory preallocate
+a string and empty a buffer into it, but you should try to use an incremental
+algorithm if possible.
 
-| 1. Lists, which are contained within square brackets.
-  2. Symbols, which are comprised of any non-whitespace, non-bracket character.
-  3. Quoted nil, written as [].
+  Structural aspects.
+  Buffers are FIFO queues of input that are consumed linearly and modified only
+  by filling. They support the following operations:
 
-UTF-8 is handled transparently as a symbol character, since any UTF-8 byte is
-non-whitespace and non-bracket.
-
-  Continuations and partial parsing.
-  The reader is not resumable -- that is, you can't hand it a chunk of input,
-  say 'read this', and then give it the rest of the input later on. The reason
-  is that doing this well means that you could reuse a state, which in turn
-  means that Canard needs some form of built-in alias detection to minimize
-  garbage.
-
-  This, in turn, implies that garbage collection should be present in the
-  bootstrap image, which is not where it belongs. So the reader's state is
-  linearized by wrapping the reader function around the character-retrieval
-  function, making the interaction non-replayable.
+  | 1. Advance: pull a character out of the buffer. May return -1 if the buffer
+       has no available data.
+    2. Check available data: return the number of available characters that can
+       be pulled via the advance function. May be zero.
+    3. Fill: use the read() syscall to populate a buffer from a file descriptor.
 
   Character retrieval.
   Like jonesforth, Canard uses a small buffer and the read() syscall to populate
@@ -3528,41 +3591,21 @@ non-whitespace and non-bracket.
 
   This function advances the buffer, returning the next byte. Behavior is
   undefined if the buffer has no available data (you should check it first using
-  |= above).
+  |= above). A nondestructive alternative, |?, can be used to 'peek' the next
+  character without advancing the buffer.
 
-  ::/|.                         # advance buffer by one byte
+  ::/|?                         # advance buffer by one byte
   488b o117f8                   # data-pop buffer into %rcx
   8b   o13104                   # %ebx = current
-  ff   o10104                   # ++current
   4831 o300                     # %rax = 0
   8a   o104o0010c               # %al = 12(%rax,%rbx,1) -- next byte
   4889 o107f8 c3                # return result
 
-  Buffer read function.
-  Reads data from a buffer one byte at a time, invoking a function on each byte.
-  The function is not invoked if there is no data in the buffer. Here's the
-  derivation:
-
-  | |* f buf -> ? [|* f buf (f *buf++)] [] (|= buf)
-    [] |= %1      f buf   = [] (|= buf) f buf
-    %1 %x         f buf   = f buf f
-    |* %R . |. %1 f buf f = |* f buf (f *buf++)
-
-  We can use the composition macro; this makes it possible to inspect the
-  definition of |* after the fact. We preallocate closures for the auxiliary
-  functions.
-
-  ::/|*_k_false c7 o300:4[Lb:/|*_false] 48ab c3
-  ::/|*_k_true  c7 o300:4[Lb:/|*_true]  48ab c3
-
-  ::/|*_false c3
-  ::/|*_true
-  - composition /%x, /%1, /%1, /|., /., /%R, /|*
-  c3
-
-  ::/|*
-  - composition /%1, /|=, /|*_k_false, /|*_k_true, /?
-  c3
+  ::/|.
+  488b o117f8                   # data-pop buffer into %rcx
+  51 e8:4[L:/|? - :>] 59        # peek to get resulting character
+  ff   o10104                   # advance buffer
+  c3                            # return result
 
   Buffer fill function.
   We can generate a fill function by closing over a file descriptor and
@@ -3578,7 +3621,7 @@ non-whitespace and non-bracket.
   likely to be particularly useful.
 
   Note that any data in the buffer is obliterated when you call |<. You should
-  check this by using |= first.
+  make sure that |= returns zero for the buffer before using |<.
 
   ::/|<
   56                            # store %rsi for later
@@ -3598,10 +3641,47 @@ non-whitespace and non-bracket.
   89   o10108                   # store read() result (count)
   4883 o357 08 c3               # deallocate fd from stack; return
 
-  Reader function.
+Reader.
+Canard source is parsed by a mechanism similar to Lisp's reader. The primary
+difference is that the Canard reader is much simpler and is not extensible by
+mechanisms like reader macros. It recognizes the following constructs:
+
+| 1. Lists, which are contained within square brackets.
+  2. Symbols, which are comprised of any non-whitespace, non-bracket character.
+  3. Quoted nil, written as [].
+
+UTF-8 is handled transparently as a symbol character, since any UTF-8 byte is
+non-whitespace and non-bracket.
+
+  Continuations and partial parsing.
+  The reader is not resumable -- that is, you can't hand it a chunk of input,
+  say 'read this', and then give it the rest of the input later on. The reason
+  is that doing this well means that you could reuse a state, which in turn
+  means that Canard needs some form of built-in alias detection to minimize
+  garbage.
+
+  This, in turn, implies that garbage collection should be present in the
+  bootstrap image, which is not where it belongs. So the reader's state is
+  linearized by wrapping the reader function around the character-retrieval
+  function, making the interaction non-replayable.
+
+  Implementation considerations.
+  Initially I had started implementing a reader that used cons cells for
+  intermediate data. This is a suboptimal implementation strategy for several
+  reasons. First, the bootstrap interpreter does not have a way to collect
+  garbage, so unnecessary allocations are a really bad thing. Second, even if it
+  did provide a GC, collecting garbage is slow. Third, cons cells are slower to
+  access than data stack cells and will be more heavily fragmented once we start
+  sharing tails. Fourth, the access pattern is always LIFO.
+
+  As such, this implementation uses the data stack to manage grammar recursion.
+  We maintain a count of state values as the topmost non-closure stack value.
+  (Closure values are the stack parameters described in 'Reader arguments'.)
+
+  Reader structure.
   The reader is an odd bit of code in that it doesn't actually create objects.
   It just invokes functions that will end up creating those objects, but which
-  functions those are is up to you.
+  functions those are is up to you. (More on this in 'Reader arguments'.)
 
   The reader is implemented as a finite state machine with a pushdown stack for
   list allocation. The finite state machine has two states, inside-symbol and
@@ -3617,22 +3697,91 @@ non-whitespace and non-bracket.
     2. Open bracket:                       push current list continuation
     3. Close bracket:                      emit the list, pop current list
 
-  Step ordering is important; they have to occur as listed above. With all of
-  this stated, here's the behavior of the reader, using string notation to
-  indicate buffer state. The reader state is always not-inside-symbol anytime $<
-  is called; it forces the buffer internally until the end of each symbol is
-  reached. Parentheses specify that something will be evaluated eagerly:
+  Step ordering is important; they have to occur as listed above.
 
-  | $< [l] [s] [f] "sym"  []      = s "sym"
-    $< [l] [s] [f] ""     []      = $< [l] [s] [f] (f buf) []
-    $< [l] [s] [f] "[..." []      = $< [l] [s] [f] "..." [[]]
-    $< [l] [s] [f] "[..." [[]]    = $< [l] [s] [f] "..." [[] []]
-    $< [l] [s] [f] "]..." [[...]] = l [...]
-    $< [l] [s] [f] "]..." [x y]   = $< [l] [s] [f] "..." [x (l y)]
+  Reader arguments.
+  The reader takes four parameters, listed here from left (top) to right
+  (bottom):
 
-  There are a couple more internal rules that deal with things like intermediate
-  consing, but this covers most of the edge cases. All recursion is done using
-  tail calls.
+  | 1. The list generator function, denoted [l].
+    2. The symbol generator function, denoted [s].
+    3. The buffer fill function, denoted [f].
+    4. The buffer, denoted 'buf'.
+
+  The buffer-related stuff is self-explanatory, but the list and symbol
+  generators are not. This design deserves some explanation.
+
+  Symbols and lists have several properties that are not encoded in their
+  representation. First, symbols would fail horribly if executed directly, since
+  the first byte is part of the length, which is just a regular number.
+  Obviously we need to do something about this. Lists have a more subtle
+  problem.
+
+  Suppose I write something like this:
+
+  | ? [say 'hi] [say 'bye] entering?
+
+  The lists here, [say 'hi] and [say 'bye], are implicitly quoted -- that is,
+  they aren't executed right away. This will probably make more sense if we look
+  at the containing list, [? [say 'hi] [say 'bye] entering?]. Here's what that
+  looks like:
+
+  | e8 <address of entering?>
+    e8 <address of [say 'bye]>          <- approximation
+    e8 <address of [say 'hi]>           <- approximation
+    e8 <address of ?>
+    c3
+
+  Suppose we actually execute this. It will call entering?, then it will execute
+  [say 'hi] as though we had called it directly. This isn't the right behavior
+  at all; it makes brackets useless. What we really want is for the outer list
+  to be encoded like this:
+
+  | e8 <address of entering?>
+    e8 <address of a function that pushes [say 'bye]>
+    e8 <address of a function that pushes [say 'hi]>
+    e8 <address of ?>
+    c3
+
+  This reflects the fact that lists are quoted, not added directly.
+
+  There's another catch here. We don't necessarily know the addresses of
+  entering? and ? at read-time, since the code we're reading could be
+  responsible for defining those symbols. So instead of encoding addresses of
+  those functions directly, we need to encode the addresses of functions that
+  resolve the symbols:
+
+  | e8 <address of function that resolves 'entering?'>
+    e8 <address of function that pushes [say 'bye]>
+    e8 <address of function that pushes [say 'hi]>
+    e8 <address of function that resolves '?'>
+    c3
+
+  There are multiple strategies that can be used for symbol resolution, and
+  which one you want depends on what kind of semantics you want to assign. This
+  is enough of a variant that I'm leaving it up to the caller to decide what
+  kind of behavior they want.
+
+  Note that you can use the constant function for symbols and the identity
+  function for lists. If you do this, you'll have a transparent structural
+  representation of the incoming list that you can then inspect and easily
+  transform as data. However, it will most likely not have useful execution
+  semantics.
+
+  State encoding.
+  With all of this stated, here's the behavior of the reader, using string
+  notation to indicate buffer state. The reader state is always
+  not-inside-symbol anytime $< is called; it forces the buffer internally until
+  the end of each symbol is reached. Parentheses specify that something will be
+  evaluated eagerly, which matters because buffers are mutable. For convenience,
+  I'll write $<lsf to mean '$< [l] [s] [f]' -- the l, s, and f functions are
+  part of the closure state of the reader, so they are invariant.
+
+  | $<lsf "sym..." n xn-1 = $<lsf "..." n (:: (s "sym") xn-1)
+    $<lsf "[..." n xn-1   = $<lsf "..." n+1 [] xn-1
+    $<lsf "]..." n+1 xn   = $<lsf "..." n (:: (l xn) xn-1)
+    $<lsf "]..." 1 x0     = x0
+    $<lsf ""              = $<lsf (f buf)       <- almost true
 
   There is one strange case that the reader deals with. The algorithm above
   would loop indefinitely if there were any error reading from the input source
@@ -3642,12 +3791,11 @@ non-whitespace and non-bracket.
   file has ended. And that's exactly what we do:
 
   | # The following is true when |= (f buf) == 0:
-    $< [l] [s] [f] "" [xn ... x2 x1] = l (:: xn ... l (:: x2 (l x1)) ...)
+    $<lsf "" n xn-1 xn-2 ... x0 = $<lsf "" n-1 :: (l xn-1) xn-2
+    $<lsf "" 1 x0               = x0
 
-  Therefore, we treat an empty buffer as being equivalent to an infinite series
-  of close brackets. This lets us return useful values from partial parses,
-  which allows us to implement a REPL by prefiltering the buffer, introducing
-  empty reads when we observe newlines.
+  Therefore, we treat an EOF as being syntactically equivalent to an infinite
+  series of closing brackets.
 
   ::/$<
   e8:4[L:/$<_get_byte - :>]                     # get a byte of input
@@ -3871,73 +4019,6 @@ non-whitespace and non-bracket.
     0f10 o004o044                               # load stashed [l] [s]
     0f11 o107f0                                 # store [l] [s] on data stack
     c3                                          # return
-
-System functions.
-Some definitions that will be required for the interpreter to work correctly
-with the system it's running on. All of these end up using syscall functions,
-bound in the symbol table as &0, &1, &2, &3, etc (depending on the arity).
-
-  System calling convention.
-  The top argument to any syscallX function is the number of the syscall that
-  you want to execute. The other arguments are pulled from the data stack
-  left-to-right; so, for example:
-
-  | &1 x3c x0   <- 0x3c = exit(status = 0)
-
-  The only reason syscall wrappers are particularly interesting is that they
-  have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
-  %r10, etc, are not saved.
-
-  ::/&0
-  56
-  488b o107f8 4883 o357 08      # data-pop -> %rax
-  57 0f05 5f5e 48ab c3          # syscall; pop %rdi, %rsi; data-push
-
-  ::/&1
-  56                            # push %rsi
-  488b o107f8                   # data-pop -> %rax
-  4c8b o117f0 4883 o357 10      # data-pop -> %rcx
-  57 4887 o317                  # push %rdi; swap %rcx, %rdi
-  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
-
-  ::/&2
-  56                            # push %rsi
-  488b o107f8                   # data-pop -> %rax
-  488b o117f0                   # data-pop -> %rcx
-  488b o167e8 4883 o357 18      # data-pop -> %rsi
-  57 4887 o317                  # push %rdi; swap %rcx, %rdi
-  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
-
-  ::/&3
-  56                            # push %rsi
-  488b o107f8                   # data-pop -> %rax
-  488b o117f0                   # data-pop -> %rcx
-  488b o167e8                   # data-pop -> %rsi
-  488b o127e0 4883 o357 20      # data-pop -> %rdx
-  57 4887 o317                  # push %rdi; swap %rcx, %rdi
-  0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
-
-  Utility functions.
-  These use the above and abstract away some of the details of system calling.
-  System call numbers are from /usr/include/asm/unistd_64.h on Linux, and where
-  applicable they're encoded like this:
-
-  | 4831o300              <- xor %rax, %rax
-    b0NN                  <- mov $0xNN, %al
-
-  This ends up being two bytes smaller than the equivalent 48c7 o300 NN000000.
-  The only case where b0NN is not present is for the read() syscall, which is
-  number 0.
-
-  Arguments to these system calls pass through directly, as do return values.
-
-  ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # n buf fd -> n
-  ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n buf fd -> n
-  ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path f m -> fd
-  ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # fd -> status
-  ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # path buf -> n
-
-  ::/&exit  4831o300 b03c 48ab e9:4[L:/&1 - :>]        # code -> _
 
 ::bootstrap_end
 
