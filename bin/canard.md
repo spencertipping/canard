@@ -716,16 +716,38 @@ operation, so the generated code will look something like this:
     48ab c3                     <- push and return
 
 This requires 13 bytes of heap space, which we can obtain by subtracting
-directly from %rsi.
+directly from %rsi. As an optimization, we check for cases where the top 32
+bits are all zero. If we observe this condition, we can use a shorter form:
+
+    b8 xxxxxxxx                 <- zero-extend 32-bit immediate
+    48ab c3                     <- push and return
+
+This form uses only 8 bytes, which is about 35% more efficient than the long
+form above. We can do this because 32-bit move-to-register instructions
+automatically zero the high 32 bits.
 
     :://:k
     488b o107f8                   # data-pop into %rax
-    4883 o356 0d                  # allocate heap space
+    488b o310                     # copy into %rcx
+    48c1 o351 20                  # unsigned right-shift by 32 bits
+    85   o311                     # are the high 32 bits zero?
+    74:1[L://:k_small - :>]       # if so, use small encoding
+
+    :://:k_large                  # large encoding (64-bit immediate)
+    4883 o356 0d                  # allocate 13-byte heap space
     66c7 o006 48b8                # write 48b8 instruction at (%rsi)
       c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
     4889 o10602                   # write value to be pushed
-    4889 o167f8                   # data-push %rsi
-    c3
+    eb:1[L://:k_end - :>]         # and we're done
+
+    :://:k_small                  # small encoding (32-bit immediate, no REX)
+    4883 o356 08                  # allocate 8-byte heap space
+    c6   o006 b8                  # write b8 instruction at (%rsi)
+    c7   o10604 0048abc3          # write 48ab c3 sequence at 4(%rsi)
+    89   o10601                   # write low 32 bits
+
+    :://:k_end
+    4889 o167f8 c3                # data-push %rsi; return
 
 Notice that we're writing the end opcodes first. Doing it this way lets us use
 a wider 4-byte mov, which makes the code smaller and decreases the instruction
@@ -817,7 +839,7 @@ Here's an initial implementation:
     e8:4[L://:k  - :>]                  # symbol -> k symbol
     e8:4[L:/%x   - :>]                  # swap
     e8:4[L://:k  - :>]                  # value -> k value
-    48c7 o300 :4[Lb:/@?k] 48ab          # push reference to @?k
+    b8:4[Lb:/@?k] 48ab                  # push reference to @?k
     e8:4[L:swons - :>]                  # first composition
     e8:4[L:swons - :>]                  # final composition
     c3
@@ -904,11 +926,8 @@ Here's @:k. I chose to write the closure thunk manually just to get things
 done; otherwise it would have been allocated using /:k and consed into @:k
 using the real cons function. (However, @:k is a valid list anyway.)
 
-Also, this closure is slightly smaller than the one that would have been
-written by /:k. (Maybe I should optimize /:k for cases like these...)
-
     ::/@:k-closure
-    c7 o300:4[Lb:/@?k] 48ab c3
+    b8:4[Lb:/@?k] 48ab c3
 
     ::/@:k
     - composition //:k, /%x, //:k, /@:k-closure, swons, swons
