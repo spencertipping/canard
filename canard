@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  90e8c347baad4abdd64c0f278a776ca0
-# istate: fc8e2c6f04cd66bf6593bf8043cbd204
+# state:  86721c73ecdaa7f5c79c40df7b4189c9
+# istate: 67e92fbb586bdfd7f7e3323a3261cf50
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3856,6 +3856,7 @@ non-whitespace and non-bracket.
   ::/$<
   e8:4[L:/nil - :>]                             # push nil as initial state
   4831 o300 48ff o310 48ab 488b o310            # %rcx = data-push(-1)
+  cc
 
   e8:4[L:/$<_get_byte - :>]                     # get a byte of input
 
@@ -3986,7 +3987,7 @@ non-whitespace and non-bracket.
   Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
 
   ::/$<_symbol
-  4831 o311 48ff o311                           # %rcx = -1 (length)
+  4831 o311 48f7 o321                           # %rcx = -1 (length)
 
   ::/$<_symbol_byte
   48ff o016                                     # --%rsi (symbol byte)
@@ -4062,7 +4063,7 @@ non-whitespace and non-bracket.
 
   ::/$<_close
   488b o117f8                                   # data-pop(%rcx = count)
-  4881 o371 feffffff                            # count is -1?
+  4881 o371 ffffffff                            # count is -1?
   75:1[L:/$<_close_normal - :>]                 # we have at least two items
   e9:4[L:/$<_eof - :>]                          # otherwise, eof case
 

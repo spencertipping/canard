@@ -1370,6 +1370,7 @@ where it decreases the code size.
     ::/$<
     e8:4[L:/nil - :>]                             # push nil as initial state
     4831 o300 48ff o310 48ab 488b o310            # %rcx = data-push(-1)
+    cc
 
     e8:4[L:/$<_get_byte - :>]                     # get a byte of input
 
@@ -1503,7 +1504,7 @@ the loop, we have this:
 Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
 
     ::/$<_symbol
-    4831 o311 48ff o311                           # %rcx = -1 (length)
+    4831 o311 48f7 o321                           # %rcx = -1 (length)
 
     ::/$<_symbol_byte
     48ff o016                                     # --%rsi (symbol byte)
@@ -1581,7 +1582,7 @@ immediately. We handle this case by jumping into the eof branch.
 
     ::/$<_close
     488b o117f8                                   # data-pop(%rcx = count)
-    4881 o371 feffffff                            # count is -1?
+    4881 o371 ffffffff                            # count is -1?
     75:1[L:/$<_close_normal - :>]                 # we have at least two items
     e9:4[L:/$<_eof - :>]                          # otherwise, eof case
 
