@@ -1419,7 +1419,7 @@ This function is used after reading a symbol or closing a sublist.
     488b o117f0                                   # load n into %rcx
     4883 o357 08                                  # pop one stack cell
     488b o007 4889 o107f8                         # move value into place
-    48ff o107                                     # subtract one (increment)
+    48ff o301                                     # subtract one (increment)
     51 e8:4[L:cons - :>] 59                       # cons the two top values
     4891 48ab c3                                  # push new count; ret
 
@@ -1443,7 +1443,7 @@ about after the read is complete.
 
     ::/$<_eof
     488b o107f8                                   # move count into %rax
-    3d   01000000                                 # exactly one item left?
+    3d   ffffffff                                 # exactly one item left?
     74:1[L:/$<_eof_done - :>]                     # if so, pop and return
 
     e8:4[L:/%x - :>]                              # swap count and value
@@ -1510,7 +1510,7 @@ Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
 
     ::/$<_symbol_byte
     48ff o016                                     # --%rsi (symbol byte)
-    88   o060                                     # (%rsi) = %al (write byte)
+    88   o006                                     # (%rsi) = %al (write byte)
     51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
 
     85   o300                                     # check sign of %eax

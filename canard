@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  dff9696973956db3c405b145bfa189e0
-# istate: fb56df4c68846ab0369c391348d83ed4
+# state:  39ce2fc316957678847a59b20f116e8a
+# istate: 66fd77d590f72e7dbbddeca3168b24a1
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3904,7 +3904,7 @@ non-whitespace and non-bracket.
   488b o117f0                                   # load n into %rcx
   4883 o357 08                                  # pop one stack cell
   488b o007 4889 o107f8                         # move value into place
-  48ff o107                                     # subtract one (increment)
+  48ff o301                                     # subtract one (increment)
   51 e8:4[L:cons - :>] 59                       # cons the two top values
   4891 48ab c3                                  # push new count; ret
 
@@ -3927,7 +3927,7 @@ non-whitespace and non-bracket.
 
   ::/$<_eof
   488b o107f8                                   # move count into %rax
-  3d   01000000                                 # exactly one item left?
+  3d   ffffffff                                 # exactly one item left?
   74:1[L:/$<_eof_done - :>]                     # if so, pop and return
 
   e8:4[L:/%x - :>]                              # swap count and value
@@ -3993,7 +3993,7 @@ non-whitespace and non-bracket.
 
   ::/$<_symbol_byte
   48ff o016                                     # --%rsi (symbol byte)
-  88   o060                                     # (%rsi) = %al (write byte)
+  88   o006                                     # (%rsi) = %al (write byte)
   51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
 
   85   o300                                     # check sign of %eax
@@ -4234,6 +4234,10 @@ define s
     set $stack_end = $rsp
   end
 
+  print_status
+end
+
+define print_status
   print_data_stack
   print_return_stack
   print_heap

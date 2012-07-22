@@ -13,6 +13,10 @@ define s
     set $stack_end = $rsp
   end
 
+  print_status
+end
+
+define print_status
   print_data_stack
   print_return_stack
   print_heap
