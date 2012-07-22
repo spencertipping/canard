@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  39ce2fc316957678847a59b20f116e8a
-# istate: 66fd77d590f72e7dbbddeca3168b24a1
+# state:  90e8c347baad4abdd64c0f278a776ca0
+# istate: fc8e2c6f04cd66bf6593bf8043cbd204
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3892,11 +3892,9 @@ non-whitespace and non-bracket.
   ::/$<_close_bridge e9:4[L:/$<_close - :>]
 
   New value function.
-  Once we have a new value, we cons it onto the topmost state entry. For
-  instance, suppose we had just read a symbol. The next state entry would be a
-  list, so we would have this:
+  Merge two state values. This is used after we finish reading any value.
 
-  | (s symbol) n [...]        -> n-1 (:: (s symbol) [...])
+  | (s symbol) n xn-1 ... x0    -> n (:: (s symbol) xn-1) ... x0
 
   This function is used after reading a symbol or closing a sublist.
 
@@ -3904,9 +3902,8 @@ non-whitespace and non-bracket.
   488b o117f0                                   # load n into %rcx
   4883 o357 08                                  # pop one stack cell
   488b o007 4889 o107f8                         # move value into place
-  48ff o301                                     # subtract one (increment)
   51 e8:4[L:cons - :>] 59                       # cons the two top values
-  4891 48ab c3                                  # push new count; ret
+  4891 48ab c3                                  # restore count; ret
 
   EOF branch.
   This is sort of a hack, but I think it makes sense considering what we have to
@@ -4072,7 +4069,7 @@ non-whitespace and non-bracket.
   ::/$<_close_normal
   488b o104o317f0 4889 o107f8                   # push [l]
   51 e8:4[L:/. - :>] 59                         # apply [l] to list
-  4891 48ab                                     # push original count
+  48ff o301 4891 48ab                           # push --count (increment)
   e8:4[L:/$<_got_value - :>]                    # cons onto previous value
   e9:4[L:/$<_each_continuation - :>]            # continue reading
 

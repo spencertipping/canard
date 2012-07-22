@@ -1407,11 +1407,9 @@ I wanted to keep the conditional logic as compact as possible.
 
 ## New value function
 
-Once we have a new value, we cons it onto the topmost state entry. For
-instance, suppose we had just read a symbol. The next state entry would be a
-list, so we would have this:
+Merge two state values. This is used after we finish reading any value.
 
-    (s symbol) n [...]        -> n-1 (:: (s symbol) [...])
+    (s symbol) n xn-1 ... x0    -> n (:: (s symbol) xn-1) ... x0
 
 This function is used after reading a symbol or closing a sublist.
 
@@ -1419,9 +1417,8 @@ This function is used after reading a symbol or closing a sublist.
     488b o117f0                                   # load n into %rcx
     4883 o357 08                                  # pop one stack cell
     488b o007 4889 o107f8                         # move value into place
-    48ff o301                                     # subtract one (increment)
     51 e8:4[L:cons - :>] 59                       # cons the two top values
-    4891 48ab c3                                  # push new count; ret
+    4891 48ab c3                                  # restore count; ret
 
 ## EOF branch
 
@@ -1591,7 +1588,7 @@ immediately. We handle this case by jumping into the eof branch.
     ::/$<_close_normal
     488b o104o317f0 4889 o107f8                   # push [l]
     51 e8:4[L:/. - :>] 59                         # apply [l] to list
-    4891 48ab                                     # push original count
+    48ff o301 4891 48ab                           # push --count (increment)
     e8:4[L:/$<_got_value - :>]                    # cons onto previous value
     e9:4[L:/$<_each_continuation - :>]            # continue reading
 
