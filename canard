@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  86721c73ecdaa7f5c79c40df7b4189c9
-# istate: 67e92fbb586bdfd7f7e3323a3261cf50
+# state:  470cd4288795a369122a1e58e236126c
+# istate: 79415f2e9fc603f02d2efb9fd0acc24a
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -257,6 +257,10 @@ meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
 meta::alias('d', 'sh gdb -x bin/canard.debug.gdb bin/canard');
+meta::alias('dr', <<'__');
+sh gdb -x bin/canard.run.gdb bin/canard
+
+__
 meta::alias('eb', 'edit sdoc::binary::boot');
 meta::alias('ed', 'edit sdoc::gdb::boot-debug');
 meta::alias('erf', 'edit function::render');
@@ -896,6 +900,7 @@ file::write('bin/canard.md', retrieve('markdown::binary::boot'));
 terminal::info('image size is ' . length(compile_binary('pp::binary::boot')));
 
 file::write('bin/canard.debug.gdb', retrieve('gdb::boot-debug'));
+file::write('bin/canard.run.gdb',   retrieve('gdb::boot-run'));
 
 chmod 0700, 'bin/canard';
 
@@ -3856,7 +3861,6 @@ non-whitespace and non-bracket.
   ::/$<
   e8:4[L:/nil - :>]                             # push nil as initial state
   4831 o300 48ff o310 48ab 488b o310            # %rcx = data-push(-1)
-  cc
 
   e8:4[L:/$<_get_byte - :>]                     # get a byte of input
 
@@ -4286,6 +4290,14 @@ define print_cell
   end
 end
 
+
+__
+meta::sdoc('gdb::boot-run', <<'__');
+Canard bootstrap run script.
+This just runs the program and lets it fail normally. Useful for determining the
+cause of segfaults.
+
+run
 
 __
 meta::template('comment', '\'\';     # A mechanism for line or block comments.');

@@ -1370,7 +1370,6 @@ where it decreases the code size.
     ::/$<
     e8:4[L:/nil - :>]                             # push nil as initial state
     4831 o300 48ff o310 48ab 488b o310            # %rcx = data-push(-1)
-    cc
 
     e8:4[L:/$<_get_byte - :>]                     # get a byte of input
 
