@@ -646,33 +646,33 @@ The only reason syscall wrappers are particularly interesting is that they
 have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
 %r10, etc, are not saved.
 
-    ::/&0
-    56
-    488b o107f8 4883 o357 08      # data-pop -> %rax
-    57 0f05 5f5e 48ab c3          # syscall; pop %rdi, %rsi; data-push
-
-    ::/&1
-    56                            # push %rsi
-    488b o107f8                   # data-pop -> %rax
-    4c8b o117f0 4883 o357 10      # data-pop -> %rcx
-    57 4887 o317                  # push %rdi; swap %rcx, %rdi
+    ::/&0                         # &0 n = syscall(n)
+    4883 o357 08 5657             # stash %rsi, %rdi
+    488b o007                     # data-pop -> %rax
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
-    ::/&2
-    56                            # push %rsi
-    488b o107f8                   # data-pop -> %rax
-    488b o117f0                   # data-pop -> %rcx
-    488b o167e8 4883 o357 18      # data-pop -> %rsi
-    57 4887 o317                  # push %rdi; swap %rcx, %rdi
+    ::/&1                         # &1 n a = syscall(%rax = n, %rdi = a)
+    4883 o357 10 5657             # stash %rsi, %rdi
+    488b o007                     # n -> %rax
+    4c8b o17708                   # a -> %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
-    ::/&3
-    56                            # push %rsi
-    488b o107f8                   # data-pop -> %rax
-    488b o117f0                   # data-pop -> %rcx
-    488b o167e8                   # data-pop -> %rsi
-    488b o127e0 4883 o357 20      # data-pop -> %rdx
-    57 4887 o317                  # push %rdi; swap %rcx, %rdi
+    ::/&2                         # &2 n a b = syscall(%rax = n, %rdi = a,
+                                  #                              %rsi = b)
+    4883 o357 18 5657             # stash %rsi, %rdi
+    488b o007                     # n -> %rax
+    488b o16710                   # b -> %rsi
+    488b o17708                   # a -> %rdi
+    0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
+
+    ::/&3                         # &3 n a b c = syscall(%rax = n, %rdi = a,
+                                  #                                %rsi = b,
+                                  #                                %rdx = c)
+    4883 o357 20 5657             # stash %rsi, %rdi
+    488b o007                     # n -> %rax
+    488b o16710                   # b -> %rsi
+    488b o12718                   # c -> %rdx
+    488b o17708                   # a -> %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
 ## Utility functions
@@ -690,11 +690,11 @@ number 0.
 
 Arguments to these system calls pass through directly, as do return values.
 
-    ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # n buf fd -> n
-    ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # n buf fd -> n
-    ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # path f m -> fd
-    ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # fd -> status
-    ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # path buf -> n
+    ::/&read  4831o300      48ab e9:4[L:/&3 - :>]        # &read  fd buf n -> n
+    ::/&write 4831o300 b001 48ab e9:4[L:/&3 - :>]        # &write fd buf n -> n
+    ::/&open  4831o300 b002 48ab e9:4[L:/&3 - :>]        # &open  path f m -> fd
+    ::/&close 4831o300 b003 48ab e9:4[L:/&1 - :>]        # &close fd -> status
+    ::/&stat  4831o300 b004 48ab e9:4[L:/&2 - :>]        # &stat  path buf -> n
 
     ::/&exit  4831o300 b03c 48ab e9:4[L:/&1 - :>]        # code -> _
 
@@ -1168,14 +1168,13 @@ Note that any data in the buffer is obliterated when you call |<. You should
 make sure that |= returns zero for the buffer before using |<.
 
     ::/|<
-    56                            # store %rsi for later
+    5657                          # store %rsi and %rdi for later
     4831 o300                     # %rax = 0 (read syscall)
-    488b o117f8                   # %rcx = fd
     488b o167f0                   # %rsi = buf
     8b   o026                     # %rdx = buffer size
+    488b o177f8                   # %rdi = fd
     4883 o306 0c                  # %rsi += 12 (skip buffer header)
-    4887 o371                     # swap %rcx and %rdi
-    51 0f05 5f5e                  # stash %rdi; syscall; restore %rdi and %rsi
+    0f05 5f5e                     # syscall; restore %rdi and %rsi
 
 At this point %rax contains an error or a count. Clear the buffer position and
 set the upper bound accordingly. We don't differentiate between errors and
