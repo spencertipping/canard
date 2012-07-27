@@ -16,6 +16,24 @@ define s
   print_status
 end
 
+define xb
+  printf "length:   "
+  x/wx $arg0
+  printf "position: "
+  x/wx ($arg0  + 4)
+  printf "upper:    "
+  x/wx ($arg0  + 8)
+  printf "contents: "
+  x/20sb ($arg0 + 12)
+end
+
+define xs
+  print "length:   "
+  x/h $arg0
+  print "contents: "
+  x/10sb ($arg0 + 2)
+end
+
 define print_status
   print_data_stack
   print_return_stack
@@ -61,7 +79,7 @@ define print_heap
 end
 
 define print_cell
-  x/g $arg0
+  x/xg $arg0
   if $__ >= 0x400000 && $__ < 0x500000
     x/i $__
   end

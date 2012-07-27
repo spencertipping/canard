@@ -654,15 +654,15 @@ have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
 
     ::/&1                         # &1 n a = syscall(%rax = n, %rdi = a)
     4883 o357 10 5657             # stash %rsi, %rdi
-    488b o007                     # n -> %rax
-    4c8b o17708                   # a -> %rdi
+    488b o10708                   # n -> %rax
+    488b o077                     # a -> %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
     ::/&2                         # &2 n a b = syscall(%rax = n, %rdi = a,
                                   #                              %rsi = b)
     4883 o357 18 5657             # stash %rsi, %rdi
-    488b o007                     # n -> %rax
-    488b o16710                   # b -> %rsi
+    488b o10710                   # n -> %rax
+    488b o067                     # b -> %rsi
     488b o17708                   # a -> %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
@@ -670,10 +670,10 @@ have to save/restore %rsi and %rdi on the return stack. Other registers, %r9,
                                   #                                %rsi = b,
                                   #                                %rdx = c)
     4883 o357 20 5657             # stash %rsi, %rdi
-    488b o007                     # n -> %rax
-    488b o16710                   # b -> %rsi
-    488b o12718                   # c -> %rdx
-    488b o17708                   # a -> %rdi
+    488b o10718                   # n -> %rax
+    488b o16708                   # b -> %rsi
+    488b o027                     # c -> %rdx
+    488b o17710                   # a -> %rdi
     0f05 5f5e 48ab c3             # syscall; pop %rdi, %rsi; data-push
 
 ## Utility functions
@@ -1142,7 +1142,7 @@ character without advancing the buffer.
     488b o117f8                   # data-pop buffer into %rcx
     8b   o13104                   # %ebx = current
     4831 o300                     # %rax = 0
-    8a   o104o0010c               # %al = 12(%rax,%rbx,1) -- next byte
+    8a   o104o0130c               # %al = 12(%rcx,%rbx,1) -- next byte
     4889 o107f8 c3                # return result
 
     ::/|.
@@ -1388,11 +1388,13 @@ the loop. Here's a quick bit of code to do that.
     e8:4[L:/$<_get_byte - :>]                     # pull a byte
     eb:1[L:/$<_next_byte - :>]                    # back to the main loop
 
-State transition functions. These have large displacements, so we can't use
-one-byte conditional jumps to get to the right place in code. Instead, we jump
-to these bridges. Introducing the indirection isn't bad for performance; the
-alternative would be to negate the jump conditions above and instead jump over
-these bridges. So the above code would look like this:
+## State transition functions
+
+These have large displacements, so we can't use one-byte conditional jumps to
+get to the right place in code. Instead, we jump to these bridges. Introducing
+the indirection isn't bad for performance; the alternative would be to negate
+the jump conditions above and instead jump over these bridges. So the above
+code would look like this:
 
     3c'[ 75:1[L:/$<_not_open - :>] e9:4[L:/$<_open - :>]
     ::/$<_not_open
@@ -1409,14 +1411,23 @@ I wanted to keep the conditional logic as compact as possible.
 
 Merge two state values. This is used after we finish reading any value.
 
-    (s symbol) n xn-1 ... x0    -> n (:: (s symbol) xn-1) ... x0
+    v n xn-1 ... x0       -> n (:: v xn-1) ... x0
 
-This function is used after reading a symbol or closing a sublist.
+This function is used after reading a symbol or closing a sublist. If a
+symbol, then 'v' will be the result of invoking [s] on the symbol; if a list,
+'v' will be the result of invoking [l] on the cons.
+
+The stack shifting here looks like this:
+
+    $<_got_value v n xn-1 ...   -> (%rcx = n) v xn-1 ...
+
+Basically, we're just swapping 'v' with 'n' for the duration of the function.
 
     ::/$<_got_value
     488b o117f0                                   # load n into %rcx
+    488b o137f8                                   # load v into %rbx
+    4889 o137f0                                   # ... and then push it
     4883 o357 08                                  # pop one stack cell
-    488b o007 4889 o107f8                         # move value into place
     51 e8:4[L:cons - :>] 59                       # cons the two top values
     4891 48ab c3                                  # restore count; ret
 
@@ -1443,6 +1454,7 @@ about after the read is complete.
     3d   ffffffff                                 # exactly one item left?
     74:1[L:/$<_eof_done - :>]                     # if so, pop and return
 
+    48ff o107f8                                   # decrement count (increment)
     e8:4[L:/%x - :>]                              # swap count and value
     e8:4[L:/$<_got_value - :>]                    # merge the value down
     eb:1[L:/$<_eof - :>]                          # repeat until we're done
@@ -1506,7 +1518,7 @@ Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
     4831 o311 48f7 o321                           # %rcx = -1 (length)
 
     ::/$<_symbol_byte
-    48ff o016                                     # --%rsi (symbol byte)
+    48ff o316                                     # --%rsi (symbol byte)
     88   o006                                     # (%rsi) = %al (write byte)
     51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
 
@@ -1533,6 +1545,11 @@ Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
     ff   o302                                     # increment %edx
     e2:1[L:/$<_reverse_loop - :>]                 # decrement %rcx, next byte
     ::/$<_reverse_loop_end
+
+At this point we have nothing but the closure data and the state count on the
+stack. The symbol is being pointed to by %rsi. We need to push the symbol,
+invoke [s] on it, and cons it onto the result, all without losing the current
+value of %al.
 
     50                                            # stash %rax
        488b o117f8                                # pull count into %rcx
@@ -1724,7 +1741,7 @@ This function just generates the symbol closures described above. Each closure
 is 17 bytes long.
 
     ::/$<@
-    488b o107f8                           # symbol pointer -> %rax
+    4883 o357 08 488b o007                # pop symbol pointer -> %rax
     488b o316                             # %rsi -> displacement base (%rcx)
     4883 o356 11                          # allocate 17 bytes on the heap
     66c7 o006 48b8                        # encode 48b8 instruction
