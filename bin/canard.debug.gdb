@@ -1,7 +1,7 @@
 # Canard bootstrap debugging script.
 # GDB definitions to make it easier to debug the main image.
 
-break *0x4001ef
+break *0x4001f5
 run
 
 set $stack_end = 0

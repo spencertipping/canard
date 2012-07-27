@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  d1862d8b70ee1d5dacc9e22b799b65cf
-# istate: 3fc0ab07883a48d6b9ab1545d9dac875
+# state:  ec13a866f146b8c4f325dbea41881c52
+# istate: 069c0f9f709c886c9ffba853071431e8
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -266,7 +266,6 @@ meta::alias('ed', 'edit sdoc::gdb::boot-debug');
 meta::alias('erf', 'edit function::render');
 meta::alias('ev', 'edit vim_highlighter::canard');
 meta::alias('r', 'sh readelf -h bin/canard');
-meta::alias('repl', 'sh boot/interpreter');
 meta::bootstrap('html', <<'__');
 <html>
   <head>
@@ -378,7 +377,7 @@ meta::cache('parent-state', <<'__');
 3d87f1a4b0694cfebcbfd589fa5ed5dd 18d86397c52aeb07c61f70b50fb20703
 70dae4b46eb4e06798ec6f38d17d4c7b e25c4729aff094da49d7b9903452bcea
 902333a0bd6ed90ff919fe8477cb4e69 5bb14b94b33b7e5f476e5ce905d81e6f
-93194ecf50e38f2adb6e273909e007b5 515d0c8be8ab353120d66fe9a80a5a3c
+93194ecf50e38f2adb6e273909e007b5 2129b946150c88bc1821c860085ca75d
 99aeabc9ec7fe80b1b39f5e53dc7e49e 20cbfd8b1bd09b6a60c0eea0f9ca525d
 9fabb9b6f2f374c35ddcc26549ac2b65 63765c7bc2addea974ed38cb6c2733b2
 a1e8480e579614c01dabeecf0f963bcc dc33b10238e896bad155335a5e119e2e
@@ -466,13 +465,14 @@ meta::function('compile-binary', <<'__');
 # Placement (low-level):
 # /@![0-9a-f]+/         <- place assertion (die unless next byte is at place)
 # /@[0-9a-f]+/          <- place seek (emit null bytes until next byte is place)
-# /@\?(\w\+)/           <- debugging: print \1 followed by its location
+# /@\?(\w\+)/           <- debugging: print $1 followed by its location
+# /@:[0-9a-f]+/         <- alignment: emit $0 until next byte is multiple of n
 #
 # Repetition:
-# /\/(\d+)\//           <- repeat next byte \1 times
+# /\/(\d+)\//           <- repeat next byte $1 times
 #
 # Assembler:
-# /::([^' ]\+)/         <- create label \1 pointing to next byte offset
+# /::([^' ]\+)/         <- create label $1 pointing to next byte offset
 # /:\d*\[([^\]]+)\]/    <- insert bytes resulting from expression evaluation
 #
 # The assembler gives you a language you can use to evaluate expressions. It's
@@ -484,9 +484,9 @@ meta::function('compile-binary', <<'__');
 #
 # s/:</$o/g                             <- offset at beginning of expression
 # s/:>/($o + $e{size})/g                <- offset at end of expression
-# s/::?([^' ]+)/$places{'\1'}/g         <- label references
-# s/L(\d)?(.*)/&$le(\1, \2)/g           <- little-endian integer encoding
-# s/B(\d)?(.*)/&$be(\1, \2)/g           <- big-endian integer encoding
+# s/::?([^' ]+)/$places{'$1'}/g         <- label references
+# s/L(\d)?(.*)/&$le($1, $2)/g           <- little-endian integer encoding
+# s/B(\d)?(.*)/&$be($1, $2)/g           <- big-endian integer encoding
 #
 # Little-endian and big-endian encoders take a numeric argument indicating how
 # many bytes should be encoded. This number is limited only by Perl's numerical
@@ -496,12 +496,14 @@ meta::function('compile-binary', <<'__');
 #
 # You can use 0 width to evaluate an expression with no output; that is, some
 # form of side-effect. In this case, the bracketed expression's value is ignored
-# and no length check occurs.
+# and no length check occurs. A shorthand for this case is :[...].
 #
 # Note that all expressions are evaluated after the basic image has been
 # generated. This allows you to use forward references to labels.
 
-my $text = join ' ', map split(/\s+/), split /(?:\s|^)#.*/m, retrieve($_[0]);
+my ($options, @stuff) = separate_options(@_);
+
+my $text = join ' ', map split(/\s+/), split /(?:\s|^)#.*/m, cat(@stuff);
 my $hex_letters = '0123456789abcdef';
 
 my %places;
@@ -513,10 +515,11 @@ my $next       = 1;
 my $repeat     = sub {$next = $_[0]; ''};                       # Repeaters have no output
 my $repetition = sub {my $count = $next; $next = 1; $count};
 my $ascii      = sub {$_[0]};
-my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                      for 0 .. 7; chr($total) x &$repetition()};
-my $octal      = sub {my $total = 0; $total = ($total << 3) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 2; chr($total) x &$repetition()};
-my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
+my $binary     = sub {my $total = 0; $total = ($total << 1) + substr($_[0], $_, 1)                         for 0 .. 7; chr($total) x &$repetition()};
+my $octal      = sub {my $total = 0; $total = ($total << 3) + index($hex_letters,    substr($_[0], $_, 1)) for 0 .. 2; chr($total) x &$repetition()};
+my $hex        = sub {my $total = 0; $total = ($total << 4) + index($hex_letters, lc substr($_[0], $_, 1)) for 0 .. 1; chr($total) x &$repetition()};
 my $until      = sub {my $address = hex $_[0]; "\0" x ($address - $offset)};
+my $align      = sub {my $width = hex $_[0]; "\0" x (($width - $offset % $width) % $width)};
 my $debug      = sub {printf STDERR "%s: 0x%x\n", $_[0], $offset; ''};
 my $place      = sub {die sprintf "incorrect address at place %x (actual is %x)", hex $_[0], $offset unless $offset == hex $_[0]; ''};
 my $label      = sub {die sprintf "label %s is defined twice" if exists $places{$_[0]}; $places{$_[0]} = $offset; ''};
@@ -524,13 +527,14 @@ my $expression = sub {push @{$expressions{$offset} ||= []}, {size => $_[0], e =>
 
 my $emit       = sub {my ($s) = @_; $offset += length $s; push @output, $s};
 
-my @tokens = split m#('\S+ | -[01]{8} | o[0-3][0-7]{2} | [0-9a-f]{2} | @\?\S+ |
-                      @!?[0-9a-f]+ | /\d+/ | ::\S+ | :\d*\[[^\]]+\])#x, $text;
+my @tokens = split m#('\S+ | -[01]{8} | o[0-3][0-7]{2} | [0-9a-f]{2} | \@\?\S+ |
+                      /\d+/ | ::\S+ | :\d*\[[^\]]+\] | \@[!:]?[0-9a-f]+)#x, $text;
 
-&$emit(/^'(\S+)/        ? &$ascii($1)  : /^@\?(\S+)/          ? &$debug($1) :
-       /^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/  ? &$octal($1) :
-       /^@!([0-9a-f]+)/ ? &$place($1)  : /^@([0-9a-f]+)/      ? &$until($1) :
-       /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/       ? &$hex($_)   :
+&$emit(/^'(\S+)/        ? &$ascii($1)  : /^\@\?(\S+)/        ? &$debug($1) :
+       /^-([01]{8})/    ? &$binary($1) : /^o([0-3][0-7]{2})/ ? &$octal($1) :
+       /^@!([0-9a-f]+)/ ? &$place($1)  : /^\@([0-9a-f]+)/    ? &$until($1) :
+                                         /^\@:([0-9a-f]+)/   ? &$align($1) :
+       /^\/(\d+)\//     ? &$repeat($1) : /^[0-9a-f]{2}/      ? &$hex($_)   :
 
        /^::(\S+)/            ? &$label($1)          :
        /^:(\d*)\[([^\]]+)\]/ ? &$expression($1, $2) : '') for @tokens;
@@ -576,6 +580,9 @@ for my $o (sort {$a <=> $b} keys %expressions) {
     }
   }
 }
+
+# Bwoop bwoop bwoop egregious hack alert
+$transient{compile_binary_places} = \%places if $$options{'--save-places'};
 
 $concatenated;
 
@@ -828,6 +835,14 @@ my @result = eval(join ' ', @_);
 $@ ? terminal::error($@) : wantarray ? @result : $result[0];
 
 __
+meta::function('places', <<'__');
+# Returns a human-readable string of places and their locations.
+my %places = @_;
+my @keys   = sort {$places{$a} <=> $places{$b}} keys %places;
+
+table_display(\@keys, [map sprintf("0x%06x", $places{$_}), @keys]);
+
+__
 meta::function('preprocess', <<'__');
 # Implements a simple preprocessing language.
 # Syntax follows two forms. One is the 'line form', which gives you a way to specify arguments inline
@@ -895,19 +910,33 @@ my ($options, @stuff) = separate_options(@_);
 # Commented out until I write an accurate readme
 # file::write('README.md', retrieve('markdown::readme'));
 
-file::write('bin/canard',    compile_binary('pp::binary::boot'), mkpath => 1);
-file::write('bin/canard.md', retrieve('markdown::binary::boot'));
-terminal::info('image size is ' . length(compile_binary('pp::binary::boot')));
+# Render main binary image and associated documentation
+file::write('bin/canard.binary', retrieve('pp::binary::boot'), mkpath => 1);
+file::write('bin/canard.md',     retrieve('markdown::binary::boot'));
 
+my $binary = compile_binary('pp::binary::boot', '--save-places');
+terminal::info('image size is ' . length($binary));
+file::write('bin/canard', $binary);
+chmod 0700, 'bin/canard';
+
+# Aliases as shell scripts
+retrieve("alias::$_") =~ /^sh (.*)/ and file::write("=$_", "#!/bin/bash\n$1"),
+chmod 0700, "=$_"
+for grep s/^alias:://, sort keys %data;
+
+# Information to help debug the image given a segfault offset
+file::write('bin/canard.offsets', places(%{$transient{compile_binary_places}}));
+
+# GDB scripts
 file::write('bin/canard.debug.gdb', retrieve('gdb::boot-debug'));
 file::write('bin/canard.run.gdb',   retrieve('gdb::boot-run'));
 
-chmod 0700, 'bin/canard';
-
-file::write('doc/canard.vim', retrieve('vim_highlighter::canard'), mkpath => 1);
-
+# Design docs
 file::write("doc/$_.md", retrieve("markdown::note::$_"), mkpath => 1)
 for grep s/^note:://, sort keys %data;
+
+# Misc junk:
+file::write('doc/canard.vim', retrieve('vim_highlighter::canard'), mkpath => 1);
 
 __
 meta::function('rm', <<'__');
@@ -2284,7 +2313,7 @@ retriever::perl                         f41938e6dbad317f62abffc1e4d28cca
 
 __
 meta::parent('binary', <<'__');
-function::compile-binary  6f8dafa4fa5a7fe21e972dc5e26b1b15
+function::compile-binary  4d50394b4abbdfc1acfa04614de3ce7d
 meta::type::binary        3a80e9982dedb950aa1a9ae301670dc4
 parent::vim-highlighters  98dc835e12038ddcd04630e62175fa90
 retriever::bin            24b2382d3f002ee325963a5c652c53ff
@@ -2709,6 +2738,7 @@ pushed onto the data stack prior to invoking 'main'.
   :2[L:swons]    ::@swons    0300':$:
   :2[L:allocate] ::@allocate 0200':v
   :2[L:uncons]   ::@uncons   0200':^
+  :2[L:cons?]    ::@cons?    0200':?
 
   /2/00         # end marker
   ::end_binding_table
@@ -4212,10 +4242,13 @@ callee-rewrite strategy.
   c7   o10609 0048abe8                  # encode 48ab and e8 instructions
   4889 o10602                           # write symbol pointer (for 48b8)
   b8:4[Lb:/$<@_rewriter]                # load absolute address of rewriter
-  482b o310                             # compute displacement
-  89   o1160d                           # write displacement
+  482b o301                             # compute displacement
+  89   o1060d                           # write displacement
   488b o306 48ab c3                     # return closure
 
+# Insert alignment to the nearest 16-byte boundary. This simplifies debugging by
+# making it more obvious when we have bogus values for %rdi.
+@:10
 ::bootstrap_end
 
 __
@@ -4223,7 +4256,7 @@ meta::sdoc('gdb::boot-debug', <<'__');
 Canard bootstrap debugging script.
 GDB definitions to make it easier to debug the main image.
 
-break *0x4001ef
+break *0x4001f5
 run
 
 set $stack_end = 0

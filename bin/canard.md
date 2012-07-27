@@ -174,6 +174,7 @@ containing single-quotes.
     :2[L:swons]    ::@swons    0300':$:
     :2[L:allocate] ::@allocate 0200':v
     :2[L:uncons]   ::@uncons   0200':^
+    :2[L:cons?]    ::@cons?    0200':?
 
     /2/00         # end marker
     ::end_binding_table
@@ -1730,8 +1731,11 @@ is 17 bytes long.
     c7   o10609 0048abe8                  # encode 48ab and e8 instructions
     4889 o10602                           # write symbol pointer (for 48b8)
     b8:4[Lb:/$<@_rewriter]                # load absolute address of rewriter
-    482b o310                             # compute displacement
-    89   o1160d                           # write displacement
+    482b o301                             # compute displacement
+    89   o1060d                           # write displacement
     488b o306 48ab c3                     # return closure
 
+    # Insert alignment to the nearest 16-byte boundary. This simplifies debugging by
+    # making it more obvious when we have bogus values for %rdi.
+    @:10
     ::bootstrap_end
