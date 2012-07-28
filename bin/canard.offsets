@@ -205,10 +205,10 @@ allocate               0x000378
 /$<-got-input          0x0008a0
 /$<-fill-buffer        0x0008b9
 /$<@-rewriter          0x0008df
-/$<@                   0x000901
-bootstrap-size         0x000930
-bootstrap-end          0x000930
+/$<@                   0x000905
+bootstrap-size         0x000940
+bootstrap-end          0x000940
 image-size             0x100000
 image-base             0x400000
-file-end               0x400930
+file-end               0x400940
 image-end              0x500000
