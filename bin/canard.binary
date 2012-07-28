@@ -33,62 +33,62 @@
 #   These dictate where the image goes and how big it is in memory. This is
 #   related to virtual addressing.
 
-  :[::image_base = 0x400000]
-  :[::image_size = 0x100000]
-  :[sub b { shift(@_) + :image_base }]
+  :[::image-base = 0x400000]
+  :[::image-size = 0x100000]
+  :[sub b { shift(@_) + :image-base }]
 
-  :[::image_end  = b:image_size]
+  :[::image-end  = b:image-size]
 
 # ELF header.
 # See elf(5) for details about what this is made of.
 
-::bootstrap_begin
+::bootstrap-begin
 
-::elf_ehdr_begin                # e_ident array
-  ::elf_e_ident    7f 'ELF      # ELF magic
-  ::elf_ei_class   02           # 64-bit binary
-  ::elf_ei_data    01           # Two's complement little-endian
-  ::elf_ei_version 01           # Current ELF version
-  ::elf_ei_osabi   00           # System V UNIX ABI
+::elf-ehdr-begin                # e-ident array
+  ::elf-e-ident    7f 'ELF      # ELF magic
+  ::elf-ei-class   02           # 64-bit binary
+  ::elf-ei-data    01           # Two's complement little-endian
+  ::elf-ei-version 01           # Current ELF version
+  ::elf-ei-osabi   00           # System V UNIX ABI
 
-  ::elf_ei_abiversion 00        # ABI version
-  ::elf_ei_padding /7/00        # padding; end of e_ident
+  ::elf-ei-abiversion 00        # ABI version
+  ::elf-ei-padding /7/00        # padding; end of e-ident
 
-  ::elf_e_type      :2[L 2]     # Executable file
-  ::elf_e_machine   :2[L 0x3e]  # x86-64
-  ::elf_e_version   :4[L 1]     # current version
+  ::elf-e-type      :2[L 2]     # Executable file
+  ::elf-e-machine   :2[L 0x3e]  # x86-64
+  ::elf-e-version   :4[L 1]     # current version
 
-  ::elf_e_entry     :8[L b:entry]
+  ::elf-e-entry     :8[L b:entry]
 
-  ::elf_e_phoff     :8[L :phdr_begin]
-  ::elf_e_shoff     :8[L 0]     # no section headers
+  ::elf-e-phoff     :8[L :phdr-begin]
+  ::elf-e-shoff     :8[L 0]     # no section headers
 
-  ::elf_e_flags     :4[L 0]
-  ::elf_e_ehsize    :2[L :elf_ehdr_end - :elf_ehdr_begin]
-  ::elf_e_phentsize :2[L :phdr_end     - :phdr_begin]
-  ::elf_e_phnum     :2[L 1]
+  ::elf-e-flags     :4[L 0]
+  ::elf-e-ehsize    :2[L :elf-ehdr-end - :elf-ehdr-begin]
+  ::elf-e-phentsize :2[L :phdr-end     - :phdr-begin]
+  ::elf-e-phnum     :2[L 1]
 
-  ::elf_e_shentsize :2[L 0]
-  ::elf_e_shnum     :2[L 0]
-  ::elf_e_shstrndx  :2[L 0]
-::elf_ehdr_end
+  ::elf-e-shentsize :2[L 0]
+  ::elf-e-shnum     :2[L 0]
+  ::elf-e-shstrndx  :2[L 0]
+::elf-ehdr-end
 
 # Program header for main image.
 # This section is read/write/execute and contains the bootstrap code, data stack,
 # and heap. It doesn't contain the return stack since we use the OS-provided one.
 
-:[::bootstrap_size = :bootstrap_end - :bootstrap_begin]
+:[::bootstrap-size = :bootstrap-end - :bootstrap-begin]
 
-::phdr_begin
-  ::phdr_p_type   :4[L 1]         # PT_LOAD
-  ::phdr_p_flags  :4[L 4 | 2 | 1] # PT_R | PT_W | PT_X
-  ::phdr_p_offset :8[L 0]
-  ::phdr_p_vaddr  :8[L :image_base]
-  ::phdr_p_paddr  :8[L 0]
-  ::phdr_p_filesz :8[L :bootstrap_size]
-  ::phdr_p_memsz  :8[L :image_size]
-  ::phdr_p_align  :8[L 0x1000]
-::phdr_end
+::phdr-begin
+  ::phdr-p-type   :4[L 1]         # PT_LOAD
+  ::phdr-p-flags  :4[L 4 | 2 | 1] # PT_R | PT_W | PT_X
+  ::phdr-p-offset :8[L 0]
+  ::phdr-p-vaddr  :8[L :image-base]
+  ::phdr-p-paddr  :8[L 0]
+  ::phdr-p-filesz :8[L :bootstrap-size]
+  ::phdr-p-memsz  :8[L :image-size]
+  ::phdr-p-align  :8[L 0x1000]
+::phdr-end
 
 # Core image layout.
 # The core image consists of two stacks and a heap. The stacks go in opposite
@@ -121,7 +121,7 @@
 #   This variable is the symbol table, which is used by the bootstrap interpreter
 #   to resolve any symbols entered by the user.
 
-  ::symbol_table :8[L 0]
+  ::symbol-table :8[L 0]
 
 #   Symbol constants.
 #   We refer to some constants throughout the code below, most of which are
@@ -143,7 +143,7 @@
 #   a preprocessor macro. (It also makes it more obvious when a label is used as a
 #   symbol binding.)
 
-  ::binding_table
+  ::binding-table
 
 
 :2[L:/main] ::@main 0400'main
@@ -261,7 +261,7 @@
   :2[L:cons?]    ::@cons?    0200':?
 
   /2/00         # end marker
-  ::end_binding_table
+  ::end-binding-table
 
 #   Register initialization.
 #   Set up these registers to point to useful places. %rsp is provided by the OS,
@@ -276,11 +276,11 @@
 #   on the amount of bootstrap code that we use. But the idea is the same either
 #   way; the data stack begins immediately after the bootstrap logic.
 
-  :[::file_end = b:bootstrap_size]
+  :[::file-end = b:bootstrap-size]
 
   ::entry
-  ::rdi_init 48c7 o307:4[L:file_end]
-  ::rsi_init 48c7 o306:4[L:image_end]
+  ::rdi-init 48c7 o307:4[L:file-end]
+  ::rsi-init 48c7 o306:4[L:image-end]
 
 #   At this point the registers are initialized, so we can write to both stacks
 #   and to the heap. We need to set up a 'return' into the exit function so that
@@ -291,8 +291,8 @@
 #   value onto the data stack; this lets 'main' inspect argv and environment
 #   variables. Then we need to push 'exit' as the continuation for 'main'.
 
-  ::push_rsp    488bo304 48ab
-  ::init_return 68:4[Lb:/&exit]
+  ::push-rsp    488bo304 48ab
+  ::init-return 68:4[Lb:/&exit]
 
 # Symbol table.
 # There are several pieces of machinery involved in creating the symbol table.
@@ -300,7 +300,7 @@
 # represented in Canard as a linked list of cons cells. So the general form is
 # something like this:
 
-# | symbol_table: 00000000ssssssss
+# | symbol-table: 00000000ssssssss
 #   ssssssss: e8 xxxxxxxx | e8 yyyyyyyy | e9 zzzzzzzz
 #   zzzzzzzz: e8 qqqqqqqq | ... | c3
 
@@ -314,7 +314,7 @@ e8:4[L:/nil - :>]
 
 # At this point, the heap looks like this:
 
-# | %rsi -> | c3 | :image_end
+# | %rsi -> | c3 | :image-end
 
 # This is necessary for the initialization we're going to do below.
 
@@ -344,24 +344,24 @@ e8:4[L:/nil - :>]
 #   a value, push the value and the symbol pointer (which is simply the integer
 #   value of %rax).
 
-  ::read_binding_table
-  48c7 o305:4[Lb:binding_table]
+  ::read-binding-table
+  48c7 o305:4[Lb:binding-table]
 
-  ::rbt_loop
+  ::rbt-loop
   480fb7 o13500                         # %rbx = Z< 16-byte (%rbp)
   488d   o10502                         # %rax = %rbp + 2
   480fb7 o010                           # %rcx = Z< 16-byte (%rax)
-  6685   o311 74:1[L:rbt_loop_end - :>] # break if value == 0
+  6685   o311 74:1[L:rbt-loop-end - :>] # break if value == 0
 
-  4893 05:4[L:image_base] 48ab          # push %rbx + image_base (value)
+  4893 05:4[L:image-base] 48ab          # push %rbx + image-base (value)
   4893 48ab                             # push %rax (= %rbp + 2)
 
   488d o154o015 02                      # %rbp += %rcx + 2
   55 e8:4[L:/@:k - :>]                  # stash %rbp
      e8:4[L:cons - :>] 5d               # restore %rbp
 
-  eb:1[L:rbt_loop - :>]
-  ::rbt_loop_end
+  eb:1[L:rbt-loop - :>]
+  ::rbt-loop-end
 
 #   Now we have a complete symbol table. Bind it to the global address and start
 #   up the interpreter.
@@ -373,7 +373,7 @@ e8:4[L:/nil - :>]
 #   address. Once we have it, tail-call into the 'main' function and let it return
 #   into 'exit'. (main needs to push an exit code for this to work.)
 
-  ::push_main b8:4[Lb:@main] 48ab       # push symbol 'main'
+  ::push-main b8:4[Lb:@main] 48ab       # push symbol 'main'
   ff   o323                             # resolve 'main' (using table in %rbx)
   488b o107f8 4883 o357 08              # data-pop %rax (address of main)
   ff   o340                             # tail-jump into main
@@ -392,15 +392,15 @@ e8:4[L:/nil - :>]
 
   ::/main
   b8 40000000 48ab e8:4[L:/|: - :>]     # allocate buffer
-  b8:4[Lb:/main_fill_buffer] 48ab       # push buffer fill function
+  b8:4[Lb:/main-fill-buffer] 48ab       # push buffer fill function
   b8:4[Lb:/$<@] 48ab                    # push symbol generator
   b8:4[Lb://:k] 48ab                    # push list generator (closure fn)
   e8:4[L:/$< - :>]                      # invoke reader
   e9:4[L:/. - :>]                       # execute the result
 
-  ::/main_stdin 4831 o300 48ab c3       # k(0)
-  ::/main_fill_buffer
-e8:4[L:/main_stdin - :>]
+  ::/main-stdin 4831 o300 48ab c3       # k(0)
+  ::/main-fill-buffer
+e8:4[L:/main-stdin - :>]
 
 e8:4[L:/|< - :>]
 
@@ -453,18 +453,18 @@ e8:4[L:/|< - :>]
 #   | swons:
 #       data-pop %rbx             <- tail
 #       data-pop %rax             <- head
-#       jmp cons_body             <- reuse logic below
+#       jmp cons-body             <- reuse logic below
 #     cons:
 #       data-pop %rax             <- head
 #       data-pop %rbx             <- tail
-#     cons_body:
+#     cons-body:
 #       cmpq %rbx, %rsi           <- check for contiguous segment
-#     je cons_head                <- skip tail allocation if contiguous
+#     je cons-head                <- skip tail allocation if contiguous
 #       subq %rsi, %rbx           <- absolute->relative
 #       movl %ebx, -4(%rsi)       <- write address of e9 jump instruction
 #       subq $5, %rsi             <- reserve space
 #       movb $0xe9, (%rsi)        <- write e9 jmp opcode
-#     cons_head:
+#     cons-head:
 #       subq %rsi, %rax           <- absolute->relative
 #       movl %eax, -4(%rsi)       <- write address of e8 call instruction
 #       subq $5, %rsi             <- reserve space
@@ -479,19 +479,19 @@ e8:4[L:/|< - :>]
   ::swons
   488b o137f8                           # tail element
   488b o107f0                           # head element
-  eb:1[L:cons_body - :>]                # reuse code below
+  eb:1[L:cons-body - :>]                # reuse code below
 
   ::cons
   488b o107f8                           # head element
   488b o137f0                           # tail element
 
-  ::cons_body
+  ::cons-body
   4883 o357 08                          # pop one
-  4839 o336 74:1[L:cons_head - :>]      # tail allocation check
+  4839 o336 74:1[L:cons-head - :>]      # tail allocation check
   482b o336 89 o136fc                   # relative, write e9 jump offset
   4883 o356 05 c6 o006 e9               # allocate space, write e9 jump opcode
 
-  ::cons_head
+  ::cons-head
   482b o306 89 o106fc                   # relative, write e8 call offset
   4883 o356 05 c6 o006 e8               # allocate space, write e8 call opcode
 
@@ -505,14 +505,14 @@ e8:4[L:/|< - :>]
   ::/!<
   488b o107f8                           # load initial value into %rax
 
-  ::/!<_loop
+  ::/!<-loop
   80   o070 e9                          # is e9 the byte at that location?
-  75:1[L:/!<_bail - :>]                 # it isn't, so we're done
+  75:1[L:/!<-bail - :>]                 # it isn't, so we're done
   4863 o13701                           # sign-extend address into %rbx
   488d o104o00205                       # %rax += %rbx + 5
-  eb:1[L:/!<_loop - :>]                 # dereference this pointer
+  eb:1[L:/!<-loop - :>]                 # dereference this pointer
 
-  ::/!<_bail
+  ::/!<-bail
   4889 o107f8 c3                        # %rax -> stack top; return
 
 #   Unconsing.
@@ -535,7 +535,7 @@ e8:4[L:/|< - :>]
   488b o107f8                           # data-pop %rax
 
   80 o070 e8                            # do we have a real cons cell?
-  75:1[L:uncons_nil - :>]               # if not, jump to the nil case
+  75:1[L:uncons-nil - :>]               # if not, jump to the nil case
 
   4863 o13701                           # sign-extend address into %rbx
   4883 o300 05                          # %rax += 5    (move past e8 call)
@@ -544,7 +544,7 @@ e8:4[L:/|< - :>]
   48ab                                  # data-push %rax (tail)
   c3
 
-  ::uncons_nil                          # this section is a tail call
+  ::uncons-nil                          # this section is a tail call
   e9:4[L:/nil - :>]                     # just push a nil as the tail
 
 #   Cons detection.
@@ -556,10 +556,10 @@ e8:4[L:/|< - :>]
   e8:4[L:/!< - :>]                      # dereference automatically
   488b o107f8                           # load pointer into %rax
   80   o070 e8                          # is the byte e8?
-  74:1[L:cons?_return - :>]             # if so, return now; it is a cons
+  74:1[L:cons?-return - :>]             # if so, return now; it is a cons
   4831 o300 4889 o107f8                 # otherwise, write zero to the stack
 
-  ::cons?_return
+  ::cons?-return
   c3
 
 #   Nil detection.
@@ -570,10 +570,10 @@ e8:4[L:/|< - :>]
   e8:4[L:/!< - :>]                      # dereference automatically
   488b o107f8                           # load pointer into %rax
   80   o070 c3                          # is the byte c3?
-  74:1[L:nil?_return - :>]              # if so, return now; it is nil
+  74:1[L:nil?-return - :>]              # if so, return now; it is nil
   4831 o300 4889 o107f8                 # otherwise, write zero to the stack
 
-  ::nil?_return
+  ::nil?-return
   c3
 
 #   Heap allocation.
@@ -744,7 +744,7 @@ e8:4[L:/|< - :>]
 
 #   Utility functions.
 #   These use the above and abstract away some of the details of system calling.
-#   System call numbers are from /usr/include/asm/unistd_64.h on Linux, and where
+#   System call numbers are from /usr/include/asm/unistd-64.h on Linux, and where
 #   applicable they're encoded like this:
 
 #   | 4831o300              <- xor %rax, %rax
@@ -809,22 +809,22 @@ e8:4[L:/|< - :>]
   488b o310                     # copy into %rcx
   48c1 o351 20                  # unsigned right-shift by 32 bits
   85   o311                     # are the high 32 bits zero?
-  74:1[L://:k_small - :>]       # if so, use small encoding
+  74:1[L://:k-small - :>]       # if so, use small encoding
 
-  :://:k_large                  # large encoding (64-bit immediate)
+  :://:k-large                  # large encoding (64-bit immediate)
   4883 o356 0d                  # allocate 13-byte heap space
   66c7 o006 48b8                # write 48b8 instruction at (%rsi)
     c7 o10609 0048abc3          # write 48ab c3 sequence at 9(%rsi)
   4889 o10602                   # write value to be pushed
-  eb:1[L://:k_end - :>]         # and we're done
+  eb:1[L://:k-end - :>]         # and we're done
 
-  :://:k_small                  # small encoding (32-bit immediate, no REX)
+  :://:k-small                  # small encoding (32-bit immediate, no REX)
   4883 o356 08                  # allocate 8-byte heap space
   c6   o006 b8                  # write b8 instruction at (%rsi)
   c7   o10604 0048abc3          # write 48ab c3 sequence at 4(%rsi)
   89   o10601                   # write low 32 bits
 
-  :://:k_end
+  :://:k-end
   4889 o167f8 c3                # data-push %rsi; return
 
 #   Notice that we're writing the end opcodes first. Doing it this way lets us use
@@ -844,7 +844,7 @@ e8:4[L:/|< - :>]
 #   address onto the data stack.
 
   ::/@>
-  488b o005:4[L:symbol_table - :>] 48ab c3      # st -> %rax; push; ret
+  488b o005:4[L:symbol-table - :>] 48ab c3      # st -> %rax; push; ret
 
 #   Symbol table setter.
 #   This function is only slightly more complex than @> due to the fact that we
@@ -852,7 +852,7 @@ e8:4[L:/|< - :>]
 
   ::/@<
   488b o107f8 4883 o357 08                      # data-pop -> %rax;
-  4889 o005:4[L:symbol_table - :>] c3           # %rax -> (symbol_table); ret
+  4889 o005:4[L:symbol-table - :>] c3           # %rax -> (symbol-table); ret
 
 #   Matchers and symbol resolution.
 #   Each function in the symbol table composition is a matcher. This means that it
@@ -860,10 +860,10 @@ e8:4[L:/|< - :>]
 #   matchers in the symbol table. The calling convention is a consequence of the
 #   way the symbol table works. For example, here's a matching process:
 
-#   | call resolve_symbol                 <- %rsp is now 'return'
-#     resolve_symbol:
-#       call first_matcher                <- %rsp is now 'next'
-#       call second_matcher               <- %rsp is now 'next'
+#   | call resolve-symbol                 <- %rsp is now 'return'
+#     resolve-symbol:
+#       call first-matcher                <- %rsp is now 'next'
+#       call second-matcher               <- %rsp is now 'next'
 #       ...
 #       ret                               <- %rsp is now 'no match'
 
@@ -872,9 +872,9 @@ e8:4[L:/|< - :>]
 #   sort of state through the rest of the calls to communicate when a matcher has
 #   succeeded. This is not the case, however. Matchers can elect to return early
 #   by popping a continuation off of %rsp and then using a RET instruction to
-#   return directly to the caller of resolve_symbol:
+#   return directly to the caller of resolve-symbol:
 
-#   | first_matcher:
+#   | first-matcher:
 #       ...
 #       stosq                             <- push result onto data stack
 #       pop %rax                          <- discard 'next' continuation
@@ -883,7 +883,7 @@ e8:4[L:/|< - :>]
 #   If a matcher fails, it should leave the data stack alone and invoke the 'next'
 #   continuation as if nothing had happened:
 
-#   | first_matcher:
+#   | first-matcher:
 #       ...
 #       ret                               <- invoke 'next' continuation
 
@@ -901,7 +901,7 @@ e8:4[L:/|< - :>]
 #   we need to do is construct two cons cells, one for each argument to @?k. We're
 #   basically building up this list:
 
-#   | :: (/:k value) :: (/:k symbol) [@?k]
+#   | :: (/:k symbol) :: (/:k value) [@?k]
 
 #   The symbol is on the top of the stack, the value beneath it. @:k consumes both
 #   and returns a single matcher function.
@@ -912,16 +912,23 @@ e8:4[L:/|< - :>]
 #     e8:4[L://:k  - :>]                  # symbol -> k symbol
 #     e8:4[L:/%x   - :>]                  # swap
 #     e8:4[L://:k  - :>]                  # value -> k value
+#     e8:4[L:/nil  - :>]                  # push nil
 #     b8:4[Lb:/@?k] 48ab                  # push reference to @?k
+#     e8:4[L:cons  - :>]                  # create singleton list
 #     e8:4[L:swons - :>]                  # first composition
 #     e8:4[L:swons - :>]                  # final composition
 #     c3
 
-#   This implementation looks suspiciously similar to a list. The only exceptional
-#   piece is the reference to @?k, but conveniently can use /:k to do this for us.
-#   If we were going to build @:k in code, it would look roughly like this:
+#   The result is that @?k gets invoked like this, where symbol1 corresponds to
+#   the symbol above:
 
-#   | = [@:k] :++ :$: [:: /:k /%x :$:] /:k '@?k [/:k]
+#   | @?k value symbol1 symbol2
+
+#   The implementation above allocates a new singleton list each time it is
+#   invoked, but there is no reason to do this. Instead, we can avoid the
+#   allocation by statically allocating both the list and a closure to push it.
+#   The result is that @:k is a valid list itself, and it conses up only as much
+#   as is necessary.
 
 #   Here's a preprocessor macro to help create code that consists only of function
 #   calls:
@@ -946,58 +953,40 @@ e8:4[L:/|< - :>]
 #   basically how it needs to work in order to adhere to the calling convention
 #   for symbol table matchers.)
 
-#   Here's the logic:
-
-#   | @?k:
-#       data-pop %rbp                     <- binding address
-#       data-pop %rax                     <- first symbol
-#       movq -8(%rdi), %rbx               <- second symbol (peek, not pop)
-#       xorq %rcx, %rcx                   <- clear high bits
-#       movw (%rax), %cx                  <- get length
-#       cmpw %cx, (%rbx)                  <- both same length?
-#       jne bail                          <- if not, bail
-#     length_ok:
-#       movb 2(%rbx,%rcx,1), %dl
-#       cmpb %dl, 2(%rax,%rcx,1)
-#       jne bail                          <- mismatched character
-#       loop                              <- else do the next one
-#     success:
-#       movq %rbp, -8(%rdi)               <- set data stack result
-#       pop %rax                          <- drop 'next' continuation
-#     bail:                               <- success falls through
-#       ret                               <- invoke 'return' continuation
-
 #   This function ends up being bound as @?k in the symbol table. We bind this
 #   once we've defined cons and bind below.
 
   ::/@?k
-  488b o157f8                   # -8(%rdi) -> %rbp
-  488b o107f0                   # -16(%rdi) -> %rax
-  488b o137e8                   # -24(%rdi) -> %rbx
   4883 o357 10                  # %rdi -= 16 (pop two entries)
+  5657                          # save registers; we use them for cmps
+
+  488b o15708                   # data-pop(binding address -> %rbp)
+  488b o007                     # data-pop(symbol 1 -> %rax)
+  488b o137f8                   # data-pop(symbol 2 -> %rbx)
 
   4831o311 668b o010            # %rcx = length
   6639 o013                     # length check
-  75:1[L:/@?k_bail - :>]
+  75:1[L:/@?k-bail - :>]        # bail immediately if not equal
 
-  ::/@?k_loop
-  8a o124o01302                 # top of loop: populate %dl
-  38 o124o01002                 # compare characters
-  75:1[L:/@?k_bail - :>]        # bail if not equal
-  e2:1[L:/@?k_loop - :>]        # loop if more characters (%cx != 0)
+  488d o16002                   # %rsi <- symbol data for symbol 1
+  488d o17302                   # %rdi <- symbol data for symbol 2
 
-  4889 o157f8                   # %rbp -> -8(%rdi)
-  58                            # pop
+  f348ad                        # loop until difference
+  75:1[L:/@?k-bail - :>]        # bail if we found one
+  5f5e 58                       # otherwise restore %rsi and %rdi, nuke 'next'
+  4889 o157f8                   # data-push binding address
+  c3                            # invoke 'return' continuation
 
-  ::/@?k_bail                   # fall through either way
-  c3                            # invoke return or next continuation
+  ::/@?k-bail
+  5f5e                          # restore %rsi and %rdi
+  c3                            # invoke 'next' continuation
 
 #   Here's @:k. I chose to write the closure thunk manually just to get things
 #   done; otherwise it would have been allocated using /:k and consed into @:k
-#   using the real cons function. (However, @:k is a valid list anyway.)
+#   using the real cons function. (However, @:k is a valid list as written here.)
 
-  ::/@:k-closure
-  b8:4[Lb:/@?k] 48ab c3
+  ::/@:k-list         e8:4[L:/@?k] c3                   # this is a list
+  ::/@:k-list-closure b8:4[Lb:/@:k-list] 48ab c3        # this pushes the list
 
   ::/@:k
 e8:4[L://:k - :>]
@@ -1006,7 +995,7 @@ e8:4[L:/%x - :>]
 
 e8:4[L://:k - :>]
 
-e8:4[L:/@:k-closure - :>]
+e8:4[L:/@:k-list-closure - :>]
 
 e8:4[L:swons - :>]
 
@@ -1054,28 +1043,28 @@ e8:4[L:swons - :>]
   4883 o303 03                  # %rbx += 3 (length + 'x' prefix)
 
   80 o073 'x                    # is the prefix x?
-  75:1[L:/@<x_bail - :>]        # if not, bail; we can't convert this symbol
+  75:1[L:/@<x-bail - :>]        # if not, bail; we can't convert this symbol
 
-  ::/@<x_digit_loop
+  ::/@<x-digit-loop
   88 o003                       # current digit byte -> %al
   3c 'a                         # check this byte against lowercase A
-  7d:1[L:/@<x_letter - :>]      # greater? if so, go to letter case
+  7d:1[L:/@<x-letter - :>]      # greater? if so, go to letter case
   2c '0                         # digit case: subtract '0 offset
-  eb:1[L:/@<x_shift_add - :>]   # go to shift/add section
-  ::/@<x_letter
+  eb:1[L:/@<x-shift-add - :>]   # go to shift/add section
+  ::/@<x-letter
   2c 57                         # letter case: subtract (0x61 - 10 = 0x57)
 
-  ::/@<x_shift_add
+  ::/@<x-shift-add
   48c1 o342 04                  # %rdx <<= 4
   480b o302                     # %rdx |= %rax
   48ff o303                     # ++%rbx
-  e2:1[L:/@<x_digit_loop - :>]  # loop while --%rcx
+  e2:1[L:/@<x-digit-loop - :>]  # loop while --%rcx
 
   4889 o127f8                   # %rdx -> stack top
   e8:4[L://:k]                  # create closure
   58                            # pop 'next' continuation
 
-  ::/@<x_bail
+  ::/@<x-bail
   c3                            # end of @<x
 
 #   The function for octal is similar but much simpler, since we don't have to
@@ -1089,21 +1078,21 @@ e8:4[L:swons - :>]
   4883 o303 03                  # %rbx += 3 (length + 'o' prefix)
 
   80 o073 'o                    # is the prefix o?
-  75:1[L:/@<o_bail - :>]        # if not, bail; we can't convert this symbol
+  75:1[L:/@<o-bail - :>]        # if not, bail; we can't convert this symbol
 
-  ::/@<o_digit_loop
+  ::/@<o-digit-loop
   88 o003                       # current digit byte -> %al
   2c '0                         # digit case: subtract '0 offset
   48c1 o342 03                  # %rdx <<= 3
   480b o302                     # %rdx |= %rax
   48ff o303                     # ++%rbx
-  e2:1[L:/@<o_digit_loop - :>]  # loop while --%rcx
+  e2:1[L:/@<o-digit-loop - :>]  # loop while --%rcx
 
   4889 o127f8                   # %rdx -> stack top
   e8:4[L://:k]                  # create closure
   58                            # pop 'next' continuation
 
-  ::/@<o_bail
+  ::/@<o-bail
   c3                            # end of @<o
 
 #   Quoted symbol parser.
@@ -1133,7 +1122,7 @@ e8:4[L:swons - :>]
   488b o107f8                   # data-pop -> %rax
 
   80 o17002 ''                  # is the prefix '?
-  75:1[L:/@<q_bail - :>]        # if not, bail; we can't convert this symbol
+  75:1[L:/@<q-bail - :>]        # if not, bail; we can't convert this symbol
 
   4831 o311                     # %rcx = 0
   668b o010 ff o311             # %cx = length - 1
@@ -1143,7 +1132,7 @@ e8:4[L:swons - :>]
   e8:4[L://:k]                  # create closure
   58                            # pop 'next' continuation
 
-  ::/@<q_bail
+  ::/@<q-bail
   c3
 
 # Buffer functions.
@@ -1423,22 +1412,22 @@ e8:4[L:swons - :>]
   e8:4[L:/nil - :>]                             # push nil as initial state
   4831 o300 48ff o310 48ab 488b o310            # %rcx = data-push(-1)
 
-  e8:4[L:/$<_get_byte - :>]                     # get a byte of input
+  e8:4[L:/$<-get-byte - :>]                     # get a byte of input
 
-  ::/$<_next_byte                               # handle byte in %al
+  ::/$<-next-byte                               # handle byte in %al
   4885 o300                                     # did we get a byte?
-  78:1[L:/$<_eof_bridge - :>]                   # if not, eof
-  3c'[ 74:1[L:/$<_open_bridge - :>]             # handle open brackets
-  3c'] 74:1[L:/$<_close_bridge - :>]            # handle close brackets
-  3c20 76:1[L:/$<_each_continuation - :>]       # handle whitespace (<= ' ')
-  eb:1[L:/$<_symbol - :>]                       # handle symbol
+  78:1[L:/$<-eof-bridge - :>]                   # if not, eof
+  3c'[ 74:1[L:/$<-open-bridge - :>]             # handle open brackets
+  3c'] 74:1[L:/$<-close-bridge - :>]            # handle close brackets
+  3c20 76:1[L:/$<-each-continuation - :>]       # handle whitespace (<= ' ')
+  eb:1[L:/$<-symbol - :>]                       # handle symbol
 
 #   Each of the above cases is responsible for pulling a byte and heading back to
 #   the loop. Here's a quick bit of code to do that.
 
-  ::/$<_each_continuation                       # continuation for each byte
-  e8:4[L:/$<_get_byte - :>]                     # pull a byte
-  eb:1[L:/$<_next_byte - :>]                    # back to the main loop
+  ::/$<-each-continuation                       # continuation for each byte
+  e8:4[L:/$<-get-byte - :>]                     # pull a byte
+  eb:1[L:/$<-next-byte - :>]                    # back to the main loop
 
 #   State transition functions.
 #   These have large displacements, so we can't use one-byte conditional jumps to
@@ -1447,16 +1436,16 @@ e8:4[L:swons - :>]
 #   the jump conditions above and instead jump over these bridges. So the above
 #   code would look like this:
 
-#   | 3c'[ 75:1[L:/$<_not_open - :>] e9:4[L:/$<_open - :>]
-#     ::/$<_not_open
+#   | 3c'[ 75:1[L:/$<-not-open - :>] e9:4[L:/$<-open - :>]
+#     ::/$<-not-open
 #     3c'] ...
 
 #   I did it using bridges instead because (1) it helps branch prediction, and (2)
 #   I wanted to keep the conditional logic as compact as possible.
 
-  ::/$<_eof_bridge   e9:4[L:/$<_eof   - :>]
-  ::/$<_open_bridge  e9:4[L:/$<_open  - :>]
-  ::/$<_close_bridge e9:4[L:/$<_close - :>]
+  ::/$<-eof-bridge   e9:4[L:/$<-eof   - :>]
+  ::/$<-open-bridge  e9:4[L:/$<-open  - :>]
+  ::/$<-close-bridge e9:4[L:/$<-close - :>]
 
 #   New value function.
 #   Merge two state values. This is used after we finish reading any value.
@@ -1469,11 +1458,11 @@ e8:4[L:swons - :>]
 
 #   The stack shifting here looks like this:
 
-#   | $<_got_value v n xn-1 ...   -> (%rcx = n) v xn-1 ...
+#   | $<-got-value v n xn-1 ...   -> (%rcx = n) v xn-1 ...
 
 #   Basically, we're just swapping 'v' with 'n' for the duration of the function.
 
-  ::/$<_got_value
+  ::/$<-got-value
   488b o117f0                                   # load n into %rcx
   488b o137f8                                   # load v into %rbx
   4889 o137f0                                   # ... and then push it
@@ -1498,17 +1487,17 @@ e8:4[L:swons - :>]
 #   This gets rid of the closure data, which the caller presumably doesn't care
 #   about after the read is complete.
 
-  ::/$<_eof
+  ::/$<-eof
   488b o107f8                                   # move count into %rax
   3d   ffffffff                                 # exactly one item left?
-  74:1[L:/$<_eof_done - :>]                     # if so, pop and return
+  74:1[L:/$<-eof-done - :>]                     # if so, pop and return
 
   48ff o107f8                                   # decrement count (increment)
   e8:4[L:/%x - :>]                              # swap count and value
-  e8:4[L:/$<_got_value - :>]                    # merge the value down
-  eb:1[L:/$<_eof - :>]                          # repeat until we're done
+  e8:4[L:/$<-got-value - :>]                    # merge the value down
+  eb:1[L:/$<-eof - :>]                          # repeat until we're done
 
-  ::/$<_eof_done
+  ::/$<-eof-done
   488b o107f0                                   # last value -> %rax
   4883 o357 30                                  # deallocate six cells
   48ab c3                                       # push value, return
@@ -1562,37 +1551,37 @@ e8:4[L:swons - :>]
 
 #   Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
 
-  ::/$<_symbol
+  ::/$<-symbol
   4831 o311 48f7 o321                           # %rcx = -1 (length)
 
-  ::/$<_symbol_byte
+  ::/$<-symbol-byte
   48ff o316                                     # --%rsi (symbol byte)
   88   o006                                     # (%rsi) = %al (write byte)
-  51 e8:4[L:/$<_get_byte - :>] 59               # load next byte, saving %rcx
+  51 e8:4[L:/$<-get-byte - :>] 59               # load next byte, saving %rcx
 
   85   o300                                     # check sign of %eax
-  78:1[L:/$<_end_symbol - :>]                   # if negative, end this symbol
-  3c'[ 74:1[L:/$<_end_symbol - :>]              # ... or if open bracket
-  3c'] 74:1[L:/$<_end_symbol - :>]              # ... or if close bracket
-  3c20 76:1[L:/$<_end_symbol - :>]              # ... or if whitespace
-  e2:1[L:/$<_symbol_byte - :>]                  # else decrement %rcx, next
+  78:1[L:/$<-end-symbol - :>]                   # if negative, end this symbol
+  3c'[ 74:1[L:/$<-end-symbol - :>]              # ... or if open bracket
+  3c'] 74:1[L:/$<-end-symbol - :>]              # ... or if close bracket
+  3c20 76:1[L:/$<-end-symbol - :>]              # ... or if whitespace
+  e2:1[L:/$<-symbol-byte - :>]                  # else decrement %rcx, next
 
-  ::/$<_end_symbol
+  ::/$<-end-symbol
   48f7 o331                                     # negate %rcx (negative length)
   4883 o356 02                                  # reserve space
   ba   02000000                                 # %rdx = 2
   6689 o016                                     # %cx -> length slot for symbol
   ff   o301                                     # ++%ecx
 
-  ::/$<_reverse_loop                            # reverse bytes in symbol
+  ::/$<-reverse-loop                            # reverse bytes in symbol
   3a   o321                                     # compare %edx with %ecx
-  73:1[L:/$<_reverse_loop_end - :>]             # break if above or equal
+  73:1[L:/$<-reverse-loop-end - :>]             # break if above or equal
   8a   o034o062                                 # %bl <- (%rsi, %rdx)
   86   o034o061                                 # swap with (%rsi, %rcx)
   86   o034o062                                 # swap with (%rsi, %rdx)
   ff   o302                                     # increment %edx
-  e2:1[L:/$<_reverse_loop - :>]                 # decrement %rcx, next byte
-  ::/$<_reverse_loop_end
+  e2:1[L:/$<-reverse-loop - :>]                 # decrement %rcx, next byte
+  ::/$<-reverse-loop-end
 
 #   At this point we have nothing but the closure data and the state count on the
 #   stack. The symbol is being pointed to by %rsi. We need to push the symbol,
@@ -1605,9 +1594,9 @@ e8:4[L:swons - :>]
      488b o306 48ab                             # push symbol
      4891 48ab                                  # push [s]
      e8:4[L:/. - :>]                            # invoke [s] on symbol
-     e8:4[L:/$<_got_value - :>]                 # cons value onto result
+     e8:4[L:/$<-got-value - :>]                 # cons value onto result
   58                                            # restore %rax (contains byte)
-  e9:4[L:/$<_next_byte - :>]                    # process next byte
+  e9:4[L:/$<-next-byte - :>]                    # process next byte
 
 #   Open-bracket branch.
 #   When we see an open bracket, we add a new list to the state. Here's the exact
@@ -1620,12 +1609,12 @@ e8:4[L:swons - :>]
 #   list instead of the one below it. The corresponding closing bracket will cause
 #   this list to be consed into its parent.
 
-  ::/$<_open                                    # create a new quoted list
+  ::/$<-open                                    # create a new quoted list
   488b o117f8 4883 o357 08                      # pop current count
   48ff o311                                     # increase count (decrement)
   51 e8:4[L:/nil - :>] 59                       # push nil
   4891 48ab                                     # push new count
-  e9:4[L:/$<_each_continuation - :>]            # continue reading
+  e9:4[L:/$<-each-continuation - :>]            # continue reading
 
 #   Close-bracket branch.
 #   We need to do two things here. First we call the [l] function to transform the
@@ -1642,47 +1631,47 @@ e8:4[L:swons - :>]
 #   element on the stack, then the ] is an end-of-input delimiter and we return
 #   immediately. We handle this case by jumping into the eof branch.
 
-  ::/$<_close
+  ::/$<-close
   488b o117f8                                   # data-pop(%rcx = count)
   4881 o371 ffffffff                            # count is -1?
-  75:1[L:/$<_close_normal - :>]                 # we have at least two items
-  e9:4[L:/$<_eof - :>]                          # otherwise, eof case
+  75:1[L:/$<-close-normal - :>]                 # we have at least two items
+  e9:4[L:/$<-eof - :>]                          # otherwise, eof case
 
-  ::/$<_close_normal
+  ::/$<-close-normal
   488b o104o317f0 4889 o107f8                   # push [l]
   51 e8:4[L:/. - :>] 59                         # apply [l] to list
   48ff o301 4891 48ab                           # push --count (increment)
-  e8:4[L:/$<_got_value - :>]                    # cons onto previous value
-  e9:4[L:/$<_each_continuation - :>]            # continue reading
+  e8:4[L:/$<-got-value - :>]                    # cons onto previous value
+  e9:4[L:/$<-each-continuation - :>]            # continue reading
 
 #   Low-level buffer management.
 #   These functions interface with the buffer to pull individual bytes into %al
 #   for the above parsing logic.
 
-  ::/$<_available                               # result will be in %rax
+  ::/$<-available                               # result will be in %rax
   488b o117f8                                   # %rcx <- count
   488b o104o317d8 48ab                          # push buffer pointer
   e8:4[L:/|= - :>]                              # check available
   488b o107f8 4883 o357 08 c3                   # data-pop(%rax = available)
 
-  ::/$<_get_byte
-  e8:4[L:/$<_available - :>]                    # get available count (32-bit)
+  ::/$<-get-byte
+  e8:4[L:/$<-available - :>]                    # get available count (32-bit)
   85 o300                                       # is it zero or negative?
-  79:1[L:/$<_get_byte_ok_1 - :>]                # if nonnegative, ok so far
-  e9:4[L:/$<_eof - :>]                          # negative = read error
-  ::/$<_get_byte_ok_1
-  75:1[L:/$<_got_input - :>]                    # if not, read the byte
+  79:1[L:/$<-get-byte-ok-1 - :>]                # if nonnegative, ok so far
+  e9:4[L:/$<-eof - :>]                          # negative = read error
+  ::/$<-get-byte-ok-1
+  75:1[L:/$<-got-input - :>]                    # if not, read the byte
 
 #   Otherwise, fill the buffer and check available bytes again. If it's still
 #   zero, then the read failed and we need to set %rax to -1 to indicate this.
 
-  e8:4[L:/$<_fill_buffer - :>]                  # otherwise, fill the buffer
-  e8:4[L:/$<_available - :>]                    # get available count
+  e8:4[L:/$<-fill-buffer - :>]                  # otherwise, fill the buffer
+  e8:4[L:/$<-available - :>]                    # get available count
   85 o300                                       # is it zero or negative?
-  79:1[L:/$<_get_byte_ok_2 - :>]                # if nonnegative, ok so far
-  e9:4[L:/$<_eof - :>]                          # negative = read error
-  ::/$<_get_byte_ok_2
-  75:1[L:/$<_got_input - :>]                    # if not, read the byte
+  79:1[L:/$<-get-byte-ok-2 - :>]                # if nonnegative, ok so far
+  e9:4[L:/$<-eof - :>]                          # negative = read error
+  ::/$<-get-byte-ok-2
+  75:1[L:/$<-got-input - :>]                    # if not, read the byte
 
 #   Otherwise, set %rax to -1 and return. This will indicate an error to the
 #   caller, who should be checking for the high bit of %ax, %eax, or %rax (none of
@@ -1691,15 +1680,15 @@ e8:4[L:swons - :>]
   4831 o300 48f7 o320 c3                        # %rax = -1; ret
 
 #   Given available input, read a byte and advance the reader. Then return to the
-#   caller of get_byte.
+#   caller of get-byte.
 
-  ::/$<_got_input
+  ::/$<-got-input
   488b o117f8                                   # %rcx <- count
   488b o104o317d8 48ab                          # push buffer pointer
   e8:4[L:/|. - :>]                              # read a byte...
   488b o107f8 4883 o357 08 c3                   # ... and store it in %al, ret
 
-  ::/$<_fill_buffer
+  ::/$<-fill-buffer
   488b o117f8                                   # %rcx <- count
   0f10 o104o317d8                               # %xmm0 <- [f] buf
   4883 o307 10                                  # allocate two data slots
@@ -1756,7 +1745,7 @@ e8:4[L:swons - :>]
 #   takes up a lot of space. Better is to use closure variables and reuse the
 #   common logic by factoring it into a separate function.
 
-  ::/$<@_rewriter
+  ::/$<@-rewriter
   e8:4[L:/@> - :>]                      # get symbol table
   e8:4[L:/.  - :>]                      # resolve symbol
   488b o107f8                           # %rax = resolved
@@ -1770,7 +1759,7 @@ e8:4[L:swons - :>]
 
 #   This interfaces with symbol closures, each of which looks like this:
 
-#   | 48b8 xxxxxxxx xxxxxxxx 48ab e8 (relative address of /$<@_rewriter)
+#   | 48b8 xxxxxxxx xxxxxxxx 48ab e8 (relative address of /$<@-rewriter)
 
 #   Notice that we don't encode the self-address here. The reason is that we can
 #   get it from the call stack for free; in doing so, we also consume the extra
@@ -1789,7 +1778,7 @@ e8:4[L:swons - :>]
   66c7 o006 48b8                        # encode 48b8 instruction
   c7   o10609 0048abe8                  # encode 48ab and e8 instructions
   4889 o10602                           # write symbol pointer (for 48b8)
-  b8:4[Lb:/$<@_rewriter]                # load absolute address of rewriter
+  b8:4[Lb:/$<@-rewriter]                # load absolute address of rewriter
   482b o301                             # compute displacement
   89   o1060d                           # write displacement
   488b o306 48ab c3                     # return closure
@@ -1797,6 +1786,6 @@ e8:4[L:swons - :>]
 # Insert alignment to the nearest 16-byte boundary. This simplifies debugging by
 # making it more obvious when we have bogus values for %rdi.
 @:10
-::bootstrap_end
+::bootstrap-end
 
 # Generated by SDoc

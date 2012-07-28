@@ -8,12 +8,14 @@ set $stack_end = 0
 
 define s
   ni
-
   if $stack_end == 0
     set $stack_end = $rsp
   end
-
   print_status
+end
+
+define bp
+  break *0x400$arg0
 end
 
 define xb
