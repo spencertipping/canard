@@ -930,7 +930,7 @@ Here's @:k. I chose to write the closure thunk manually just to get things
 done; otherwise it would have been allocated using /:k and consed into @:k
 using the real cons function. (However, @:k is a valid list as written here.)
 
-    ::/@:k-list         e8:4[L:/@?k] c3                   # this is a list
+    ::/@:k-list         e8:4[L:/@?k - :>] c3              # this is a list
     ::/@:k-list-closure b8:4[Lb:/@:k-list] 48ab c3        # this pushes the list
 
     ::/@:k
@@ -1707,9 +1707,9 @@ common logic by factoring it into a separate function.
     e8:4[L:/.  - :>]                      # resolve symbol
     488b o107f8                           # %rax = resolved
     59                                    # %rcx = calling continuation
-    4883 o351 0c                          # calling entry point
+    4883 o351 11                          # calling entry point (cc - 17)
     482b o301                             # resolved -= calling address
-    4883 o300 05                          # adjust for jmp instruction size
+    4883 o300 fb                          # adjust for jmp instruction size
     c6   o001 e9                          # write jmp opcode
     89   o10101                           # write jmp displacement
     ff   o341                             # jump back to calling entry point

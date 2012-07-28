@@ -2,15 +2,11 @@
 # GDB definitions to make it easier to debug the main image.
 
 break *0x4001f5
+set $stack_end = 0x7fffffffddd8
 run
-
-set $stack_end = 0
 
 define s
   ni
-  if $stack_end == 0
-    set $stack_end = $rsp
-  end
   print_status
 end
 
