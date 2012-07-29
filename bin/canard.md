@@ -982,6 +982,7 @@ which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
 
     ::/@<x-digit-loop
     8a o003                       # current digit byte -> %al
+    0c 20                         # %al |= 20 (convert to lowercase if letter)
     3c 'a                         # check this byte against lowercase A
     7d:1[L:/@<x-letter - :>]      # greater? if so, go to letter case
     2c '0                         # digit case: subtract '0 offset
@@ -1526,7 +1527,7 @@ Once %rdx >= %rcx, as it is here for instance, we are free to exit the loop.
     ff   o301                                     # ++%ecx
 
     ::/$<-reverse-loop                            # reverse bytes in symbol
-    3a   o321                                     # compare %edx with %ecx
+    3b   o321                                     # compare %edx with %ecx
     73:1[L:/$<-reverse-loop-end - :>]             # break if above or equal
     8a   o034o062                                 # %bl <- (%rsi, %rdx)
     86   o034o061                                 # swap with (%rsi, %rcx)

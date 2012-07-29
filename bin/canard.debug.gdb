@@ -26,7 +26,7 @@ end
 
 define xs
   print "length:   "
-  x/h $arg0
+  x/hx $arg0
   print "contents: "
   x/10sb ($arg0 + 2)
 end

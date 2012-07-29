@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  3841617747ffb4402111d38a448cda53
-# istate: 278fc058a455c6c2f05f0bdb8846b024
+# state:  a24516581c589633c941d7aab418239e
+# istate: d80085ea83476dc457bc28cee8c57cde
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -256,6 +256,7 @@ meta::configure 'vim_highlighter', extension => '.vim', inherit => 0;
 meta::define_form 'vim_highlighter', \&meta::bootstrap::implementation;
 
 __
+meta::alias('c', 'sh bin/canard');
 meta::alias('d', 'sh gdb -x bin/canard.debug.gdb bin/canard');
 meta::alias('dr', <<'__');
 sh gdb -x bin/canard.run.gdb bin/canard
@@ -3538,6 +3539,7 @@ functions that read or write it.
 
   ::/@<x-digit-loop
   8a o003                       # current digit byte -> %al
+  0c 20                         # %al |= 20 (convert to lowercase if letter)
   3c 'a                         # check this byte against lowercase A
   7d:1[L:/@<x-letter - :>]      # greater? if so, go to letter case
   2c '0                         # digit case: subtract '0 offset
@@ -4065,7 +4067,7 @@ non-whitespace and non-bracket.
   ff   o301                                     # ++%ecx
 
   ::/$<-reverse-loop                            # reverse bytes in symbol
-  3a   o321                                     # compare %edx with %ecx
+  3b   o321                                     # compare %edx with %ecx
   73:1[L:/$<-reverse-loop-end - :>]             # break if above or equal
   8a   o034o062                                 # %bl <- (%rsi, %rdx)
   86   o034o061                                 # swap with (%rsi, %rcx)
@@ -4314,7 +4316,7 @@ end
 
 define xs
   print "length:   "
-  x/h $arg0
+  x/hx $arg0
   print "contents: "
   x/10sb ($arg0 + 2)
 end
