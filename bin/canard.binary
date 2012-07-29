@@ -1061,7 +1061,7 @@ e8:4[L:swons - :>]
   e2:1[L:/@<x-digit-loop - :>]  # loop while --%rcx
 
   4889 o127f8                   # %rdx -> stack top
-  e8:4[L://:k]                  # create closure
+  e8:4[L://:k - :>]             # create closure
   58                            # pop 'next' continuation
 
   ::/@<x-bail
@@ -1089,7 +1089,7 @@ e8:4[L:swons - :>]
   e2:1[L:/@<o-digit-loop - :>]  # loop while --%rcx
 
   4889 o127f8                   # %rdx -> stack top
-  e8:4[L://:k]                  # create closure
+  e8:4[L://:k - :>]             # create closure
   58                            # pop 'next' continuation
 
   ::/@<o-bail
@@ -1129,7 +1129,7 @@ e8:4[L:swons - :>]
   6689 o11001                   # write new length
   48ff o300                     # ++%rax
   4889 o107f8                   # %rax -> stack top
-  e8:4[L://:k]                  # create closure
+  e8:4[L://:k - :>]             # create closure
   58                            # pop 'next' continuation
 
   ::/@<q-bail

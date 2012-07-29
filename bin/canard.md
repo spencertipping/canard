@@ -996,7 +996,7 @@ which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
     e2:1[L:/@<x-digit-loop - :>]  # loop while --%rcx
 
     4889 o127f8                   # %rdx -> stack top
-    e8:4[L://:k]                  # create closure
+    e8:4[L://:k - :>]             # create closure
     58                            # pop 'next' continuation
 
     ::/@<x-bail
@@ -1024,7 +1024,7 @@ deal with the piecewise nature of digits vs letters.
     e2:1[L:/@<o-digit-loop - :>]  # loop while --%rcx
 
     4889 o127f8                   # %rdx -> stack top
-    e8:4[L://:k]                  # create closure
+    e8:4[L://:k - :>]             # create closure
     58                            # pop 'next' continuation
 
     ::/@<o-bail
@@ -1065,7 +1065,7 @@ aliased. However, it's important to know that this is what's going on.
     6689 o11001                   # write new length
     48ff o300                     # ++%rax
     4889 o107f8                   # %rax -> stack top
-    e8:4[L://:k]                  # create closure
+    e8:4[L://:k - :>]             # create closure
     58                            # pop 'next' continuation
 
     ::/@<q-bail
