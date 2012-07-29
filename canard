@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  4702d8eff984605bd65c79b1ac1fb934
-# istate: 12572868f1cd7d9927fe209728312803
+# state:  3841617747ffb4402111d38a448cda53
+# istate: 278fc058a455c6c2f05f0bdb8846b024
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -835,6 +835,26 @@ my @result = eval(join ' ', @_);
 $@ ? terminal::error($@) : wantarray ? @result : $result[0];
 
 __
+meta::function('place-sizes', <<'__');
+my %places = @_;
+
+# Prefixes precede dashes. Take the lowest-valued representative for each
+# prefix.
+my %prefixes;
+/^([^-]+)/ and $prefixes{$1} //= $places{$_}
+for sort {$places{$a} <=> $places{$b}} keys %places;
+
+# Figure out the size of each one.
+my %sizes;
+my @in_order = sort {$prefixes{$a} <=> $prefixes{$b}} keys %prefixes;
+$sizes{$in_order[$_ - 1]} = $prefixes{$in_order[$_]}
+                          - $prefixes{$in_order[$_ - 1]} for 1 .. $#in_order;
+
+# Now sort the list, largest first.
+my @sorted = sort {$sizes{$b} <=> $sizes{$a}} @in_order;
+join '  ', map "$_:$sizes{$_}", @sorted;
+
+__
 meta::function('places', <<'__');
 # Returns a human-readable string of places and their locations.
 my %places = @_;
@@ -926,6 +946,9 @@ for grep s/^alias:://, sort keys %data;
 
 # Information to help debug the image given a segfault offset
 file::write('bin/canard.offsets', places(%{$transient{compile_binary_places}}));
+
+# Size-profiling information
+terminal::info(place_sizes(%{$transient{compile_binary_places}}));
 
 # GDB scripts
 file::write('bin/canard.debug.gdb', retrieve('gdb::boot-debug'));
