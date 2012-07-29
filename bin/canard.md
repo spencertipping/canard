@@ -977,11 +977,11 @@ which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
     ff   o311                     # --%cx (adjusting for the 'x' prefix)
     4883 o303 03                  # %rbx += 3 (length + 'x' prefix)
 
-    80 o073 'x                    # is the prefix x?
+    80 o173ff 'x                  # is the prefix x?
     75:1[L:/@<x-bail - :>]        # if not, bail; we can't convert this symbol
 
     ::/@<x-digit-loop
-    88 o003                       # current digit byte -> %al
+    8a o003                       # current digit byte -> %al
     3c 'a                         # check this byte against lowercase A
     7d:1[L:/@<x-letter - :>]      # greater? if so, go to letter case
     2c '0                         # digit case: subtract '0 offset
@@ -991,7 +991,7 @@ which is ASCII 0x30 - 0x39. The second is a-f (lowercase!), which is ASCII
 
     ::/@<x-shift-add
     48c1 o342 04                  # %rdx <<= 4
-    480b o302                     # %rdx |= %rax
+    480b o320                     # %rdx |= %rax
     48ff o303                     # ++%rbx
     e2:1[L:/@<x-digit-loop - :>]  # loop while --%rcx
 
@@ -1012,14 +1012,14 @@ deal with the piecewise nature of digits vs letters.
     ff   o311                     # --%cx (adjusting for the 'o' prefix)
     4883 o303 03                  # %rbx += 3 (length + 'o' prefix)
 
-    80 o073 'o                    # is the prefix o?
+    80 o173ff 'o                  # is the prefix o?
     75:1[L:/@<o-bail - :>]        # if not, bail; we can't convert this symbol
 
     ::/@<o-digit-loop
-    88 o003                       # current digit byte -> %al
+    8a o003                       # current digit byte -> %al
     2c '0                         # digit case: subtract '0 offset
     48c1 o342 03                  # %rdx <<= 3
-    480b o302                     # %rdx |= %rax
+    480b o320                     # %rdx |= %rax
     48ff o303                     # ++%rbx
     e2:1[L:/@<o-digit-loop - :>]  # loop while --%rcx
 

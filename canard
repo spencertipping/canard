@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # 99aeabc9ec7fe80b1b39f5e53dc7e49e      <- self-modifying Perl magic
-# state:  5a5fde6460c40edc0eba11d26249c48f
-# istate: 666baa2c47f01eebf2f23b8ebcc113d5
+# state:  4702d8eff984605bd65c79b1ac1fb934
+# istate: 12572868f1cd7d9927fe209728312803
 # id:     a91f89c1b23f2df1762a7d9a838bcf20
 
 # This is a self-modifying Perl file. I'm sorry you're viewing the source (it's
@@ -3510,11 +3510,11 @@ functions that read or write it.
   ff   o311                     # --%cx (adjusting for the 'x' prefix)
   4883 o303 03                  # %rbx += 3 (length + 'x' prefix)
 
-  80 o073 'x                    # is the prefix x?
+  80 o173ff 'x                  # is the prefix x?
   75:1[L:/@<x-bail - :>]        # if not, bail; we can't convert this symbol
 
   ::/@<x-digit-loop
-  88 o003                       # current digit byte -> %al
+  8a o003                       # current digit byte -> %al
   3c 'a                         # check this byte against lowercase A
   7d:1[L:/@<x-letter - :>]      # greater? if so, go to letter case
   2c '0                         # digit case: subtract '0 offset
@@ -3524,7 +3524,7 @@ functions that read or write it.
 
   ::/@<x-shift-add
   48c1 o342 04                  # %rdx <<= 4
-  480b o302                     # %rdx |= %rax
+  480b o320                     # %rdx |= %rax
   48ff o303                     # ++%rbx
   e2:1[L:/@<x-digit-loop - :>]  # loop while --%rcx
 
@@ -3545,14 +3545,14 @@ functions that read or write it.
   ff   o311                     # --%cx (adjusting for the 'o' prefix)
   4883 o303 03                  # %rbx += 3 (length + 'o' prefix)
 
-  80 o073 'o                    # is the prefix o?
+  80 o173ff 'o                  # is the prefix o?
   75:1[L:/@<o-bail - :>]        # if not, bail; we can't convert this symbol
 
   ::/@<o-digit-loop
-  88 o003                       # current digit byte -> %al
+  8a o003                       # current digit byte -> %al
   2c '0                         # digit case: subtract '0 offset
   48c1 o342 03                  # %rdx <<= 3
-  480b o302                     # %rdx |= %rax
+  480b o320                     # %rdx |= %rax
   48ff o303                     # ++%rbx
   e2:1[L:/@<o-digit-loop - :>]  # loop while --%rcx
 
@@ -4267,7 +4267,6 @@ Canard bootstrap debugging script.
 GDB definitions to make it easier to debug the main image.
 
 break *0x4001f5
-set $stack_end = 0x7fffffffddd8
 run
 
 define s
@@ -4325,8 +4324,9 @@ end
 define print_return_stack
   printf "%c[1;32mreturn stack%c[1;30m: %lx\n", 27, 27, $rsp
   set $x = $rsp
-  while $x < $stack_end
-    print_cell $x
+  set $__ = 16
+  while (unsigned long long) $__ >> 3
+    x/xg $x
     set $x = $x + 8
   end
 end

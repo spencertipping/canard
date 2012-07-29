@@ -2,7 +2,6 @@
 # GDB definitions to make it easier to debug the main image.
 
 break *0x4001f5
-set $stack_end = 0x7fffffffddd8
 run
 
 define s
@@ -60,8 +59,9 @@ end
 define print_return_stack
   printf "%c[1;32mreturn stack%c[1;30m: %lx\n", 27, 27, $rsp
   set $x = $rsp
-  while $x < $stack_end
-    print_cell $x
+  set $__ = 16
+  while (unsigned long long) $__ >> 3
+    x/xg $x
     set $x = $x + 8
   end
 end
