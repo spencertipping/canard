@@ -1,6 +1,7 @@
 package canard;
 
 import clojure.lang.IPersistentMap;
+import clojure.lang.ISeq;
 import clojure.lang.ASeq;
 
 public abstract class Cons extends ASeq implements Fn {

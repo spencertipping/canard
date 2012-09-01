@@ -4,20 +4,20 @@ public class BaseInterpreter implements Interpreter {
   public static final int DATA_STACK_DEPTH = 131072;
   public static final int RETURN_STACK_DEPTH = 65536;
 
-  private final Object[] dataStack;
-  private final Fn[] returnStack;
-  private int dataStackPointer = 0;
-  private int returnStackPointer = 0;
-  private Fn resolver;
+  protected final Object[] dataStack;
+  protected final Fn[] returnStack;
+  protected int dataStackPointer = 0;
+  protected int returnStackPointer = 0;
+  protected Fn resolver;
 
-  private BaseInterpreter(final Object initialResolver) {
+  protected BaseInterpreter(final Fn initialResolver) {
     dataStack = new Object[DATA_STACK_DEPTH];
     returnStack = new Fn[RETURN_STACK_DEPTH];
     resolver = initialResolver;
   }
 
   public static BaseInterpreter bootstrap() {
-    return new BaseInterpreter(minimalResolver());
+    return new BaseInterpreter(Bootstrap.loadedResolver());
   }
 
   public void push(final Object o) {
@@ -52,6 +52,11 @@ public class BaseInterpreter implements Interpreter {
       final Fn next = rpop();
       if (next != null) next.apply(this);
     }
+  }
+
+  @Override
+  public void execute(final Fn f) {
+    if (f != null) f.apply(this);
   }
 
   public Object invoke(final Fn f, final Object ... args) {

@@ -10,17 +10,17 @@ public class ExecutableSymbol implements Fn {
     this.symbol = symbol;
   }
 
-  public Fn resolution() {
+  public Fn resolution(final Interpreter environment) {
     if (resolution == null) {
       environment.push(this.symbol);
       environment.rpush(null);
-      environment.resolver().apply(environment);
-      resolution = environment.pop();
+      environment.execute(environment.resolver());
+      resolution = (Fn) environment.pop();
     }
     return resolution;
   }
 
   @Override public void apply(final Interpreter environment) {
-    resolution().apply(environment);
+    environment.execute(resolution(environment));
   }
 }

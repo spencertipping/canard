@@ -38,8 +38,9 @@ public class ConcatenativeReader extends Cons implements Fn {
 
         if (c == '[') {
           // We need to force every sublist; we can't lazily parse those.
-          ((ConcatenativeReader)
-           (first = new Quote(new ConcatenativeReader(input, symbolBuffer))).value).count();
+          final ConcatenativeReader sublist = new ConcatenativeReader(input, symbolBuffer);
+          sublist.count();
+          first = new Quote(sublist);
           next = new ConcatenativeReader(input, symbolBuffer);
         } else if (c == ']') {
           first = next = null;
@@ -50,7 +51,7 @@ public class ConcatenativeReader extends Cons implements Fn {
             symbolBuffer[p++] = (char) c;
             c = input.read();
           }
-          first = new ExecutableSymbol(Symbol.intern(new String(symbolBuffer, 0, p)));
+          first = new ExecutableSymbol(Symbol.intern("canard", new String(symbolBuffer, 0, p)));
           next = new ConcatenativeReader(input, symbolBuffer);
         }
       } catch (final IOException e) {
