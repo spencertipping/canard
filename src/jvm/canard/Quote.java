@@ -10,4 +10,9 @@ public final class Quote implements Fn {
   public void apply(final Interpreter environment) {
     environment.push(value);
   }
+
+  @Override
+  public String toString() {
+    return "[" + value + "]";
+  }
 }

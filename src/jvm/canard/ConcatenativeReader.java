@@ -6,6 +6,7 @@ import clojure.lang.ASeq;
 import clojure.lang.Symbol;
 
 import java.io.IOException;
+import java.io.PushbackReader;
 import java.io.Reader;
 
 public class ConcatenativeReader extends Cons implements Fn {
@@ -16,9 +17,9 @@ public class ConcatenativeReader extends Cons implements Fn {
   private boolean empty = false;
 
   private final transient char[] symbolBuffer;
-  private transient Reader input;
+  private transient PushbackReader input;
 
-  private ConcatenativeReader(final Reader input,
+  private ConcatenativeReader(final PushbackReader input,
                               final char[] symbolBuffer) {
     this.input = input;
     this.symbolBuffer = symbolBuffer != null ? symbolBuffer
@@ -27,7 +28,7 @@ public class ConcatenativeReader extends Cons implements Fn {
 
   public static ConcatenativeReader from(final Reader input) {
     // Always allocate a new buffer at this point, since we are unsure of the ownership.
-    return new ConcatenativeReader(input, null);
+    return new ConcatenativeReader(new PushbackReader(input), null);
   }
 
   private void force() {
@@ -42,15 +43,16 @@ public class ConcatenativeReader extends Cons implements Fn {
           sublist.count();
           first = new Quote(sublist);
           next = new ConcatenativeReader(input, symbolBuffer);
-        } else if (c == ']') {
+        } else if (c == ']' || c == -1) {
           first = next = null;
           empty = true;
-        } else {
+        } else if (c != -1) {
           int p = 0;
-          while (c > ' ' && c != '[' && c != ']' && p < SYMBOL_LENGTH_LIMIT) {
+          while (c != -1 && c > ' ' && c != '[' && c != ']' && p < SYMBOL_LENGTH_LIMIT) {
             symbolBuffer[p++] = (char) c;
             c = input.read();
           }
+          input.unread(c);
           first = new ExecutableSymbol(Symbol.intern("canard", new String(symbolBuffer, 0, p)));
           next = new ConcatenativeReader(input, symbolBuffer);
         }
@@ -60,16 +62,28 @@ public class ConcatenativeReader extends Cons implements Fn {
     input = null;
   }
 
+  public boolean isForced() {
+    return input == null;
+  }
+
+  public boolean isSpurious() {
+    force();
+    return empty;
+  }
+
   @Override public Object first() {
     force();
-    if (empty)
-      throw new UnsupportedOperationException("cannot retrieve first element of an empty sequence");
-    else
-      return first;
+    return first;
   }
 
   @Override public ISeq next() {
     force();
     return next;
+  }
+
+  @Override public String toString() {
+    if (isSpurious()) return "";
+    else if (!isForced()) return "...";
+    else return first() + " " + next();
   }
 }

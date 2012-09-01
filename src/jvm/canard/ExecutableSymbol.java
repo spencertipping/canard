@@ -23,4 +23,8 @@ public class ExecutableSymbol implements Fn {
   @Override public void apply(final Interpreter environment) {
     environment.execute(resolution(environment));
   }
+
+  @Override public String toString() {
+    return symbol.toString();
+  }
 }
