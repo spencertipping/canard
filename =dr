@@ -1,2 +1,0 @@
-#!/bin/bash
-gdb -x bin/canard.run.gdb bin/canard
