@@ -3,7 +3,7 @@ package canard;
 import java.io.InputStreamReader;
 import java.io.IOException;
 
-public class ReplInterpreter extends BaseInterpreter {
+public class ReplInterpreter extends DebugInterpreter {
   public ReplInterpreter() {
     super(Bootstrap.loadedResolver());
 

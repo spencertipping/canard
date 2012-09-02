@@ -57,7 +57,7 @@ public class Bootstrap {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
         try {
-          environment.push(Class.forName(name));
+          environment.push(new Quote(Class.forName(name)));
           environment.rpop();
         } catch (final ClassNotFoundException e) {
           environment.push(s);
