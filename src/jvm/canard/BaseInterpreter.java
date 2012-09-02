@@ -4,6 +4,12 @@ public class BaseInterpreter implements Interpreter {
   public static final int DATA_STACK_DEPTH = 131072;
   public static final int RETURN_STACK_DEPTH = 65536;
 
+  private static final Fn RETURN_CONTINUATION = new NamedFn("return") {
+      @Override public void apply(final Interpreter environment) {
+        throw new RuntimeException("cannot execute a return continuation");
+      }
+    };
+
   protected final Object[] dataStack;
   protected final Fn[] returnStack;
   protected int dataStackPointer = 0;
@@ -28,6 +34,10 @@ public class BaseInterpreter implements Interpreter {
     return dataStack[--dataStackPointer];
   }
 
+  public Object at(final int i) {
+    return dataStack[dataStackPointer - i - 1];
+  }
+
   public void rpush(final Fn continuation) {
     returnStack[returnStackPointer++] = continuation;
   }
@@ -50,7 +60,8 @@ public class BaseInterpreter implements Interpreter {
     rpush((Fn) parent.pop());
     while (returnStackPointer != 0) {
       final Fn next = rpop();
-      if (next != null) next.apply(this);
+      if (next == RETURN_CONTINUATION) break;
+      this.execute(next);
     }
   }
 
@@ -61,8 +72,10 @@ public class BaseInterpreter implements Interpreter {
 
   @Override
   public Object invoke(final Fn f, final Object ... args) {
+    rpush(RETURN_CONTINUATION);
     for (final Object o : args) push(o);
-    this.execute(f);
+    push(f);
+    this.apply(this);
     return pop();
   }
 }

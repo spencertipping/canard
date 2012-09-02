@@ -28,7 +28,7 @@ public class ReplInterpreter extends DebugInterpreter {
   public void printStackState() {
     System.err.println("\033[1;32m" + returnStackPointer + "\033[0;0m");
     for (int i = dataStackPointer - 1; i >= 0; --i)
-      System.err.println((dataStackPointer - i) + "   \033[1;34m" +
+      System.err.println((dataStackPointer - i - 1) + "   \033[1;34m" +
                          dataStack[i] + "\033[0;0m");
   }
 

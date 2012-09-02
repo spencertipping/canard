@@ -13,6 +13,6 @@ public final class Quote implements Fn {
 
   @Override
   public String toString() {
-    return "'" + value.toString();
+    return "'" + value;
   }
 }

@@ -3,6 +3,7 @@ package canard;
 public interface Interpreter extends Fn {
   void push(Object o);
   Object pop();
+  Object at(int i);
 
   void rpush(Fn continuation);
   Fn rpop();
