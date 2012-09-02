@@ -1,8 +1,10 @@
 package canard;
 
+import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.StringReader;
 
 public class ReplInterpreter extends BaseInterpreter {
   public boolean verbose = false;
@@ -36,13 +38,27 @@ public class ReplInterpreter extends BaseInterpreter {
   }
 
   private void repl() {
-    ConcatenativeReader in = ConcatenativeReader.from(new InputStreamReader(System.in));
+    final BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+    String previousInput = "";
+
     while (in != null) {
-      System.err.print("\033[1;32m> \033[0;0m");
-      push(in.first());
-      this.apply(this);
-      if (verbose) printStackState();
-      in = (ConcatenativeReader) in.next();
+      System.err.print("\033[1;32m" + (previousInput.length() == 0 ? "> " : "... ") + "\033[0;0m");
+
+      try {
+        final String line = in.readLine();
+        if (line.length() == 0) {
+          previousInput = "";
+        } else {
+          previousInput += line;
+          try {
+            push(ApplicativeReader.read(new StringReader(previousInput)));
+            this.apply(this);
+            if (verbose) printStackState();
+          } catch (final RuntimeException e) {}
+        }
+      } catch (final IOException e) {
+        System.exit(1);
+      }
     }
     System.exit(0);
   }

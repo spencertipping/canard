@@ -1,0 +1,2 @@
+#!/bin/bash
+java -jar target/canard-0.0.1-SNAPSHOT-standalone.jar "$@"

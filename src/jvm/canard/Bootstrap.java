@@ -154,12 +154,47 @@ public class Bootstrap {
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
-        try {
-          environment.push(new Quote(Class.forName(name)));
+        if (name.charAt(0) == '#') {
+          environment.push(new NamedFn(name) {
+              @Override public void apply(final Interpreter environment) {
+                final Class c = (Class) environment.pop();
+                try {
+                  environment.push(c.getDeclaredField(name.substring(1)));
+                } catch (final NoSuchFieldException e) {
+                  environment.push(null);
+                } catch (final SecurityException e) {
+                  environment.push(null);
+                }
+              }
+            });
           environment.rpop();
-        } catch (final ClassNotFoundException e) {
-          environment.push(s);
-        }
+        } else if (name.charAt(0) == '.') {
+          environment.push(new NamedFn(name) {
+              @Override public void apply(final Interpreter environment) {
+                ISeq formals = (ISeq) environment.pop();
+                final Class c = (Class) environment.pop();
+                final Class[] formalArray = new Class[formals.count()];
+                for (int i = 0; formals != null; ++i, formals = formals.next())
+                  formalArray[i] = (Class) (formals.first() instanceof ExecutableSymbol
+                                            ? environment.invoke((Fn) formals.first())
+                                            : formals.first());
+                try {
+                  environment.push(c.getDeclaredMethod(name.substring(1), formalArray));
+                } catch (final NoSuchMethodException e) {
+                  environment.push(null);
+                } catch (final SecurityException e) {
+                  environment.push(null);
+                }
+              }
+            });
+          environment.rpop();
+        } else
+          try {
+            environment.push(new Quote(Class.forName(name)));
+            environment.rpop();
+          } catch (final ClassNotFoundException e) {
+            environment.push(s);
+          }
       }
     };
 
@@ -191,6 +226,20 @@ public class Bootstrap {
                 for (int i = 0; i < base; ++i) environment.pop();
                 while (addedIndex > 0)
                   environment.push(added[--addedIndex]);
+              }
+            });
+          environment.rpop();
+        } else if (name.charAt(0) == '^') {
+          final int n = hexDigits.indexOf(name.charAt(1));
+          final Object[] stash = new Object[n];
+
+          environment.push(new NamedFn(name) {
+              @Override public void apply(final Interpreter environment) {
+                final Fn f = (Fn) environment.pop();
+                for (int i = 0; i < n; ++i) stash[i] = environment.pop();
+                environment.push(f);
+                environment.apply(environment);
+                for (int i = n - 1; i >= 0; --i) environment.push(stash[i]);
               }
             });
           environment.rpop();
