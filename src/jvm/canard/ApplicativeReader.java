@@ -23,15 +23,14 @@ public class ApplicativeReader {
       else if (c == ']') {
         final Object sublist = values.pop();
         final Object rest = values.pop();
-        values.push(Cons.cons(new Quote(sublist), (ISeq) rest));
+        values.push(Cons.cons(new Quote(sublist), rest));
       } else {
         final StringBuffer symbol = new StringBuffer();
         symbol.append(c);
         while ((c = (char) input.read()) != 65535 && c != '[' && c != ']' && c > ' ')
           symbol.append(c);
         input.unread(c);
-        values.push(Cons.cons(new ExecutableSymbol(Symbol.intern("canard", symbol.toString())),
-                                                   (ISeq) values.pop()));
+        values.push(Cons.cons(new ExecutableSymbol(symbol.toString()), values.pop()));
       }
     }
 

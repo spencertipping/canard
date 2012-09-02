@@ -1,8 +1,5 @@
 package canard;
 
-import clojure.lang.ISeq;
-import clojure.lang.Symbol;
-
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
@@ -16,15 +13,15 @@ public class Bootstrap {
       @Override public void apply(final Interpreter environment) {
         final Object head = environment.pop();
         final Object tail = environment.pop();
-        environment.push(Cons.cons(head, (ISeq) tail));
+        environment.push(Cons.cons(head, tail));
       }
     };
 
   public static final Fn uncons = new NamedFn(":^") {
       @Override public void apply(final Interpreter environment) {
         final Cons top = (Cons) environment.pop();
-        environment.push(top.next());
-        environment.push(top.first());
+        environment.push(top.head);
+        environment.push(top.tail);
       }
     };
 
@@ -81,9 +78,9 @@ public class Bootstrap {
   // Conditionals
   public static final Fn ifte = new NamedFn("?") {
       @Override public void apply(final Interpreter environment) {
-        final Object conditional = environment.pop();
         final Fn thenCase = (Fn) environment.pop();
         final Fn elseCase = (Fn) environment.pop();
+        final Object conditional = environment.pop();
         environment.rpush(conditional != null ? thenCase : elseCase);
       }
     };
@@ -109,57 +106,49 @@ public class Bootstrap {
     };
 
   public static final Fn coreResolver = new NamedFn("core-resolver") {
-      private final Map<Symbol, Fn> coreResolutionMap = new HashMap<Symbol, Fn>();
+      private final Map<String, Fn> coreResolutionMap = new HashMap<String, Fn>();
       {
-        coreResolutionMap.put(Symbol.intern("canard", "::"), cons);
-        coreResolutionMap.put(Symbol.intern("canard", ":^"), uncons);
-        coreResolutionMap.put(Symbol.intern("canard", ":?"), iscons);
-        coreResolutionMap.put(Symbol.intern("canard", "'"), quote);
-        coreResolutionMap.put(Symbol.intern("canard", "'?"), isquote);
-        coreResolutionMap.put(Symbol.intern("canard", "."), apply);
-        coreResolutionMap.put(Symbol.intern("canard", ".?"), isapplicable);
-        coreResolutionMap.put(Symbol.intern("canard", "r>"), rpop);
-        coreResolutionMap.put(Symbol.intern("canard", "r<"), rpush);
-        coreResolutionMap.put(Symbol.intern("canard", "?"), ifte);
-        coreResolutionMap.put(Symbol.intern("canard", "="), eq);
-        coreResolutionMap.put(Symbol.intern("canard", "@>"), resolver$get);
-        coreResolutionMap.put(Symbol.intern("canard", "@<"), resolver$set);
+        coreResolutionMap.put("::", cons);
+        coreResolutionMap.put(":^", uncons);
+        coreResolutionMap.put(":?", iscons);
+        coreResolutionMap.put("'", quote);
+        coreResolutionMap.put("'?", isquote);
+        coreResolutionMap.put(".", apply);
+        coreResolutionMap.put(".?", isapplicable);
+        coreResolutionMap.put("r>", rpop);
+        coreResolutionMap.put("r<", rpush);
+        coreResolutionMap.put("?", ifte);
+        coreResolutionMap.put("=", eq);
+        coreResolutionMap.put("@>", resolver$get);
+        coreResolutionMap.put("@<", resolver$set);
       }
 
       @Override public void apply(final Interpreter environment) {
-        final Symbol s = (Symbol) environment.pop();
-        if (coreResolutionMap.containsKey(s)) {
-          environment.push(coreResolutionMap.get(s));
+        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
+        if (coreResolutionMap.containsKey(name)) {
+          environment.pop();
+          environment.push(coreResolutionMap.get(name));
           environment.rpop();
-        } else
-          environment.push(s);
+        }
       }
     };
 
   public static final Fn literalResolver = new NamedFn("literal-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final Symbol s = (Symbol) environment.pop();
-        final String name = s.getName();
+        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
         if (name.charAt(0) == '\'') {
-          environment.push(new Quote(new ExecutableSymbol(Symbol.intern("canard",
-                                                                        name.substring(1)))));
+          environment.pop();
+          environment.push(new Quote(new ExecutableSymbol(name.substring(1))));
           environment.rpop();
-        } else if (name.charAt(0) == 'x') {
-          environment.push(new Quote(Long.parseLong(name.substring(1), 16)));
-          environment.rpop();
-        } else if (name.charAt(0) == 'd') {
-          environment.push(new Quote(Double.parseDouble(name.substring(1))));
-          environment.rpop();
-        } else
-          environment.push(s);
+        }
       }
     };
 
   public static final Fn jvmResolver = new NamedFn("jvm-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final Symbol s = (Symbol) environment.pop();
-        final String name = s.getName();
+        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
         if (name.charAt(0) == '#') {
+          environment.pop();
           environment.push(new NamedFn(name) {
               @Override public void apply(final Interpreter environment) {
                 final Class c = (Class) environment.pop();
@@ -174,6 +163,7 @@ public class Bootstrap {
             });
           environment.rpop();
         } else if (name.charAt(0) == '.') {
+          environment.pop();
           environment.push(new NamedFn(name) {
               @Override public void apply(final Interpreter environment) {
                 final Class c = (Class) environment.pop();
@@ -205,32 +195,31 @@ public class Bootstrap {
           environment.rpop();
         } else
           try {
-            environment.push(new Quote(Class.forName(name)));
+            final Class c = Class.forName(name);
+            environment.pop();
+            environment.push(new Quote(c));
             environment.rpop();
-          } catch (final ClassNotFoundException e) {
-            environment.push(s);
-          }
+          } catch (final ClassNotFoundException e) {}
       }
     };
 
   public static final Fn abstractResolver = new NamedFn("abstract-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final Symbol s = (Symbol) environment.pop();
-        final String name = s.getName();
-        environment.push(new Quote(Symbol.intern("abstract", name)));
+        final String name = ((ExecutableSymbol) environment.pop()).symbol;
+        environment.push(new Quote(new ExecutableSymbol("abstract::" + name)));
         environment.rpop();
       }
     };
 
   public static final Fn stackFnResolver = new NamedFn("stack-fn-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final Symbol s = (Symbol) environment.pop();
-        final String name = s.getName();
+        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
         final String hexDigits = "0123456789abcdef";
         if (name.charAt(0) == '%') {
           final int base = hexDigits.indexOf(name.charAt(1));
           final Object[] added = new Object[name.length() - 2];
 
+          environment.pop();
           environment.push(new NamedFn(name) {
               @Override public void apply(final Interpreter environment) {
                 int addedIndex = 0;
@@ -248,6 +237,7 @@ public class Bootstrap {
           final int n = hexDigits.indexOf(name.charAt(1));
           final Object[] stash = new Object[n];
 
+          environment.pop();
           environment.push(new NamedFn(name) {
               @Override public void apply(final Interpreter environment) {
                 final Fn f = (Fn) environment.pop();
@@ -258,8 +248,7 @@ public class Bootstrap {
               }
             });
           environment.rpop();
-        } else
-          environment.push(s);
+        }
       }
     };
 

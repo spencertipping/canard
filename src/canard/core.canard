@@ -1,0 +1,56 @@
+#!/usr/bin/canard
+
+nb [
+We need to be able to define things without going through the trouble of
+manually reinstalling the resolver. To do this, of course, we need to manually
+reinstall the resolver once so that we can use it to resolve the definition
+function.
+
+The general idea here is that we build closures that we then cons onto the
+existing resolver function. So the code would be something like this:
+
+@< :: <our-custom-resolver> @>
+
+Each custom resolver will be invoked against the symbol on top of the stack. If
+it finds a match, it should pop the symbol, push the match, and take the second
+return continuation. Otherwise it should return normally, leaving the symbol on
+the stack for the next resolver.
+
+['value %2 r>]          <- matching case (nukes symbol and continuation)
+[]                      <- non-matching case
+
+The decision branch looks like this:
+
+? ['value %2 r>] [] = 'symbol 'x
+
+Our job here is to write a function that constructs this form. The simplest way
+to do it is to rearrange values on the stack such that we can simply push the
+symbol and value as closure parameters. Here's the derivation:
+
+(resolver) 'symbol 'value 'x -> ? ['value %1 r>] ['x] = 'symbol 'x
+
+= %02      'symbol 'value 'x -> (= 'x 'symbol) 'value 'x
+  . [%31 r>] 'value 'x       -> 'value %1 r>
+  . [%1]     'value 'x       -> 'x
+
+So (resolver) is [? [%31 r>] [%1] = %02].
+
+Creating a closure is not difficult; we just need to cons the resolver onto the
+quoted symbol and value:
+
+(closure) 'symbol 'value -> [(resolver) 'symbol 'value]
+:: :: (resolver) 'symbol 'value -> [(resolver) 'symbol 'value]
+
+This closure is a single definition element. Once we have that, defining
+something is as simple as:
+
+@< (closure) 'symbol 'value @>
+
+Which, in concatenative style, is:
+
+@< (closure) %3120 @> 'symbol 'value]
+
+def nb '%1
+
+@< 'def :: :: :: '@< def-closure '%3120 '@>
+@< . %03 'def-closure %010 @> %00 [:: :: [? [%31 r>] [%1] = %02]]

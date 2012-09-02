@@ -2,6 +2,6 @@
   :description "A concatenative language for the JVM"
   :url "http://spencertipping.com/canard"
   :license {:name "MIT source code license"}
-  :dependencies [[org.clojure/clojure "1.4.0"]]
+  :dependencies []
   :java-source-paths ["src/jvm"]
   :main canard.ReplInterpreter)

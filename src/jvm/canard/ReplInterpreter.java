@@ -22,7 +22,13 @@ public class ReplInterpreter extends BaseInterpreter {
         try {
           files = true;
           push(ApplicativeReader.read(new FileReader(arg)));
+
+          final int priorDepth = dataStackPointer;
           this.apply(this);
+          if (dataStackPointer != priorDepth)
+            System.err.println("\033[1;33mwarning: executing " + arg +
+                               " resulted in a stack delta of " + (dataStackPointer - priorDepth) +
+                               "\033[0;0m");
         } catch (final IOException e) {
           System.err.println("failed to read input file " + arg);
           System.exit(1);
@@ -64,6 +70,14 @@ public class ReplInterpreter extends BaseInterpreter {
       }
     }
     System.exit(0);
+  }
+
+  @Override public void execute(final Fn f) {
+    if (verbose) {
+      System.err.println("\033[1;30mexecuting " + f + "\033[0;0m");
+      printStackState();
+    }
+    super.execute(f);
   }
 
   public void printStackState() {

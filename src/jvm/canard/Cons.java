@@ -1,45 +1,20 @@
 package canard;
 
-import clojure.lang.IPersistentMap;
-import clojure.lang.ISeq;
-import clojure.lang.ASeq;
+public class Cons implements Fn {
+  public final Object head;
+  public final Object tail;
 
-public abstract class Cons extends ASeq implements Fn {
-  static final class Cell extends Cons {
-    public final Object head;
-    public final ISeq tail;
-
-    Cell(final Object head, final ISeq tail) {
-      this.head = head;
-      this.tail = tail;
-    }
-
-    @Override public Object first() {
-      return head;
-    }
-
-    @Override public ISeq next() {
-      return tail;
-    }
-
-    @Override public String toString() {
-      final StringBuffer result = new StringBuffer("]");
-      ISeq c = this;
-      while (c instanceof Cell) {
-        final Cell cell = (Cell) c;
-        result.insert(0, cell.head + (cell == this ? "" : " "));
-        c = cell.tail;
-      }
-      return result.insert(0, "[").toString();
-    }
+  public Cons(final Object head, final Object tail) {
+    this.head = head;
+    this.tail = tail;
   }
 
-  public static final Cell cons(final Object head, final ISeq tail) {
-    return new Cell(head, tail);
+  public static final Cons cons(final Object head, final Object tail) {
+    return new Cons(head, tail);
   }
 
-  public static final Cell list(final Object ... elements) {
-    Cell result = null;
+  public static final Cons list(final Object ... elements) {
+    Cons result = null;
     for (int i = elements.length - 1; i >= 0; --i)
       result = cons(elements[i], result);
     return result;
@@ -47,27 +22,31 @@ public abstract class Cons extends ASeq implements Fn {
 
   public static final int count(Cons seq) {
     int i = 0;
-    for (; seq != null; seq = (Cons) seq.next(), ++i);
+    for (; seq != null; seq = (Cons) seq.tail, ++i);
     return i;
   }
 
   public static final Object[] toArray(Cons seq) {
     final int count = count(seq);
     final Object[] result = new Object[count];
-    for (int i = 0; seq != null; seq = (Cons) seq.next(), ++i)
-      result[i] = seq.first();
+    for (int i = 0; seq != null; seq = (Cons) seq.tail, ++i)
+      result[i] = seq.head;
     return result;
   }
 
-  public abstract Object first();
-  public abstract ISeq next();
-
   @Override public void apply(Interpreter environment) {
-    environment.rpush((Fn) next());
-    environment.rpush((Fn) first());
+    environment.rpush((Fn) tail);
+    environment.rpush((Fn) head);
   }
 
-  public Cons withMeta(final IPersistentMap meta) {
-    throw new UnsupportedOperationException("metadata not supported for canard.Cons");
+  @Override public String toString() {
+    final StringBuffer result = new StringBuffer("]");
+    Object c = this;
+    while (c instanceof Cons) {
+      final Cons cell = (Cons) c;
+      result.insert(0, cell.head + (cell == this ? "" : " "));
+      c = cell.tail;
+    }
+    return result.insert(0, "[").toString();
   }
 }
