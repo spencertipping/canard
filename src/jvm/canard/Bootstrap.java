@@ -50,7 +50,7 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn apply = new NamedFn(".?") {
+  public static final Fn isapplicable = new NamedFn(".?") {
       @Override public void apply(final Interpreter environment) {
         final Object v = environment.pop();
         environment.push(v instanceof Fn ? v : null);
