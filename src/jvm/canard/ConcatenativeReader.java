@@ -88,9 +88,8 @@ public class ConcatenativeReader extends Cons implements Fn {
 
     ConcatenativeReader r = (ConcatenativeReader) next();
     final StringBuffer result = new StringBuffer("[" + first());
-    while (r != null && r.isForced()) {
-      result.append(" ");
-      result.append(r.first().toString());
+    while (r != null && r.isForced() && !r.isSpurious()) {
+      result.append(" " + r.first());
       r = (ConcatenativeReader) r.next();
     }
     if (r != null) result.append("...");
