@@ -1,0 +1,3 @@
+#!/bin/bash
+CLOJURE_JAR=~/.m2/repository/org/clojure/clojure/1.4.0/clojure-1.4.0.jar
+java -cp $CLOJURE_JAR:./target/classes canard.ReplInterpreter

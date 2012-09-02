@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class Bootstrap {
-  private static final Fn coreResolver = new Fn() {
+  public static final Fn coreResolver = new Fn() {
       private final Map<Symbol, Fn> coreResolutionMap = new HashMap<Symbol, Fn>();
       {
         coreResolutionMap.put(Symbol.intern("canard", "::"), cons);
@@ -19,7 +19,6 @@ public class Bootstrap {
         coreResolutionMap.put(Symbol.intern("canard", "r>"), rpop);
         coreResolutionMap.put(Symbol.intern("canard", "r<"), rpush);
         coreResolutionMap.put(Symbol.intern("canard", "?"), ifte);
-        coreResolutionMap.put(Symbol.intern("canard", "?!"), ift);
         coreResolutionMap.put(Symbol.intern("canard", "="), eq);
         coreResolutionMap.put(Symbol.intern("canard", "@>"), resolver$get);
         coreResolutionMap.put(Symbol.intern("canard", "@<"), resolver$set);
@@ -35,11 +34,7 @@ public class Bootstrap {
       }
     };
 
-  public static Fn coreResolver() {
-    return coreResolver;
-  }
-
-  private static final Fn literalResolver = new Fn() {
+  public static final Fn literalResolver = new Fn() {
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
@@ -47,14 +42,17 @@ public class Bootstrap {
           environment.push(new Quote(Symbol.intern("canard", name.substring(1))));
           environment.rpop();
         } else if (name.charAt(0) == 'x') {
-          environment.push(new Quote(Long.parseLong(name.substring(1))));
+          environment.push(new Quote(Long.parseLong(name.substring(1), 16)));
+          environment.rpop();
+        } else if (name.charAt(0) == 'd') {
+          environment.push(new Quote(Double.parseDouble(name.substring(1))));
           environment.rpop();
         } else
           environment.push(s);
       }
     };
 
-  private static final Fn jvmResolver = new Fn() {
+  public static final Fn jvmResolver = new Fn() {
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
@@ -67,10 +65,19 @@ public class Bootstrap {
       }
     };
 
+  public static final Fn bailoutResolver = new Fn() {
+      @Override public void apply(final Interpreter environment) {
+        final Symbol s = (Symbol) environment.pop();
+        final String name = s.getName();
+        environment.push(new Quote(Symbol.intern("unresolved", name)));
+        environment.rpop();
+      }
+    };
+
   public static Fn loadedResolver() {
     return Cons.cons(coreResolver,
                      Cons.cons(literalResolver,
-                               Cons.cons(jvmResolver, null)));
+                               Cons.cons(jvmResolver, bailoutResolver)));
   }
 
   // List functions
@@ -134,13 +141,6 @@ public class Bootstrap {
     };
 
   // Conditionals
-  public static final Fn ift = new Fn() {
-      @Override public void apply(final Interpreter environment) {
-        if (environment.pop() != null) environment.rpush((Fn) environment.pop());
-        else                           environment.pop();
-      }
-    };
-
   public static final Fn ifte = new Fn() {
       @Override public void apply(final Interpreter environment) {
         final Object conditional = environment.pop();
