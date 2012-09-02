@@ -15,4 +15,15 @@ public class DebugInterpreter extends BaseInterpreter {
     System.err.println("> " + result);
     return result;
   }
+
+  @Override public void rpush(final Fn f) {
+    System.err.println("r< " + f);
+    super.rpush(f);
+  }
+
+  @Override public Fn rpop() {
+    final Fn f = super.rpop();
+    System.err.println("r> " + f);
+    return f;
+  }
 }

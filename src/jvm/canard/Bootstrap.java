@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class Bootstrap {
-  public static final Fn coreResolver = new Fn() {
+  public static final Fn coreResolver = new NamedFn("core-resolver") {
       private final Map<Symbol, Fn> coreResolutionMap = new HashMap<Symbol, Fn>();
       {
         coreResolutionMap.put(Symbol.intern("canard", "::"), cons);
@@ -34,7 +34,7 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn literalResolver = new Fn() {
+  public static final Fn literalResolver = new NamedFn("literal-resolver") {
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
@@ -52,7 +52,7 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn jvmResolver = new Fn() {
+  public static final Fn jvmResolver = new NamedFn("jvm-resolver") {
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
@@ -65,7 +65,7 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn bailoutResolver = new Fn() {
+  public static final Fn bailoutResolver = new NamedFn("bailout-resolver") {
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
@@ -79,7 +79,7 @@ public class Bootstrap {
   }
 
   // List functions
-  public static final Fn cons = new Fn() {
+  public static final Fn cons = new NamedFn("::") {
       @Override public void apply(final Interpreter environment) {
         final Object head = environment.pop();
         final Object tail = environment.pop();
@@ -87,7 +87,7 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn uncons = new Fn() {
+  public static final Fn uncons = new NamedFn(":^") {
       @Override public void apply(final Interpreter environment) {
         final Cons top = (Cons) environment.pop();
         environment.push(top.next());
@@ -95,34 +95,34 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn iscons = new Fn() {
+  public static final Fn iscons = new NamedFn(":?") {
       @Override public void apply(final Interpreter environment) {
         final Object top = environment.pop();
         environment.push(top instanceof Cons ? top : null);
       }
     };
 
-  public static final Fn quote = new Fn() {
+  public static final Fn quote = new NamedFn("'") {
       @Override public void apply(final Interpreter environment) {
         environment.push(new Quote(environment.pop()));
       }
     };
 
-  public static final Fn isquote = new Fn() {
+  public static final Fn isquote = new NamedFn("'?") {
       @Override public void apply(final Interpreter environment) {
         final Object top = environment.pop();
         environment.push(top instanceof Quote ? top : null);
       }
     };
 
-  public static final Fn apply = new Fn() {
+  public static final Fn apply = new NamedFn(".") {
       @Override public void apply(final Interpreter environment) {
         environment.rpush((Fn) environment.pop());
       }
     };
 
   // Return stack manipulation
-  public static final Fn rpop = new Fn() {
+  public static final Fn rpop = new NamedFn("r>") {
       @Override public void apply(final Interpreter environment) {
         final Fn continuation = environment.rpop();
         environment.push(environment.rpop());
@@ -130,7 +130,7 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn rpush = new Fn() {
+  public static final Fn rpush = new NamedFn("r<") {
       @Override public void apply(final Interpreter environment) {
         final Fn continuation = environment.rpop();
         environment.rpush((Fn) environment.pop());
@@ -139,7 +139,7 @@ public class Bootstrap {
     };
 
   // Conditionals
-  public static final Fn ifte = new Fn() {
+  public static final Fn ifte = new NamedFn("?") {
       @Override public void apply(final Interpreter environment) {
         final Object conditional = environment.pop();
         final Fn thenCase = (Fn) environment.pop();
@@ -148,7 +148,7 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn eq = new Fn() {
+  public static final Fn eq = new NamedFn("=") {
       @Override public void apply(final Interpreter environment) {
         final Object v = environment.pop();
         environment.push(v.equals(environment.pop()) ? v : null);
@@ -156,13 +156,13 @@ public class Bootstrap {
     };
 
   // Resolution
-  public static final Fn resolver$set = new Fn() {
+  public static final Fn resolver$set = new NamedFn("@<") {
       @Override public void apply(final Interpreter environment) {
         environment.resolver((Fn) environment.pop());
       }
     };
 
-  public static final Fn resolver$get = new Fn() {
+  public static final Fn resolver$get = new NamedFn("@>") {
       @Override public void apply(final Interpreter environment) {
         environment.push(environment.resolver());
       }

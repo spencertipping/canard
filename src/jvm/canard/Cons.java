@@ -21,6 +21,16 @@ public abstract class Cons extends ASeq implements Fn {
     @Override public ISeq next() {
       return tail;
     }
+
+    @Override public String toString() {
+      final StringBuffer result = new StringBuffer("[" + head);
+      ISeq c = tail;
+      while (c instanceof Cell) {
+        result.append(" " + c.head);
+        c = c.tail;
+      }
+      return result.append("]").toString();
+    }
   }
 
   public static final Cell cons(final Object head, final ISeq tail) {
