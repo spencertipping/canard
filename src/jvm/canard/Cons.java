@@ -26,8 +26,9 @@ public abstract class Cons extends ASeq implements Fn {
       final StringBuffer result = new StringBuffer("[" + head);
       ISeq c = tail;
       while (c instanceof Cell) {
-        result.append(" " + c.head);
-        c = c.tail;
+        final Cell cell = (Cell) c;
+        result.append(" " + cell.head);
+        c = cell.tail;
       }
       return result.append("]").toString();
     }
