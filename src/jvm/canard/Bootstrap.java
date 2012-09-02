@@ -77,7 +77,8 @@ public class Bootstrap {
   public static Fn loadedResolver() {
     return Cons.cons(coreResolver,
                      Cons.cons(literalResolver,
-                               Cons.cons(jvmResolver, bailoutResolver)));
+                               Cons.cons(jvmResolver,
+                                         Cons.cons(bailoutResolver, null))));
   }
 
   // List functions
