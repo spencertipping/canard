@@ -52,9 +52,12 @@ public class ReplInterpreter extends BaseInterpreter {
           previousInput += line;
           try {
             push(ApplicativeReader.read(new StringReader(previousInput)));
+            previousInput = "";
             this.apply(this);
             if (verbose) printStackState();
-          } catch (final RuntimeException e) {}
+          } catch (final RuntimeException e) {
+            System.err.println("\033[1;31m" + e + "\033[0;0m");
+          }
         }
       } catch (final IOException e) {
         System.exit(1);

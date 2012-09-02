@@ -3,6 +3,10 @@ package canard;
 import clojure.lang.ISeq;
 import clojure.lang.Symbol;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
+import java.util.Arrays;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -137,7 +141,8 @@ public class Bootstrap {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
         if (name.charAt(0) == '\'') {
-          environment.push(new Quote(Symbol.intern("canard", name.substring(1))));
+          environment.push(new Quote(new ExecutableSymbol(Symbol.intern("canard",
+                                                                        name.substring(1)))));
           environment.rpop();
         } else if (name.charAt(0) == 'x') {
           environment.push(new Quote(Long.parseLong(name.substring(1), 16)));
@@ -171,15 +176,25 @@ public class Bootstrap {
         } else if (name.charAt(0) == '.') {
           environment.push(new NamedFn(name) {
               @Override public void apply(final Interpreter environment) {
-                ISeq formals = (ISeq) environment.pop();
                 final Class c = (Class) environment.pop();
-                final Class[] formalArray = new Class[formals.count()];
-                for (int i = 0; formals != null; ++i, formals = formals.next())
-                  formalArray[i] = (Class) (formals.first() instanceof ExecutableSymbol
-                                            ? environment.invoke((Fn) formals.first())
-                                            : formals.first());
+                final Object[] formalArray = Cons.toArray((Cons) environment.pop());
+                final Class[] castedArray = Arrays.copyOf(formalArray, formalArray.length,
+                                                          Class[].class);
                 try {
-                  environment.push(c.getDeclaredMethod(name.substring(1), formalArray));
+                  final Method m = c.getDeclaredMethod(name.substring(1), castedArray);
+                  environment.push(new NamedFn(m.toString()) {
+                      @Override public void apply(final Interpreter environment) {
+                        final Object instance = environment.pop();
+                        final Object[] arguments = Cons.toArray((Cons) environment.pop());
+                        try {
+                          environment.push(m.invoke(instance, arguments));
+                        } catch (final IllegalAccessException e) {
+                          environment.push(null);
+                        } catch (final InvocationTargetException e) {
+                          environment.push(null);
+                        }
+                      }
+                    });
                 } catch (final NoSuchMethodException e) {
                   environment.push(null);
                 } catch (final SecurityException e) {
@@ -198,11 +213,11 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn bailoutResolver = new NamedFn("bailout-resolver") {
+  public static final Fn abstractResolver = new NamedFn("abstract-resolver") {
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         final String name = s.getName();
-        environment.push(new Quote(Symbol.intern("unresolved", name)));
+        environment.push(new Quote(Symbol.intern("abstract", name)));
         environment.rpop();
       }
     };
@@ -249,6 +264,6 @@ public class Bootstrap {
     };
 
   public static Fn loadedResolver() {
-    return Cons.list(coreResolver, stackFnResolver, literalResolver, jvmResolver, bailoutResolver);
+    return Cons.list(coreResolver, stackFnResolver, literalResolver, jvmResolver, abstractResolver);
   }
 }
