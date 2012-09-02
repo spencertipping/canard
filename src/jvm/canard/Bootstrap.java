@@ -206,7 +206,7 @@ public class Bootstrap {
   public static final Fn abstractResolver = new NamedFn("abstract-resolver") {
       @Override public void apply(final Interpreter environment) {
         final String name = ((ExecutableSymbol) environment.pop()).symbol;
-        environment.push(new Quote(new ExecutableSymbol("abstract::" + name)));
+        environment.push(new Quote("abstract::" + name));
         environment.rpop();
       }
     };
