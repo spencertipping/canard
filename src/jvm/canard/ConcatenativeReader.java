@@ -48,7 +48,9 @@ public class ConcatenativeReader extends Cons implements Fn {
           empty = true;
         } else if (c != -1) {
           int p = 0;
-          while (c != -1 && c > ' ' && c != '[' && c != ']' && p < SYMBOL_LENGTH_LIMIT) {
+          while (c != -1 && c > ' ' && c != '[' && c != ']') {
+            if (p >= SYMBOL_LENGTH_LIMIT)
+              throw new RuntimeException("symbol too long: " + new String(symbolBuffer));
             symbolBuffer[p++] = (char) c;
             c = input.read();
           }
@@ -83,7 +85,15 @@ public class ConcatenativeReader extends Cons implements Fn {
 
   @Override public String toString() {
     if (isSpurious()) return "";
-    else if (!isForced()) return "...";
-    else return first() + " " + next();
+
+    ConcatenativeReader r = (ConcatenativeReader) next();
+    final StringBuffer result = new StringBuffer("[" + first());
+    while (r != null && r.isForced()) {
+      result.append(" ");
+      result.append(r.first().toString());
+      r = (ConcatenativeReader) r.next();
+    }
+    if (r != null) result.append("...");
+    return result.append("]").toString();
   }
 }

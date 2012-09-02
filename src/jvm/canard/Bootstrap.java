@@ -7,8 +7,24 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class Bootstrap {
-  private static final Map<Symbol, Fn> coreResolutionMap = new HashMap<Symbol, Fn>();
   private static final Fn coreResolver = new Fn() {
+      private final Map<Symbol, Fn> coreResolutionMap = new HashMap<Symbol, Fn>();
+      {
+        coreResolutionMap.put(Symbol.intern("canard", "::"), cons);
+        coreResolutionMap.put(Symbol.intern("canard", ":^"), uncons);
+        coreResolutionMap.put(Symbol.intern("canard", ":?"), iscons);
+        coreResolutionMap.put(Symbol.intern("canard", "'"), quote);
+        coreResolutionMap.put(Symbol.intern("canard", "'?"), isquote);
+        coreResolutionMap.put(Symbol.intern("canard", "."), apply);
+        coreResolutionMap.put(Symbol.intern("canard", "r>"), rpop);
+        coreResolutionMap.put(Symbol.intern("canard", "r<"), rpush);
+        coreResolutionMap.put(Symbol.intern("canard", "?"), ifte);
+        coreResolutionMap.put(Symbol.intern("canard", "?!"), ift);
+        coreResolutionMap.put(Symbol.intern("canard", "="), eq);
+        coreResolutionMap.put(Symbol.intern("canard", "@>"), resolver$get);
+        coreResolutionMap.put(Symbol.intern("canard", "@<"), resolver$set);
+      }
+
       @Override public void apply(final Interpreter environment) {
         final Symbol s = (Symbol) environment.pop();
         if (coreResolutionMap.containsKey(s)) {
@@ -18,22 +34,6 @@ public class Bootstrap {
           environment.push(s);
       }
     };
-
-  {
-    coreResolutionMap.put(Symbol.intern("canard", "::"), cons);
-    coreResolutionMap.put(Symbol.intern("canard", ":^"), uncons);
-    coreResolutionMap.put(Symbol.intern("canard", ":?"), iscons);
-    coreResolutionMap.put(Symbol.intern("canard", "'"), quote);
-    coreResolutionMap.put(Symbol.intern("canard", "'?"), isquote);
-    coreResolutionMap.put(Symbol.intern("canard", "."), apply);
-    coreResolutionMap.put(Symbol.intern("canard", "r>"), rpop);
-    coreResolutionMap.put(Symbol.intern("canard", "r<"), rpush);
-    coreResolutionMap.put(Symbol.intern("canard", "?"), ifte);
-    coreResolutionMap.put(Symbol.intern("canard", "?!"), ift);
-    coreResolutionMap.put(Symbol.intern("canard", "="), eq);
-    coreResolutionMap.put(Symbol.intern("canard", "@>"), resolver$get);
-    coreResolutionMap.put(Symbol.intern("canard", "@<"), resolver$set);
-  }
 
   public static Fn coreResolver() {
     return coreResolver;
@@ -47,7 +47,7 @@ public class Bootstrap {
           environment.push(new Quote(Symbol.intern("canard", name.substring(1))));
           environment.rpop();
         } else if (name.charAt(0) == 'x') {
-          environment.push(Long.parseLong(name.substring(1)));
+          environment.push(new Quote(Long.parseLong(name.substring(1))));
           environment.rpop();
         } else
           environment.push(s);
