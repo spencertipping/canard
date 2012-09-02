@@ -15,9 +15,9 @@ public class ApplicativeReader {
     final Stack<Object> values = new Stack<Object>();
     values.push(null);
 
-    int c;
-    while ((c = input.read()) != -1) {
-      while (c <= ' ' && c != -1) c = input.read();
+    char c;
+    while ((c = (char) input.read()) != -1) {
+      while (c <= ' ' && c != -1) c = (char) input.read();
 
       if (c == '[') values.push(null);
       else if (c == ']') {
@@ -26,9 +26,9 @@ public class ApplicativeReader {
         values.push(new Quote(Cons.cons(head, (ISeq) rest)));
       } else {
         final StringBuffer symbol = new StringBuffer();
-        symbol.append((char) c);
-        while ((c = input.read()) != -1 && c != '[' && c != ']' && c > ' ')
-          symbol.append((char) c);
+        symbol.append(c);
+        while ((c = (char) input.read()) != -1 && c != '[' && c != ']' && c > ' ')
+          symbol.append(c);
         input.unread(c);
         values.push(Cons.cons(Symbol.intern("canard", symbol.toString()), (ISeq) values.pop()));
       }
