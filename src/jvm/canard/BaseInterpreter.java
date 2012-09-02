@@ -59,6 +59,7 @@ public class BaseInterpreter implements Interpreter {
     if (f != null) f.apply(this);
   }
 
+  @Override
   public Object invoke(final Fn f, final Object ... args) {
     for (final Object o : args) push(o);
     this.execute(f);

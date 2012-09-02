@@ -11,4 +11,5 @@ public interface Interpreter extends Fn {
   Fn resolver();
 
   void execute(Fn f);
+  Object invoke(Fn f, Object ... args);
 }
