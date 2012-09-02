@@ -50,6 +50,13 @@ public class Bootstrap {
       }
     };
 
+  public static final Fn apply = new NamedFn(".?") {
+      @Override public void apply(final Interpreter environment) {
+        final Object v = environment.pop();
+        environment.push(v instanceof Fn ? v : null);
+      }
+    };
+
   // Return stack manipulation
   public static final Fn rpop = new NamedFn("r>") {
       @Override public void apply(final Interpreter environment) {
@@ -106,6 +113,7 @@ public class Bootstrap {
         coreResolutionMap.put(Symbol.intern("canard", "'"), quote);
         coreResolutionMap.put(Symbol.intern("canard", "'?"), isquote);
         coreResolutionMap.put(Symbol.intern("canard", "."), apply);
+        coreResolutionMap.put(Symbol.intern("canard", ".?"), isapplicable);
         coreResolutionMap.put(Symbol.intern("canard", "r>"), rpop);
         coreResolutionMap.put(Symbol.intern("canard", "r<"), rpush);
         coreResolutionMap.put(Symbol.intern("canard", "?"), ifte);
