@@ -16,8 +16,9 @@ public class ApplicativeReader {
     values.push(null);
 
     char c;
-    while ((c = (char) input.read()) != -1) {
-      while (c <= ' ' && c != -1) c = (char) input.read();
+    while ((c = (char) input.read()) != 65535) {
+      System.out.println("char = " + (int) c);
+      while (c <= ' ' && c != 65535) c = (char) input.read();
 
       if (c == '[') values.push(null);
       else if (c == ']') {
@@ -27,7 +28,7 @@ public class ApplicativeReader {
       } else {
         final StringBuffer symbol = new StringBuffer();
         symbol.append(c);
-        while ((c = (char) input.read()) != -1 && c != '[' && c != ']' && c > ' ')
+        while ((c = (char) input.read()) != 65535 && c != '[' && c != ']' && c > ' ')
           symbol.append(c);
         input.unread(c);
         values.push(Cons.cons(Symbol.intern("canard", symbol.toString()), (ISeq) values.pop()));
