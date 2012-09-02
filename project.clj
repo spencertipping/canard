@@ -3,4 +3,5 @@
   :url "http://spencertipping.com/canard"
   :license {:name "MIT source code license"}
   :dependencies [[org.clojure/clojure "1.4.0"]]
-  :java-source-paths ["src/jvm"])
+  :java-source-paths ["src/jvm"]
+  :main canard.ReplInterpreter)

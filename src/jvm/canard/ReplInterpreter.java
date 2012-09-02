@@ -1,16 +1,38 @@
 package canard;
 
+import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.io.IOException;
 
-public class ReplInterpreter extends DebugInterpreter {
-  public ReplInterpreter() {
+public class ReplInterpreter extends BaseInterpreter {
+  public boolean verbose = false;
+
+  public ReplInterpreter(final String[] args) {
     super(Bootstrap.loadedResolver());
 
-    System.err.println("Canard REPL | Spencer Tipping");
-    System.err.println("Licensed under the terms of the MIT source code license");
-    System.err.println("https://github.com/spencertipping/canard");
-    repl();
+    boolean interactive = false;
+    boolean files = false;
+
+    for (final String arg : args) {
+      if ("-v".equals(arg)) verbose = true;
+      else if ("-i".equals(arg)) interactive = true;
+      else
+        try {
+          files = true;
+          push(ApplicativeReader.read(new FileReader(arg)));
+          this.apply(this);
+        } catch (final IOException e) {
+          System.err.println("failed to read input file " + arg);
+          System.exit(1);
+        }
+    }
+
+    if (!files || interactive) {
+      System.err.println("Canard REPL | Spencer Tipping");
+      System.err.println("Licensed under the terms of the MIT source code license");
+      System.err.println("https://github.com/spencertipping/canard");
+      repl();
+    }
   }
 
   private void repl() {
@@ -19,7 +41,7 @@ public class ReplInterpreter extends DebugInterpreter {
       System.err.print("\033[1;32m> \033[0;0m");
       push(in.first());
       this.apply(this);
-      printStackState();
+      if (verbose) printStackState();
       in = (ConcatenativeReader) in.next();
     }
     System.exit(0);
@@ -33,6 +55,6 @@ public class ReplInterpreter extends DebugInterpreter {
   }
 
   public static void main(final String[] args) {
-    new ReplInterpreter();
+    new ReplInterpreter(args);
   }
 }
