@@ -27,12 +27,19 @@ public abstract class Cons extends ASeq implements Fn {
     return new Cell(head, tail);
   }
 
+  public static final Cell list(final Object ... elements) {
+    Cell result = null;
+    for (int i = elements.length - 1; i >= 0; --i)
+      result = cons(elements[i], result);
+    return result;
+  }
+
   public abstract Object first();
   public abstract ISeq next();
 
   @Override public void apply(Interpreter environment) {
-    environment.execute((Fn) first());
     environment.rpush((Fn) next());
+    environment.rpush((Fn) first());
   }
 
   public Cons withMeta(final IPersistentMap meta) {

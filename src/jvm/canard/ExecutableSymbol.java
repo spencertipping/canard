@@ -11,12 +11,8 @@ public class ExecutableSymbol implements Fn {
   }
 
   public Fn resolution(final Interpreter environment) {
-    if (resolution == null) {
-      environment.push(this.symbol);
-      environment.rpush(null);
-      environment.execute(environment.resolver());
-      resolution = (Fn) environment.pop();
-    }
+    if (resolution == null)
+      resolution = (Fn) environment.invoke(environment.resolver(), this.symbol);
     return resolution;
   }
 

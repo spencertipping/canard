@@ -61,7 +61,7 @@ public class BaseInterpreter implements Interpreter {
 
   public Object invoke(final Fn f, final Object ... args) {
     for (final Object o : args) push(o);
-    f.apply(this);
+    this.execute(f);
     return pop();
   }
 }
