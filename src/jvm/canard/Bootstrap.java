@@ -124,7 +124,7 @@ public class Bootstrap {
       }
 
       @Override public void apply(final Interpreter environment) {
-        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
+        final String name = ((Symbol) environment.at(0)).symbol;
         if (coreResolutionMap.containsKey(name)) {
           environment.pop();
           environment.push(coreResolutionMap.get(name));
@@ -135,10 +135,10 @@ public class Bootstrap {
 
   public static final Fn literalResolver = new NamedFn("literal-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
+        final String name = ((Symbol) environment.at(0)).symbol;
         if (name.charAt(0) == '\'') {
           environment.pop();
-          environment.push(new Quote(new ExecutableSymbol(name.substring(1))));
+          environment.push(new Quote(new Symbol(name.substring(1))));
           environment.rpop();
         }
       }
@@ -146,7 +146,7 @@ public class Bootstrap {
 
   public static final Fn jvmResolver = new NamedFn("jvm-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
+        final String name = ((Symbol) environment.at(0)).symbol;
         if (name.charAt(0) == '#') {
           environment.pop();
           environment.push(new NamedFn(name) {
@@ -205,7 +205,7 @@ public class Bootstrap {
 
   public static final Fn abstractResolver = new NamedFn("abstract-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final String name = ((ExecutableSymbol) environment.pop()).symbol;
+        final String name = ((Symbol) environment.pop()).symbol;
         environment.push(new Quote("abstract::" + name));
         environment.rpop();
       }
@@ -213,7 +213,7 @@ public class Bootstrap {
 
   public static final Fn stackFnResolver = new NamedFn("stack-fn-resolver") {
       @Override public void apply(final Interpreter environment) {
-        final String name = ((ExecutableSymbol) environment.at(0)).symbol;
+        final String name = ((Symbol) environment.at(0)).symbol;
         final String hexDigits = "0123456789abcdef";
         if (name.charAt(0) == '%') {
           final int base = hexDigits.indexOf(name.charAt(1));

@@ -1,6 +1,6 @@
 package canard;
 
-public class Interpreter {
+public class Interpreter implements Fn {
   public static final int DATA_STACK_DEPTH = 131072;
   public static final int RETURN_STACK_DEPTH = 65536;
 
@@ -66,23 +66,19 @@ public class Interpreter {
         if (c.tail == null || c.tail instanceof Fn)
           rpush((Fn) c.tail);
         else
-          throw new InvalidArgumentException("cannot run improper cons " + c);
-        this.execute(next.head);
+          throw new RuntimeException("cannot run improper list " + c);
+        this.execute((Fn) c.head);
       } else if (next == null);         // Null = return
-      else {
-        if (verbose)
-          System.err.println("\033[1;33mexecuting unit\033[0;0m");
+      else
         this.execute(next);
-      }
     }
   }
 
-  @Override
   public void execute(final Fn f) {
-    if (f != null) f.apply(this);
+    if (f == null) push(null);
+    else           f.apply(this);
   }
 
-  @Override
   public Object invoke(final Fn f, final Object ... args) {
     rpush(RETURN_CONTINUATION);
     for (final Object o : args) push(o);

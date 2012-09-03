@@ -1,10 +1,10 @@
 package canard;
 
-public class ExecutableSymbol implements Fn {
+public class Symbol implements Fn {
   private Fn resolution = null;
   public final String symbol;
 
-  public ExecutableSymbol(final String symbol) {
+  public Symbol(final String symbol) {
     this.symbol = symbol;
   }
 

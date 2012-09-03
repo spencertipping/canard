@@ -9,7 +9,7 @@ import java.io.StringReader;
 public class Repl extends Interpreter {
   public boolean verbose = false;
 
-  public ReplInterpreter(final String[] args) {
+  public Repl(final String[] args) {
     super(Bootstrap.loadedResolver());
 
     boolean interactive = false;
@@ -21,7 +21,7 @@ public class Repl extends Interpreter {
       else
         try {
           files = true;
-          push(ApplicativeReader.read(new FileReader(arg)));
+          push(Reader.read(new FileReader(arg)));
 
           final int priorDepth = dataStackPointer;
           this.apply(this);
@@ -57,7 +57,7 @@ public class Repl extends Interpreter {
         } else {
           previousInput += line;
           try {
-            push(ApplicativeReader.read(new StringReader(previousInput)));
+            push(Reader.read(new StringReader(previousInput)));
             previousInput = "";
             this.apply(this);
           } catch (final RuntimeException e) {

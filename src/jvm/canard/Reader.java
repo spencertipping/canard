@@ -1,16 +1,12 @@
 package canard;
 
-import clojure.lang.ISeq;
-import clojure.lang.Symbol;
-
 import java.io.IOException;
 import java.io.PushbackReader;
-import java.io.Reader;
 
 import java.util.Stack;
 
 public class Reader {
-  public static Object read(final Reader source) throws IOException {
+  public static Object read(final java.io.Reader source) throws IOException {
     final PushbackReader input = new PushbackReader(source);
     final Stack<Object> values = new Stack<Object>();
     values.push(null);
@@ -31,7 +27,7 @@ public class Reader {
         while ((c = (char) input.read()) != 65535 && c != '[' && c != ']' && c > ' ')
           symbol.append(c);
         input.unread(c);
-        values.push(Cons.cons(new ExecutableSymbol(symbol.toString()), values.pop()));
+        values.push(Cons.cons(new Symbol(symbol.toString()), values.pop()));
       }
     }
 
