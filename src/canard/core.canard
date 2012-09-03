@@ -1,5 +1,3 @@
-#!/usr/bin/canard
-
 nb [def and nb
 
     This is some of the most subtle and gnarly code in the entire Canard
@@ -75,23 +73,21 @@ nb [def and nb
 
     . [continuation 'v %2 r>] 's = 'v
 
-    So in general, matching takes the form [%2x r>]. Rejecting a match is
-    usually just [] or [%x]. (Note that in practice it's a little more complex
-    because we'll have to return through two frames instead of just one.)
-
-    Here's the derivation for a general-purpose symbol match closure:
+    So in general, matching takes the form [%3x r>]. Rejecting a match is
+    usually just [] or [%x]. Here's the derivation for a general-purpose symbol
+    match closure:
 
     continuation match 's 'v 's = 'v
     continuation match 's 'v 'x = continuation 'x
 
-    [? [%43 r> r>] [%1] = %102] 's 'v 'x
-      [%42 r> r>] 'v 'x = 'v
-      [%1] 'v 'x        = 'x
+    [? [%31 r>] [%1] = %102] 's 'v 'x
+      [%31 r>] 'v 'x = 'v
+      [%1] 'v 'x     = 'x
 
     Closing over 's and 'v is just a matter of quote-consing them onto the list.
     Here's what that looks like:
 
-    :: :: [? [%42 r> r>] [%1] = %102] ' 's 'v
+    :: :: [? [%31 r>] [%1] = %102] ' 's 'v
 
     Now we can put these pieces together to define '->', a preliminary function
     that defines a matcher:
@@ -119,12 +115,10 @@ nb [def and nb
     We use it to define #!/usr/bin/canard because otherwise this would appear to
     be resolved to a field accessor by the JVM resolver.]
 
-def' '#!/usr/bin/canard []
-def  'nb                [%1]
-def  'def'              [@< :: @> ->]
+def 'nb [%1]
 
-%1 @< ++       -> 'def [@< ++ %210 @> ->]                   @>
-   @< . %02    -> '++ %01                                   @>
-   @< . %02 . %01 '-> [:: :: [? [%42 r> r>] [%1] = %102] '] @>
+%1 @< ++       -> 'def [@< ++ %210 @> ->]                    @>
+   @< . %02    -> '++ %01                                    @>
+   @< . %02 . %01 '-> [:: :: [. [? [%31 r>] [%1] = %102]] '] @>
 
    :: :: [.] %00 [? [:: . %422301 :^ %3201] [%31] %02]

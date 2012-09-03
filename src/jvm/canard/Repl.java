@@ -8,6 +8,7 @@ import java.io.StringReader;
 
 public class Repl extends Interpreter {
   public boolean verbose = false;
+  public boolean timing  = false;
 
   public Repl(final String[] args) {
     super(Bootstrap.loadedResolver());
@@ -16,15 +17,24 @@ public class Repl extends Interpreter {
     boolean files = false;
 
     for (final String arg : args) {
-      if ("-v".equals(arg)) verbose = true;
+      if ("-v".equals(arg))      verbose     = true;
+      else if ("-t".equals(arg)) timing      = true;
       else if ("-i".equals(arg)) interactive = true;
       else
         try {
           files = true;
-          push(Reader.read(new FileReader(arg)));
-
           final int priorDepth = dataStackPointer;
+          final long readStart = System.currentTimeMillis();
+          push(Reader.read(new FileReader(arg)));
+          final long runStart = System.currentTimeMillis();
           this.apply(this);
+
+          if (verbose || timing) {
+            final long now = System.currentTimeMillis();
+            System.err.println(arg + ": " + (runStart - readStart) + "ms read; " +
+                                            (now - runStart)       + "ms run");
+          }
+
           if (dataStackPointer != priorDepth)
             System.err.println("\033[1;33mwarning: executing " + arg +
                                " resulted in a stack delta of " + (dataStackPointer - priorDepth) +
