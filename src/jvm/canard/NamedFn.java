@@ -8,6 +8,6 @@ public abstract class NamedFn implements Fn {
   }
 
   @Override public String toString() {
-    return name;
+    return "#<" + name + ">";
   }
 }

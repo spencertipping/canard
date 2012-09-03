@@ -11,8 +11,8 @@ public class Bootstrap {
   // List functions
   public static final Fn cons = new NamedFn("::") {
       @Override public void apply(final Interpreter environment) {
-        final Object head = environment.pop();
         final Object tail = environment.pop();
+        final Object head = environment.pop();
         environment.push(Cons.cons(head, tail));
       }
     };

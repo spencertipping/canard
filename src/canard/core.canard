@@ -9,7 +9,7 @@ function.
 The general idea here is that we build closures that we then cons onto the
 existing resolver function. So the code would be something like this:
 
-@< :: <our-custom-resolver> @>
+@< :: @> <our-custom-resolver>
 
 Each custom resolver will be invoked against the symbol on top of the stack. If
 it finds a match, it should pop the symbol, push the match, and take the second
@@ -44,13 +44,14 @@ quoted symbol and value:
 This closure is a single definition element. Once we have that, defining
 something is as simple as:
 
-@< (closure) 'symbol 'value @>
+@< :: @> (closure) 'symbol 'value
 
 Which, in concatenative style, is:
 
-@< (closure) %3120 @> 'symbol 'value]
+@< :: @> (closure) 'symbol 'value]
 
-def nb '%1
+def '#!/usr/bin/canard []
+def 'nb '%1
 
-@< 'def :: :: :: '@< def-closure '%3120 '@>
-@< . %03 'def-closure %010 @> %00 [:: :: [? [%31 r>] [%1] = %02]]
+@< :: @> def-closure 'def :: [@< :: @>] . @> 'def-closure
+@< :: @> . . %2101 'def-closure [:: :: [? [%31 r>] [%1] = %02]]

@@ -35,8 +35,7 @@ public class Cons implements Fn {
   }
 
   @Override public void apply(Interpreter environment) {
-    environment.rpush((Fn) tail);
-    environment.rpush((Fn) head);
+    environment.push(this);
   }
 
   @Override public String toString() {
@@ -47,6 +46,7 @@ public class Cons implements Fn {
       result.insert(0, cell.head + (cell == this ? "" : " "));
       c = cell.tail;
     }
+    if (c != null) result.insert(0, c + " :: ");
     return result.insert(0, "[").toString();
   }
 }

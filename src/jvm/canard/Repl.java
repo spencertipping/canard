@@ -6,7 +6,7 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.StringReader;
 
-public class ReplInterpreter extends BaseInterpreter {
+public class Repl extends Interpreter {
   public boolean verbose = false;
 
   public ReplInterpreter(final String[] args) {
@@ -60,7 +60,6 @@ public class ReplInterpreter extends BaseInterpreter {
             push(ApplicativeReader.read(new StringReader(previousInput)));
             previousInput = "";
             this.apply(this);
-            if (verbose) printStackState();
           } catch (final RuntimeException e) {
             System.err.println("\033[1;31m" + e + "\033[0;0m");
           }
@@ -74,8 +73,10 @@ public class ReplInterpreter extends BaseInterpreter {
 
   @Override public void execute(final Fn f) {
     if (verbose) {
-      System.err.println("\033[1;30mexecuting " + f + "\033[0;0m");
+      System.err.println("\033[1;33mexecuting " + f + "\033[0;0m");
+      System.err.println("\033[1;33mresolver is " + resolver() + "\033[0;0m");
       printStackState();
+      System.err.println("");
     }
     super.execute(f);
   }

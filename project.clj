@@ -4,4 +4,4 @@
   :license {:name "MIT source code license"}
   :dependencies []
   :java-source-paths ["src/jvm"]
-  :main canard.ReplInterpreter)
+  :main canard.Repl)

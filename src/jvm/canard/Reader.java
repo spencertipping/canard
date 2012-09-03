@@ -9,7 +9,7 @@ import java.io.Reader;
 
 import java.util.Stack;
 
-public class ApplicativeReader {
+public class Reader {
   public static Object read(final Reader source) throws IOException {
     final PushbackReader input = new PushbackReader(source);
     final Stack<Object> values = new Stack<Object>();
@@ -24,7 +24,8 @@ public class ApplicativeReader {
         final Object sublist = values.pop();
         final Object rest = values.pop();
         values.push(Cons.cons(new Quote(sublist), rest));
-      } else {
+      } else if (c == 65535);
+      else {
         final StringBuffer symbol = new StringBuffer();
         symbol.append(c);
         while ((c = (char) input.read()) != 65535 && c != '[' && c != ']' && c > ' ')
