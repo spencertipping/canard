@@ -70,7 +70,7 @@ public class Repl extends Interpreter {
             push(Reader.read(new StringReader(previousInput)));
             previousInput = "";
             this.apply(this);
-            if (verbose) printStackState();
+            printStackState();
           } catch (final RuntimeException e) {
             System.err.println("\033[1;31m" + e + "\033[0;0m");
           }
@@ -97,9 +97,10 @@ public class Repl extends Interpreter {
       System.err.println((dataStackPointer - i - 1) + "   \033[1;34m" +
                          Stuff.s(dataStack[i]) + "\033[0;0m");
 
-    for (int i = returnStackPointer - 1; i >= 0; --i)
-      System.err.println((returnStackPointer - i - 1) + "   \033[1;32m" +
-                         Stuff.s(returnStack[i]) + "\033[0;0m");
+    if (verbose)
+      for (int i = returnStackPointer - 1; i >= 0; --i)
+        System.err.println((returnStackPointer - i - 1) + "   \033[1;32m" +
+                           Stuff.s(returnStack[i]) + "\033[0;0m");
   }
 
   public static void main(final String[] args) {
