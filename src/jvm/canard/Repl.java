@@ -81,14 +81,19 @@ public class Repl extends Interpreter {
     super.execute(f);
   }
 
+  public static String toString(final Object o) {
+    if (o == null) return "[]";
+    else           return o.toString();
+  }
+
   public void printStackState() {
     for (int i = dataStackPointer - 1; i >= 0; --i)
       System.err.println((dataStackPointer - i - 1) + "   \033[1;34m" +
-                         dataStack[i] + "\033[0;0m");
+                         toString(dataStack[i]) + "\033[0;0m");
 
     for (int i = returnStackPointer - 1; i >= 0; --i)
       System.err.println((returnStackPointer - i - 1) + "   \033[1;32m" +
-                         returnStack[i] + "\033[0;0m");
+                         toString(returnStack[i]) + "\033[0;0m");
   }
 
   public static void main(final String[] args) {

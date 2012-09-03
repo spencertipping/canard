@@ -87,8 +87,15 @@ public class Bootstrap {
 
   public static final Fn eq = new NamedFn("=") {
       @Override public void apply(final Interpreter environment) {
-        final Object v = environment.pop();
-        environment.push(v.equals(environment.pop()) ? v : null);
+        final Object v1 = environment.pop();
+        final Object v2 = environment.pop();
+        environment.push(v1 == v2 || v1 != null && v1.equals(v2) ? v1 : null);
+      }
+    };
+
+  public static final Fn not = new NamedFn("!") {
+      @Override public void apply(final Interpreter environment) {
+        environment.push(environment.pop() == null ? new Quote(null) : null);
       }
     };
 
@@ -113,6 +120,7 @@ public class Bootstrap {
         coreResolutionMap.put(":?", iscons);
         coreResolutionMap.put("'", quote);
         coreResolutionMap.put("'?", isquote);
+        coreResolutionMap.put("!", not);
         coreResolutionMap.put(".", apply);
         coreResolutionMap.put(".?", isapplicable);
         coreResolutionMap.put("r>", rpop);
@@ -203,14 +211,6 @@ public class Bootstrap {
       }
     };
 
-  public static final Fn abstractResolver = new NamedFn("abstract-resolver") {
-      @Override public void apply(final Interpreter environment) {
-        final String name = ((Symbol) environment.pop()).symbol;
-        environment.push(new Quote("abstract::" + name));
-        environment.rpop();
-      }
-    };
-
   public static final Fn stackFnResolver = new NamedFn("stack-fn-resolver") {
       @Override public void apply(final Interpreter environment) {
         final String name = ((Symbol) environment.at(0)).symbol;
@@ -253,6 +253,6 @@ public class Bootstrap {
     };
 
   public static Fn loadedResolver() {
-    return Cons.list(coreResolver, stackFnResolver, literalResolver, jvmResolver, abstractResolver);
+    return Cons.list(coreResolver, stackFnResolver, literalResolver, jvmResolver);
   }
 }

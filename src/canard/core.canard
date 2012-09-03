@@ -1,58 +1,106 @@
 #!/usr/bin/canard
 
-nb [
-We need to be able to define things without going through the trouble of
-manually reinstalling the resolver. To do this, of course, we need to manually
-reinstall the resolver once so that we can use it to resolve the definition
-function.
+nb [def and nb
 
-The general idea here is that we build closures that we then cons onto the
-existing resolver function. So the code would be something like this:
+    This is some of the most subtle and gnarly code in the entire Canard
+    codebase. Most of the intricate complexity arises from the minimalism in
+    Canard's evaluator/resolver design. Here's the story on that.
 
-@< :: @> <our-custom-resolver>
+    Canard's semantics are deceptively simple. Lists can be interpreted, which
+    entails evaluating the head and then interpreting the tail. If a list is
+    evaluated (not interpreted), it simply pushes itself onto the data stack.
+    If a symbol is evaluated, it resolves itself and pushes its resolution onto
+    the return stack, which basically inserts a continuation.
 
-Each custom resolver will be invoked against the symbol on top of the stack. If
-it finds a match, it should pop the symbol, push the match, and take the second
-return continuation. Otherwise it should return normally, leaving the symbol on
-the stack for the next resolver.
+    And that's about it. The resolver is a function like any other. Because cons
+    and function application are the same thing and you can change the resolver,
+    you end up defining new symbols by consing new things onto the system
+    resolver and then installing the result as the system's resolver.
 
-['value %2 r>]          <- matching case (nukes symbol and continuation)
-[]                      <- non-matching case
+    Strangely enough, this fails miserably unless you are very careful. The
+    failure case arises because lists are quoted by default -- so each symbol's
+    resolution happens the first time it is evaluated. With that in mind,
+    suppose you optimistically cons a list like this onto the resolver:
 
-The decision branch looks like this:
+    [? ['value %2 r>] [] = 'foo %00]
 
-? ['value %2 r>] [] = 'symbol 'x
+    The next time you try to resolve a symbol, let's say 'foo, this list will be
+    run. None of this is a problem until you hit %00. At this point, the
+    resolver will be called again, this time to resolve %00. And your custom
+    resolver code will be run again, and will call %00 again, etc.
 
-Our job here is to write a function that constructs this form. The simplest way
-to do it is to rearrange values on the stack such that we can simply push the
-symbol and value as closure parameters. Here's the derivation:
+    Ok ... so, in order to fix this, we have to make sure that all of the
+    symbols inside a resolver are either (1) pre-resolved (I don't think this is
+    possible, or if it is it's a lot of work), or (2) they get resolved before
+    our resolver is called. The only way to make sure this will happen is to dig
+    through the resolver list with a local fixed point, waiting until we hit a
+    null entry. At that point we can put our additions onto the bottom of the
+    list and re-cons the others above.
 
-(resolver) 'symbol 'value 'x -> ? ['value %1 r>] ['x] = 'symbol 'x
+    Canard doesn't provide a catch-all resolver in the bootstrap layer, so our
+    new resolvers can be inserted at the end of the resolver list. Most
+    recursion will probably be done through the symbol table, but at this point
+    we don't have that to work with. So right now we need to create an ad-hoc
+    fixed point. Here's what the append function looks like:
 
-= %02      'symbol 'value 'x -> (= 'x 'symbol) 'value 'x
-  . [%31 r>] 'value 'x       -> 'value %1 r>
-  . [%1]     'value 'x       -> 'x
+    ++ [++] [xs ... x] [ys ... y] = :: (++ [++] [xs ... x] [ys ...]) y
+    ++ [++] [] y                  = y
 
-So (resolver) is [? [%31 r>] [%1] = %02].
+    Here's the derivation for the nontrivial case:
 
-Creating a closure is not difficult; we just need to cons the resolver onto the
-quoted symbol and value:
+    ++           [++] xs (:: ys y) = :: (++ [++] xs ys) y
+    :^ %3201     [++] xs (:: ys y) = ys y [++] xs
+    :: . %422301 ys y [++] xs      = :: . [++] [++] xs ys y
 
-(closure) 'symbol 'value -> [(resolver) 'symbol 'value]
-:: :: (resolver) 'symbol 'value -> [(resolver) 'symbol 'value]
+    The trivial case:
 
-This closure is a single definition element. Once we have that, defining
-something is as simple as:
+    ++  [++] x [] = x
+    %31 [++] x [] = x
 
-@< :: :: @> '. (closure) 'symbol 'value
+    The decision just needs to check the ys list for nullness. Here's the
+    complete append function, wrapped so that it pushes [++] automatically:
 
-Which, in concatenative style, is:
+    :: :: [.] %00 [? [:: . %422301 :^ %3201] [%31] %02]
 
-@< :: :: @> '. (closure) 'symbol 'value
-]
+    The append function is the first piece, but we also need a way to build a
+    closure that acts as a resolver function. Each piece of the resolver list is
+    a function that either matches and returns early, or fails to match and
+    follows its given continuation. Specifically:
 
-def '#!/usr/bin/canard []
-def 'nb '%1
+    . [continuation match]  's = 'v
+    . [continuation reject] 's = . [continuation] 's
 
-@< :: :: @> '. def-closure 'def :: [@< :: :: @> '.] . @> 'def-closure
-@< :: :: @> '. . %2101 'def-closure [:: :: [? [%31 r>] [%1] = %02] ']
+    The mechanics of this involve using r> to pop [continuation] from the return
+    stack. If we want to push 'v, then, we'd do this:
+
+    . [continuation 'v %2 r>] 's = 'v
+
+    So in general, matching takes the form [%2x r>]. Rejecting a match is
+    usually just [] or [%x].
+
+    Here's the derivation for a general-purpose symbol match closure:
+
+    continuation match 's 'v 's = 'v
+    continuation match 's 'v 'x = continuation 'x
+
+    [? [%31 r>] [%1] = %102] 's 'v 'x
+
+    Closing over 's and 'v is just a matter of quote-consing them onto the list.
+    Here's what that looks like:
+
+    :: :: [? [%31 r>] [%1] = %102] ' 's 'v
+
+    Now we can put these pieces together to define '->', a preliminary function
+    that defines a matcher:
+
+    @< . %02 . %01 '-> [:: :: ... '] @> [++]
+         |     |       |                |
+         ------+-------+----------------+
+               +-------+
+
+    After this runs, we'll still have [++] on the stack to reuse for the next
+    few definitions.]
+
+@< . %02 -> '++ %01 @>
+@< . %02 . %01 '-> [:: :: [? [%31 r>] [%1] = %102] '] @>
+:: :: [.] %00 [? [:: . %422031 :^ %210] [%31] %01]
