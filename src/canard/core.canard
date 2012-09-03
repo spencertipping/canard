@@ -44,14 +44,15 @@ quoted symbol and value:
 This closure is a single definition element. Once we have that, defining
 something is as simple as:
 
-@< :: @> (closure) 'symbol 'value
+@< :: :: @> '. (closure) 'symbol 'value
 
 Which, in concatenative style, is:
 
-@< :: @> (closure) 'symbol 'value]
+@< :: :: @> '. (closure) 'symbol 'value
+]
 
 def '#!/usr/bin/canard []
 def 'nb '%1
 
-@< :: @> def-closure 'def :: [@< :: @>] . @> 'def-closure
-@< :: @> . . %2101 'def-closure [:: :: [? [%31 r>] [%1] = %02]]
+@< :: :: @> '. def-closure 'def :: [@< :: :: @> '.] . @> 'def-closure
+@< :: :: @> '. . %2101 'def-closure [:: :: [? [%31 r>] [%1] = %02] ']
