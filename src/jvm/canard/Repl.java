@@ -92,6 +92,6 @@ public class Repl extends Interpreter {
   }
 
   public static void main(final String[] args) {
-    new ReplInterpreter(args);
+    new Repl(args);
   }
 }
