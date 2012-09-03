@@ -1,3 +1,72 @@
+nb [Reflection
+
+    These functions are used to manipulate Java objects using the reflection
+    API. Later on we'll have a way to generate proxy access classes that do this
+    work much more efficiently, but in order to define those we need some way to
+    invoke methods using reflection.]
+
+def 'type ++ :: [] .getClass java.lang.Object [] [swap []]
+
+nb [List functions
+
+    The usual suspects: map, filter, flatmap, etc. We already have a working
+    version of append from below, so we can skip that one. Here are the
+    derivations:
+
+    +* [f] (:: xs x) = :: (+* [f] xs) (f x)
+    +* [f] []        = []
+
+    +* = ? [inductive] [base] nip
+    inductive       [f] (:: xs x) = :: (+* [f] xs) (f x)
+      :^ swap       [f] (:: xs x) = xs x [f]
+      ^2 [.] %32021 xs x [f]      = [f] xs f x
+      :: +*         [f] xs f x    = :: +* [f] xs f x
+
+    base   [f] [] = []
+      drop [f] [] = []
+
+    Here's filter:
+
+    +/ = ? [inductive] [base] nip
+
+    inductive   [f] (:: xs x) = ? [append] [drop] (f x) [f] xs x
+      :^ swap   [f] (:: xs x) = xs x [f]
+      . %321201 xs x [f]      = f x [f] xs x
+
+    base   [f] [] = []
+      drop [f] [] = []
+
+    append  [f] xs x = :: (+/ [f] xs) x
+      :: +/ [f] xs x = :: +/ [f] xs x
+
+    drop      [f] xs x = +/ [f] xs
+      +/ %301 [f] xs x = +/ [f] xs
+
+    And here's flatmap, which is identical to +* except for two names:
+
+    +@ [f] (:: xs x) = ++ (+@ [f] xs) (f x)
+    +@ [f] []        = []]
+
+def '+/ [? [? [:: +/] [+/ %301] . %321201 :^ swap] [drop] nip]
+def '+@ [? [++ +@ ^1 [.]          %32021  :^ swap] [drop] nip]
+def '+* [? [:: +* ^1 [.]          %32021  :^ swap] [drop] nip]
+
+nb [Stack shorthands]
+
+def 'dup  [%00]
+def 'drop [%1]
+def 'swap [%210]
+def 'nip  [%01]
+def 'rot< [%3120]
+def 'rot> [%3201]
+
+nb [resolution
+
+    Sometimes it's useful to be able to resolve a variable without executing it.
+    You can do this using the @? function.]
+
+def '@? [. @>]
+
 nb [def and nb
 
     This is some of the most subtle and gnarly code in the entire Canard
