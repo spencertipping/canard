@@ -89,7 +89,7 @@ public class Bootstrap {
       @Override public void apply(final Interpreter environment) {
         final Object v1 = environment.pop();
         final Object v2 = environment.pop();
-        environment.push(v1 == v2 || v1 != null && v1.equals(v2) ? v1 : null);
+        environment.push(Stuff.eq(v1, v2) ? v1 : null);
       }
     };
 

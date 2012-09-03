@@ -49,4 +49,10 @@ public class Cons implements Fn {
     if (c != null) result.insert(0, c + " :: ");
     return result.insert(0, "[").toString();
   }
+
+  @Override public boolean equals(final Object o) {
+    return o instanceof Cons &&
+           Stuff.eq(head, ((Cons) o).head) &&
+           Stuff.eq(tail, ((Cons) o).tail);
+  }
 }

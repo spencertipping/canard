@@ -15,4 +15,11 @@ public final class Quote implements Fn {
   public String toString() {
     return "'" + value;
   }
+
+  @Override
+  public boolean equals(final Object o) {
+    return o == this ||
+           o instanceof Quote &&
+           Stuff.eq(((Quote) o).value, value);
+  }
 }

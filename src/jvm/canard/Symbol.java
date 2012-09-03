@@ -21,4 +21,8 @@ public class Symbol implements Fn {
   @Override public String toString() {
     return symbol;
   }
+
+  @Override public boolean equals(final Object o) {
+    return o instanceof Symbol && Stuff.eq(symbol, (((Symbol) o).symbol));
+  }
 }
