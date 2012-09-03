@@ -19,7 +19,7 @@ public class Reader {
       else if (c == ']') {
         final Object sublist = values.pop();
         final Object rest = values.pop();
-        values.push(Cons.cons(new Quote(sublist), rest));
+        values.push(Cons.cons(sublist, rest));
       } else if (c == 65535);
       else {
         final StringBuffer symbol = new StringBuffer();
