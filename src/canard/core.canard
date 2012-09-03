@@ -76,19 +76,22 @@ nb [def and nb
     . [continuation 'v %2 r>] 's = 'v
 
     So in general, matching takes the form [%2x r>]. Rejecting a match is
-    usually just [] or [%x].
+    usually just [] or [%x]. (Note that in practice it's a little more complex
+    because we'll have to return through two frames instead of just one.)
 
     Here's the derivation for a general-purpose symbol match closure:
 
     continuation match 's 'v 's = 'v
     continuation match 's 'v 'x = continuation 'x
 
-    [? [%31 r>] [%1] = %102] 's 'v 'x
+    [? [%43 r> r>] [%1] = %102] 's 'v 'x
+      [%42 r> r>] 'v 'x = 'v
+      [%1] 'v 'x        = 'x
 
     Closing over 's and 'v is just a matter of quote-consing them onto the list.
     Here's what that looks like:
 
-    :: :: [? [%31 r>] [%1] = %102] ' 's 'v
+    :: :: [? [%42 r> r>] [%1] = %102] ' 's 'v
 
     Now we can put these pieces together to define '->', a preliminary function
     that defines a matcher:
@@ -99,8 +102,29 @@ nb [def and nb
                +-------+
 
     After this runs, we'll still have [++] on the stack to reuse for the next
-    few definitions.]
+    few definitions.
 
-@< . %02 -> '++ %01 @>
-@< . %02 . %01 '-> [:: :: [? [%31 r>] [%1] = %102] '] @>
-:: :: [.] %00 [? [:: . %422301 :^ %3201] [%31] %02]
+    Defining 'def' is straightforward enough. We just need to move the arguments
+    to the right places. Specifically:
+
+    def 'name [value] = @< ++ -> 'name [value] @>
+    @< ++ %210 @> -> 'name [value] = @< ++ (-> 'name [value]) @>
+
+    A similar function is def', which conses entries directly to the front of
+    the def hierarchy. You need to use this variant anytime you're defining
+    things that transform syntax. Here's its derivation:
+
+    def' 'name [value] = @< :: @> -> 'name [value]
+
+    We use it to define #!/usr/bin/canard because otherwise this would appear to
+    be resolved to a field accessor by the JVM resolver.]
+
+def' '#!/usr/bin/canard []
+def  'nb                [%1]
+def  'def'              [@< :: @> ->]
+
+%1 @< ++       -> 'def [@< ++ %210 @> ->]                   @>
+   @< . %02    -> '++ %01                                   @>
+   @< . %02 . %01 '-> [:: :: [? [%42 r> r>] [%1] = %102] '] @>
+
+   :: :: [.] %00 [? [:: . %422301 :^ %3201] [%31] %02]

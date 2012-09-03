@@ -40,7 +40,7 @@ syn region  canard_comment          matchgroup=canard_comment_delimiter start=/n
 syn region  canard_bracketed_region matchgroup=canard_comment           start=/\[/ end=/]/ contained transparent
 
 syn match   canard_shebang          +#!/usr/bin/canard+
-syn keyword canard_def              def
+syn keyword canard_def              def def'
 
 hi link canard_comment              Comment
 hi link canard_comment_delimiter    Special

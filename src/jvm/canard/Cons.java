@@ -43,10 +43,10 @@ public class Cons implements Fn {
     Object c = this;
     while (c instanceof Cons) {
       final Cons cell = (Cons) c;
-      result.insert(0, cell.head + (cell == this ? "" : " "));
+      result.insert(0, Stuff.s(cell.head) + (cell == this ? "" : " "));
       c = cell.tail;
     }
-    if (c != null) result.insert(0, c + " :: ");
+    if (c != null) result.insert(0, Stuff.s(c) + " :: ");
     return result.insert(0, "[").toString();
   }
 
