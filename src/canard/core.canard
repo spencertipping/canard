@@ -5,6 +5,9 @@ nb [Reflection
     work much more efficiently, but in order to define those we need some way to
     invoke methods using reflection.]
 
+def 'system.out .get java.lang.reflect.Field :: [] java.lang.Object
+                #out java.lang.System [[]]
+
 def 'type ++ :: [] .getClass java.lang.Object [] [swap []]
 
 nb [List functions
@@ -17,30 +20,31 @@ nb [List functions
     +* [f] []        = []
 
     +* = ? [inductive] [base] nip
-    inductive       [f] (:: xs x) = :: (+* [f] xs) (f x)
-      :^ swap       [f] (:: xs x) = xs x [f]
-      ^2 [.] %32021 xs x [f]      = [f] xs f x
-      :: +*         [f] xs f x    = :: +* [f] xs f x
 
-    base   [f] [] = []
-      drop [f] [] = []
+      inductive       [f] (:: xs x) = :: (+* [f] xs) (f x)
+        :^ swap       [f] (:: xs x) = xs x [f]
+        ^2 [.] %32021 xs x [f]      = [f] xs (f x)
+        :: +*         [f] xs (f x)  = :: (+* [f] xs) (f x)
+
+      base   [f] [] = []
+        drop [f] [] = []
 
     Here's filter:
 
     +/ = ? [inductive] [base] nip
 
-    inductive   [f] (:: xs x) = ? [append] [drop] (f x) [f] xs x
-      :^ swap   [f] (:: xs x) = xs x [f]
-      . %321201 xs x [f]      = f x [f] xs x
+      inductive   [f] (:: xs x) = ? [append] [no-append] (f x) [f] xs x
+        :^ swap   [f] (:: xs x) = xs x [f]
+        . %321201 xs x [f]      = (f x) [f] xs x
 
-    base   [f] [] = []
-      drop [f] [] = []
+        append  [f] xs x = :: (+/ [f] xs) x
+          :: +/ [f] xs x = :: +/ [f] xs x
 
-    append  [f] xs x = :: (+/ [f] xs) x
-      :: +/ [f] xs x = :: +/ [f] xs x
+        no-append [f] xs x = +/ [f] xs
+          +/ %301 [f] xs x = +/ [f] xs
 
-    drop      [f] xs x = +/ [f] xs
-      +/ %301 [f] xs x = +/ [f] xs
+      base   [f] [] = []
+        drop [f] [] = []
 
     And here's flatmap, which is identical to +* except for two names:
 
@@ -48,10 +52,13 @@ nb [List functions
     +@ [f] []        = []]
 
 def '+/ [? [? [:: +/] [+/ %301] . %321201 :^ swap] [drop] nip]
-def '+@ [? [++ +@ ^1 [.]          %32021  :^ swap] [drop] nip]
-def '+* [? [:: +* ^1 [.]          %32021  :^ swap] [drop] nip]
+def '+@ [? [++ +@ ^2 [.]          %32021  :^ swap] [drop] nip]
+def '+* [? [:: +* ^2 [.]          %32021  :^ swap] [drop] nip]
 
-nb [Stack shorthands]
+nb [Stack shorthands
+
+    These are more common names that can be used instead of cryptic %x
+    functions. Most of the names come from Joy.]
 
 def 'dup  [%00]
 def 'drop [%1]
@@ -60,7 +67,7 @@ def 'nip  [%01]
 def 'rot< [%3120]
 def 'rot> [%3201]
 
-nb [resolution
+nb [Resolution
 
     Sometimes it's useful to be able to resolve a variable without executing it.
     You can do this using the @? function.]
@@ -175,14 +182,7 @@ nb [def and nb
     def 'name [value] = @< ++ -> 'name [value] @>
     @< ++ %210 @> -> 'name [value] = @< ++ (-> 'name [value]) @>
 
-    A similar function is def', which conses entries directly to the front of
-    the def hierarchy. You need to use this variant anytime you're defining
-    things that transform syntax. Here's its derivation:
-
-    def' 'name [value] = @< :: @> -> 'name [value]
-
-    We use it to define #!/usr/bin/canard because otherwise this would appear to
-    be resolved to a field accessor by the JVM resolver.]
+    We also define nb[] here so that we can write this comment.]
 
 def 'nb [%1]
 

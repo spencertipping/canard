@@ -3,9 +3,11 @@ package canard;
 public class Symbol implements Fn {
   private Fn resolution = null;
   public final String symbol;
+  public final int hashCode;
 
   public Symbol(final String symbol) {
     this.symbol = symbol;
+    this.hashCode = symbol.hashCode();
   }
 
   public Fn resolution(final Interpreter environment) {
@@ -22,7 +24,13 @@ public class Symbol implements Fn {
     return symbol;
   }
 
+  @Override public int hashCode() {
+    return hashCode;
+  }
+
   @Override public boolean equals(final Object o) {
-    return o instanceof Symbol && Stuff.eq(symbol, (((Symbol) o).symbol));
+    return o instanceof Symbol &&
+           hashCode == ((Symbol) o).hashCode &&
+           Stuff.eq(symbol, (((Symbol) o).symbol));
   }
 }

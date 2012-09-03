@@ -26,6 +26,7 @@ syn match   canard_stack_intrinsic  /\<^[0-9a-f]\>/
 syn keyword canard_intrinsic        @< @> :: :^ :? ? ' '? . .? r< r> =
 syn match   canard_field_reference  /\<#\w\+\>/
 syn match   canard_method_reference /\<\.\w\+\>/
+syn match   canard_class_reference  /\<\(\w\+\.\)\+[A-Z]\w*\>/
 
 hi link canard_quoted_symbol        Identifier
 hi link canard_number               Number
@@ -34,6 +35,7 @@ hi link canard_stack_intrinsic      Operator
 
 hi link canard_field_reference      Identifier
 hi link canard_method_reference     Identifier
+hi link canard_class_reference      Type
 
 " Provided by the core library
 syn region  canard_comment          matchgroup=canard_comment_delimiter start=/nb\s*\[/ end=/]/ contains=canard_bracketed_region
