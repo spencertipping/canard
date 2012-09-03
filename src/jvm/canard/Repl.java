@@ -62,8 +62,11 @@ public class Repl extends Interpreter {
 
       try {
         final String line = in.readLine();
-        if (line.length() == 0) {
+        if (line == null) {
+          System.exit(0);
+        } else if (line.length() == 0) {
           previousInput = "";
+          printStackState();
         } else {
           previousInput += line;
           try {
