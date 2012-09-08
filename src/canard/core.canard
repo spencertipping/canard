@@ -1,3 +1,14 @@
+#!/usr/bin/canard
+
+nb [Shebang line definition
+
+    We define the word #!/usr/bin/canard to be a no-op so that it's possible to
+    use this at the top of scripts. It's important to pre-define, rather than
+    post-define, it because otherwise it will be interpreted as a Java field
+    reference.]
+
+    def' '#!/usr/bin/canard []
+
 nb [Reflection
 
     These functions are used to manipulate Java objects using the reflection
@@ -5,10 +16,7 @@ nb [Reflection
     work much more efficiently, but in order to define those we need some way to
     invoke methods using reflection.]
 
-def 'system.out .get java.lang.reflect.Field :: [] java.lang.Object
-                #out java.lang.System [[]]
-
-def 'type ++ :: [] .getClass java.lang.Object [] [swap []]
+    def 'type ++ :: [] .getClass java.lang.Object [] [swap []]
 
 nb [List functions
 
@@ -51,28 +59,31 @@ nb [List functions
     +@ [f] (:: xs x) = ++ (+@ [f] xs) (f x)
     +@ [f] []        = []]
 
-def '+/ [? [? [:: +/] [+/ %301] . %321201 :^ swap] [drop] nip]
-def '+@ [? [++ +@ ^2 [.]          %32021  :^ swap] [drop] nip]
-def '+* [? [:: +* ^2 [.]          %32021  :^ swap] [drop] nip]
+    def '+/ [? [? [:: +/] [+/ %301] . %321201 :^ swap] [drop] nip]
+    def '+@ [? [++ +@ ^2 [.]          %32021  :^ swap] [drop] nip]
+    def '+* [? [:: +* ^2 [.]          %32021  :^ swap] [drop] nip]
+
+    def '::$ [:: swap]
+    def ':^$ [swap :^]
 
 nb [Stack shorthands
 
     These are more common names that can be used instead of cryptic %x
     functions. Most of the names come from Joy.]
 
-def 'dup  [%00]
-def 'drop [%1]
-def 'swap [%210]
-def 'nip  [%01]
-def 'rot< [%3120]
-def 'rot> [%3201]
+    def 'dup  [%00]
+    def 'drop [%1]
+    def 'swap [%210]
+    def 'nip  [%01]
+    def 'rot< [%3120]
+    def 'rot> [%3201]
 
 nb [Resolution
 
     Sometimes it's useful to be able to resolve a variable without executing it.
     You can do this using the @? function.]
 
-def '@? [. @>]
+    def '@? [. @>]
 
 nb [def and nb
 
@@ -184,10 +195,10 @@ nb [def and nb
 
     We also define nb[] here so that we can write this comment.]
 
-def 'nb [%1]
+    def 'nb [%1]
 
-%1 @< ++       -> 'def [@< ++ %210 @> ->]                    @>
-   @< . %02    -> '++ %01                                    @>
-   @< . %02 . %01 '-> [:: :: [. [? [%31 r>] [%1] = %102]] '] @>
+    %1 @< ++       -> 'def [@< ++ %210 @> ->]                    @>
+       @< . %02    -> '++ %01                                    @>
+       @< . %02 . %01 '-> [:: :: [. [? [%31 r>] [%1] = %102]] '] @>
 
-   :: :: [.] %00 [? [:: . %422301 :^ %3201] [%31] %02]
+       :: :: [.] %00 [? [:: . %422301 :^ %3201] [%31] %02]
