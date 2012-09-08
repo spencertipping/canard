@@ -112,6 +112,63 @@ public class Bootstrap {
       }
     };
 
+  // JVM interop
+  public static final Fn loadclass = new NamedFn("jvm-class") {
+      @Override public void apply(final Interpreter environment) {
+        final String name = ((Symbol) environment.pop()).symbol;
+        try {
+          final Class c = Class.forName(name);
+          environment.push(c);
+        } catch (final ClassNotFoundException e) {
+          environment.push(null);
+        }
+      }
+    };
+
+  public static final Fn method = new NamedFn("jvm-method") {
+      @Override public void apply(final Interpreter environment) {
+        final String name = ((Symbol) environment.pop()).symbol;
+        final Class c = (Class) environment.pop();
+        final Object[] formalArray = Cons.toArray((Cons) environment.pop());
+        final Class[] castedArray = Arrays.copyOf(formalArray, formalArray.length,
+                                                  Class[].class);
+        try {
+          final Method m = c.getDeclaredMethod(name, castedArray);
+          environment.push(new NamedFn(m.toString()) {
+              @Override public void apply(final Interpreter environment) {
+                final Object instance = environment.pop();
+                final Object[] arguments = Cons.toArray((Cons) environment.pop());
+                try {
+                  environment.push(m.invoke(instance, arguments));
+                } catch (final IllegalAccessException e) {
+                  environment.push(null);
+                } catch (final InvocationTargetException e) {
+                  environment.push(null);
+                }
+              }
+            });
+        } catch (final NoSuchMethodException e) {
+          environment.push(null);
+        } catch (final SecurityException e) {
+          environment.push(null);
+        }
+      }
+    };
+
+  public static final Fn field = new NamedFn("jvm-field") {
+      @Override public void apply(final Interpreter environment) {
+        final String name = ((Symbol) environment.pop()).symbol;
+        final Class c = (Class) environment.pop();
+        try {
+          environment.push(c.getDeclaredField(name));
+        } catch (final NoSuchFieldException e) {
+          environment.push(null);
+        } catch (final SecurityException e) {
+          environment.push(null);
+        }
+      }
+    };
+
   public static final Fn coreResolver = new NamedFn("core-resolver") {
       private final Map<String, Fn> coreResolutionMap = new HashMap<String, Fn>();
       {
@@ -129,6 +186,10 @@ public class Bootstrap {
         coreResolutionMap.put("=", eq);
         coreResolutionMap.put("@>", resolver$get);
         coreResolutionMap.put("@<", resolver$set);
+
+        coreResolutionMap.put("class", loadclass);
+        coreResolutionMap.put("method", method);
+        coreResolutionMap.put("field", field);
       }
 
       @Override public void apply(final Interpreter environment) {
@@ -149,65 +210,6 @@ public class Bootstrap {
           environment.push(new Quote(new Symbol(name.substring(1))));
           environment.rpop();
         }
-      }
-    };
-
-  public static final Fn jvmResolver = new NamedFn("jvm-resolver") {
-      @Override public void apply(final Interpreter environment) {
-        final String name = ((Symbol) environment.at(0)).symbol;
-        if (name.charAt(0) == '#') {
-          environment.pop();
-          environment.push(new NamedFn(name) {
-              @Override public void apply(final Interpreter environment) {
-                final Class c = (Class) environment.pop();
-                try {
-                  environment.push(c.getDeclaredField(name.substring(1)));
-                } catch (final NoSuchFieldException e) {
-                  environment.push(null);
-                } catch (final SecurityException e) {
-                  environment.push(null);
-                }
-              }
-            });
-          environment.rpop();
-        } else if (name.charAt(0) == '.') {
-          environment.pop();
-          environment.push(new NamedFn(name) {
-              @Override public void apply(final Interpreter environment) {
-                final Class c = (Class) environment.pop();
-                final Object[] formalArray = Cons.toArray((Cons) environment.pop());
-                final Class[] castedArray = Arrays.copyOf(formalArray, formalArray.length,
-                                                          Class[].class);
-                try {
-                  final Method m = c.getDeclaredMethod(name.substring(1), castedArray);
-                  environment.push(new NamedFn(m.toString()) {
-                      @Override public void apply(final Interpreter environment) {
-                        final Object instance = environment.pop();
-                        final Object[] arguments = Cons.toArray((Cons) environment.pop());
-                        try {
-                          environment.push(m.invoke(instance, arguments));
-                        } catch (final IllegalAccessException e) {
-                          environment.push(null);
-                        } catch (final InvocationTargetException e) {
-                          environment.push(null);
-                        }
-                      }
-                    });
-                } catch (final NoSuchMethodException e) {
-                  environment.push(null);
-                } catch (final SecurityException e) {
-                  environment.push(null);
-                }
-              }
-            });
-          environment.rpop();
-        } else
-          try {
-            final Class c = Class.forName(name);
-            environment.pop();
-            environment.push(new Quote(c));
-            environment.rpop();
-          } catch (final ClassNotFoundException e) {}
       }
     };
 
@@ -253,6 +255,6 @@ public class Bootstrap {
     };
 
   public static Fn loadedResolver() {
-    return Cons.list(coreResolver, stackFnResolver, literalResolver, jvmResolver);
+    return Cons.list(coreResolver, stackFnResolver, literalResolver);
   }
 }

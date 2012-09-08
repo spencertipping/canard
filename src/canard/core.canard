@@ -1,25 +1,21 @@
 #!/usr/bin/canard
 
 nb [Shebang line definition
-
     We define the word #!/usr/bin/canard to be a no-op so that it's possible to
-    use this at the top of scripts. It's important to pre-define, rather than
-    post-define, it because otherwise it will be interpreted as a Java field
-    reference.]
+    use this at the top of scripts.]
 
-    def' '#!/usr/bin/canard []
+    def '#!/usr/bin/canard []
 
 nb [Reflection
-
     These functions are used to manipulate Java objects using the reflection
     API. Later on we'll have a way to generate proxy access classes that do this
     work much more efficiently, but in order to define those we need some way to
     invoke methods using reflection.]
 
-    def 'type ++ :: [] .getClass java.lang.Object [] [swap []]
+    def 'type ++ :: [] method 'getClass object [] [swap []]
+    def 'object :: [] ' class 'java.lang.Object
 
 nb [List functions
-
     The usual suspects: map, filter, flatmap, etc. We already have a working
     version of append from below, so we can skip that one. Here are the
     derivations:
@@ -67,7 +63,6 @@ nb [List functions
     def ':^$ [swap :^]
 
 nb [Stack shorthands
-
     These are more common names that can be used instead of cryptic %x
     functions. Most of the names come from Joy.]
 
@@ -79,14 +74,12 @@ nb [Stack shorthands
     def 'rot> [%3201]
 
 nb [Resolution
-
     Sometimes it's useful to be able to resolve a variable without executing it.
     You can do this using the @? function.]
 
     def '@? [. @>]
 
 nb [def and nb
-
     This is some of the most subtle and gnarly code in the entire Canard
     codebase. Most of the intricate complexity arises from the minimalism in
     Canard's evaluator/resolver design. Here's the story on that.

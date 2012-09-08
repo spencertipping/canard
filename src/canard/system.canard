@@ -1,8 +1,0 @@
-nb [System IO
-
-    Some basic stuff to enable you to log things to stdout and stderr.]
-
-def 'stderr . .get java.lang.reflect.Field :: [] java.lang.Object
-
-def 'stdout . .get java.lang.reflect.Field :: [] java.lang.Object
-                  #out java.lang.System [[]]

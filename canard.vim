@@ -24,9 +24,9 @@ syn region  canard_quoted_symbol    start=/\<'/ end=/[ \n\t\r\[\]]\@=\|$/
 syn match   canard_stack_intrinsic  /\<%[0-9a-f]\+\>/
 syn match   canard_stack_intrinsic  /\<^[0-9a-f]\>/
 syn keyword canard_intrinsic        @< @> :: :^ :? ? ' '? . .? r< r> =
-syn match   canard_field_reference  /\<#\w\+\>/
-syn match   canard_method_reference /\<\.\w\+\>/
-syn match   canard_class_reference  /\<\(\w\+\.\)\+[A-Z]\w*\>/
+syn match   canard_field_reference  /field\s\+'\w\+\>/
+syn match   canard_method_reference /method\s\+'\w\+\>/
+syn match   canard_class_reference  /class\s\+'\(\w\+\.\)\+[A-Z]\w*\>/
 
 hi link canard_quoted_symbol        Identifier
 hi link canard_number               Number
@@ -40,12 +40,14 @@ hi link canard_class_reference      Type
 " Provided by the core library
 syn region  canard_comment          matchgroup=canard_comment_delimiter start=/nb\s*\[/ end=/]/ contains=canard_bracketed_region
 syn region  canard_bracketed_region matchgroup=canard_comment           start=/\[/ end=/]/ contained transparent
+syn match   canard_nb_single        /\<nb\s\+'\S\+\>/
 
 syn match   canard_shebang          +#!/usr/bin/canard+
 syn keyword canard_def              def def'
 
 hi link canard_comment              Comment
 hi link canard_comment_delimiter    Special
+hi link canard_nb_single            Comment
 
 hi link canard_shebang              Special
 hi link canard_def                  Special
