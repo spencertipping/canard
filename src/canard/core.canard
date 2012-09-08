@@ -35,17 +35,17 @@ nb [List functions
 
     Here's filter:
 
-    +/ = ? [inductive] [base] nip
+    +% = ? [inductive] [base] nip
 
       inductive   [f] (:: xs x) = ? [append] [no-append] (f x) [f] xs x
         :^ swap   [f] (:: xs x) = xs x [f]
         . %321201 xs x [f]      = (f x) [f] xs x
 
         append  [f] xs x = :: (+/ [f] xs) x
-          :: +/ [f] xs x = :: +/ [f] xs x
+          :: +% [f] xs x = :: +/ [f] xs x
 
         no-append [f] xs x = +/ [f] xs
-          +/ %301 [f] xs x = +/ [f] xs
+          +% %301 [f] xs x = +/ [f] xs
 
       base   [f] [] = []
         drop [f] [] = []
@@ -55,7 +55,7 @@ nb [List functions
     +@ [f] (:: xs x) = ++ (+@ [f] xs) (f x)
     +@ [f] []        = []]
 
-    def '+/ [? [? [:: +/] [+/ %301] . %321201 :^ swap] [drop] nip]
+    def '+% [? [? [:: +%] [+% %301] . %321201 :^ swap] [drop] nip]
     def '+@ [? [++ +@ ^2 [.]          %32021  :^ swap] [drop] nip]
     def '+* [? [:: +* ^2 [.]          %32021  :^ swap] [drop] nip]
 

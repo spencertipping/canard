@@ -10,6 +10,8 @@ public class Repl extends Interpreter {
   public boolean verbose = false;
   public boolean timing  = false;
 
+  public long executeCount = 0;
+
   public Repl(final String[] args) {
     super(Bootstrap.loadedResolver());
 
@@ -58,7 +60,7 @@ public class Repl extends Interpreter {
     String previousInput = "";
 
     while (in != null) {
-      System.err.print("\033[1;32m" + (previousInput.length() == 0 ? "> " : "... ") + "\033[0;0m");
+      System.err.print("\033[1;32m" + (previousInput.length() == 0 ? executeCount + "> " : "... ") + "\033[0;0m");
 
       try {
         final String line = in.readLine();
@@ -92,6 +94,7 @@ public class Repl extends Interpreter {
       printStackState();
       System.err.println("");
     }
+    ++executeCount;
     super.execute(f);
   }
 
