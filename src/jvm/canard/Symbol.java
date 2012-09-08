@@ -2,6 +2,7 @@ package canard;
 
 public class Symbol implements Fn {
   private Fn resolution = null;
+  private boolean resolved = false;
   public final String symbol;
   public final int hashCode;
 
@@ -11,8 +12,10 @@ public class Symbol implements Fn {
   }
 
   public Fn resolution(final Interpreter environment) {
-    if (resolution == null)
+    if (!resolved) {
       resolution = (Fn) environment.invoke(environment.resolver(), this);
+      resolved = true;
+    }
     return resolution;
   }
 
@@ -21,7 +24,7 @@ public class Symbol implements Fn {
   }
 
   @Override public String toString() {
-    return symbol;
+    return symbol + (resolved ? "#" : "");
   }
 
   @Override public int hashCode() {

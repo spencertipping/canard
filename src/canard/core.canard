@@ -160,14 +160,15 @@ nb [def and nb
     continuation match 's 'v 's = 'v
     continuation match 's 'v 'x = continuation 'x
 
-    [? [%31 r>] [%1] = %102] 's 'v 'x
-      [%31 r>] 'v 'x = 'v
-      [%1] 'v 'x     = 'x
+    [? [%42 r> r>] [%1] = %102] 's 'v 'x
+      [%42 r> r>] 'v 'x = 'v
+      [%1] 'v 'x        = 'x
 
-    Closing over 's and 'v is just a matter of quote-consing them onto the list.
-    Here's what that looks like:
+    We're using two return pops because the inner list adds a frame. Closing
+    over 's and 'v is just a matter of quote-consing them onto the list. Here's
+    what that looks like:
 
-    :: :: [? [%31 r>] [%1] = %102] ' 's 'v
+    :: :: [? [%42 r> r>] [%1] = %102] ' 's 'v
 
     Now we can put these pieces together to define '->', a preliminary function
     that defines a matcher:
@@ -188,10 +189,11 @@ nb [def and nb
 
     We also define nb[] here so that we can write this comment.]
 
+    def 'def' [@< ++ @> ->]
     def 'nb [%1]
 
-    %1 @< ++       -> 'def [@< ++ %210 @> ->]                    @>
-       @< . %02    -> '++ %01                                    @>
-       @< . %02 . %01 '-> [:: :: [. [? [%31 r>] [%1] = %102]] '] @>
+    %1 @< ++       -> 'def [@< ++ %210 @> ->]                       @>
+       @< . %02    -> '++ %01                                       @>
+       @< . %02 . %01 '-> [:: :: [. [? [%42 r> r>] [%1] = %102]] '] @>
 
        :: :: [.] %00 [? [:: . %422301 :^ %3201] [%31] %02]
