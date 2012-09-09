@@ -63,7 +63,8 @@ public class Repl extends Interpreter {
     String previousInput = "";
 
     while (in != null) {
-      System.err.print("\033[1;32m" + (previousInput.length() == 0 ? executeCount + "> " : "... ") + "\033[0;0m");
+      System.err.print("\033[1;32m" + (previousInput.length() == 0 ? executeCount + "> " : "... ") +
+                       "\033[0;0m");
 
       try {
         final String line = in.readLine();
