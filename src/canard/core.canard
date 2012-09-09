@@ -10,10 +10,30 @@ nb [Reflection
     These functions are used to manipulate Java objects using the reflection
     API. Later on we'll have a way to generate proxy access classes that do this
     work much more efficiently, but in order to define those we need some way to
-    invoke methods using reflection.]
+    invoke methods using reflection.
 
-    def 'type ++ :: [] method 'getClass object [] [swap []]
-    def 'object :: [] ' class 'java.lang.Object
+    Rather than using the low-level API provided by Canard's interpreter, we
+    provide a more convenient reflection-based mechanism here. The idea is that
+    we can bypass the explicit method resolution simply by inspecting the type
+    of the instance and the types of its arguments. Specifically:
+
+    dynamic 'method-name [arguments] instance
+      = . method 'method-name (type instance) (+* [type] [arguments])
+          instance [arguments]
+
+    Abbreviated, this becomes:
+
+    dynamic n as i = . method n (type i) (+* [type] as) i as
+      %312120   n as i                         = as i as i n
+      +* [type] as i as i n                    = (+* [type] as) i as i n
+      %534012   (+* [type] as) i as i n        = i n (+* [type] as) i as
+      swap type i n (+* [type] as) i as        = n (type i) (+* [type] as) i as
+      . method  n (type i) (+* [type] as) i as = result]
+
+    def 'dynamic [. method swap type %534012 +* [type] %312120]
+    def 'type    [? [type'] [class 'java.lang.Void drop] dup]
+    def 'type'   ++ :: [] method 'getClass object [] [swap []]
+    def 'object  :: [] ' class 'java.lang.Object
 
 nb [List functions
     The usual suspects: map, filter, flatmap, etc. We already have a working
@@ -164,9 +184,9 @@ nb [def and nb
       [%42 r> r>] 'v 'x = 'v
       [%1] 'v 'x        = 'x
 
-    We're using two return pops because the inner list adds a frame. Closing
-    over 's and 'v is just a matter of quote-consing them onto the list. Here's
-    what that looks like:
+    We're using two return pops because the inner list adds a spurious null
+    continuation. Closing over 's and 'v is just a matter of quote-consing them
+    onto the list. Here's what that looks like:
 
     :: :: [? [%42 r> r>] [%1] = %102] ' 's 'v
 
@@ -181,18 +201,22 @@ nb [def and nb
     After this runs, we'll still have [++] on the stack to reuse for the next
     few definitions.
 
-    Defining 'def' is straightforward enough. We just need to move the arguments
+    Defining def' is straightforward enough. We just need to move the arguments
     to the right places. Specifically:
 
-    def 'name [value] = @< ++ -> 'name [value] @>
+    def' 'name [value] = @< ++ -> 'name [value] @>
     @< ++ %210 @> -> 'name [value] = @< ++ (-> 'name [value]) @>
 
-    We also define nb[] here so that we can write this comment.]
+    We also define nb[] here so that we can write this comment.
 
-    def 'def' [@< ++ @> ->]
-    def 'nb [%1]
+    In general, definitions are written using def instead of def'. The
+    difference is that def' adds definitions to the end of the resolver, whereas
+    def adds them to the beginning.]
 
-    %1 @< ++       -> 'def [@< ++ %210 @> ->]                       @>
+    def' 'def [@< ++ @> ->]
+    def' 'nb [%1]
+
+    %1 @< ++       -> 'def' [@< ++ %210 @> ->]                      @>
        @< . %02    -> '++ %01                                       @>
        @< . %02 . %01 '-> [:: :: [. [? [%42 r> r>] [%1] = %102]] '] @>
 
