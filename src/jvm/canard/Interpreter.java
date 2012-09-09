@@ -4,12 +4,6 @@ public class Interpreter implements Fn {
   public static final int DATA_STACK_DEPTH = 131072;
   public static final int RETURN_STACK_DEPTH = 65536;
 
-  private static final Fn RETURN_CONTINUATION = new NamedFn("return") {
-      @Override public void apply(final Interpreter environment) {
-        throw new RuntimeException("cannot execute a return continuation");
-      }
-    };
-
   protected final Object[] dataStack;
   protected final Fn[] returnStack;
   protected int dataStackPointer = 0;
@@ -60,8 +54,7 @@ public class Interpreter implements Fn {
     rpush((Fn) parent.pop());
     while (returnStackPointer != 0) {
       final Fn next = rpop();
-      if (next == RETURN_CONTINUATION) break;
-      else if (next instanceof Cons) {
+      if (next instanceof Cons) {
         final Cons c = (Cons) next;
         if (c.tail == null || c.tail instanceof Fn)
           rpush((Fn) c.tail);
@@ -80,10 +73,11 @@ public class Interpreter implements Fn {
   }
 
   public Object invoke(final Fn f, final Object ... args) {
-    rpush(RETURN_CONTINUATION);
-    for (final Object o : args) push(o);
-    push(f);
-    this.apply(this);
-    return pop();
+    final Interpreter i = new Interpreter(resolver);
+    for (final Object o : args) i.push(o);
+    i.push(f);
+    i.apply(i);
+    resolver(i.resolver());
+    return i.pop();
   }
 }
