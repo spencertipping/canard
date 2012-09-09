@@ -14,6 +14,7 @@ public class Symbol implements Fn {
   public Fn resolution(final Interpreter environment) {
     if (!resolved) {
       resolution = (Fn) environment.invoke(environment.resolver(), this);
+      if (resolution == this) resolution = new Quote(this);
       resolved = true;
     }
     return resolution;
