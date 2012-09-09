@@ -23,7 +23,7 @@ hi link canard_bracket   Special
 syn region  canard_quoted_symbol    start=/\<'/ end=/[ \n\t\r\[\]]\@=\|$/
 syn match   canard_stack_intrinsic  /\<%[0-9a-f]\+\>/
 syn match   canard_stack_intrinsic  /\<^[0-9a-f]\>/
-syn keyword canard_intrinsic        @< @> :: :^ :? ? ' '? . .? r< r> =
+syn keyword canard_intrinsic        @< @> :: :^ :? ? ' '? . .? r< r> = class method field
 syn match   canard_field_reference  /field\s\+'\w\+\>/
 syn match   canard_method_reference /method\s\+'\w\+\>/
 syn match   canard_class_reference  /class\s\+'\(\w\+\.\)\+[A-Z]\w*\>/
@@ -42,8 +42,13 @@ syn region  canard_comment          matchgroup=canard_comment_delimiter start=/n
 syn region  canard_bracketed_region matchgroup=canard_comment           start=/\[/ end=/]/ contained transparent
 syn match   canard_nb_single        /\<nb\s\+'\S\+\>/
 
-syn match   canard_shebang          +#!/usr/bin/canard+
+syn match   canard_shebang          +\<#!/usr/bin/canard\>+
 syn keyword canard_def              def def'
+
+syn keyword canard_query_function   @? type type'
+syn keyword canard_list_function    +* +% +@ ++ ::$ :^$
+syn keyword canard_stack_function   dup  drop swap nip rot< rot>
+syn keyword canard_oo_function      dynamic object
 
 hi link canard_comment              Comment
 hi link canard_comment_delimiter    Special
@@ -51,3 +56,8 @@ hi link canard_nb_single            Comment
 
 hi link canard_shebang              Special
 hi link canard_def                  Special
+
+hi link canard_query_function       Operator
+hi link canard_list_function        Type
+hi link canard_stack_function       Special
+hi link canard_oo_function          Type
