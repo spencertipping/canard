@@ -1,0 +1,135 @@
+Algebraic definition of the language.
+Because immutable cons cells are the only builtin reference type, we can easily
+specify the structural properties of a canard executor. We also specify certain
+cases in the fetch/decode cycle, prefixed here with `.:`.
+
+| .:: = fetch/decode cons structure from top continuation
+  .:$ = fetch/decode string from top continuation
+  .:@ = fetch/decode symbol from top continuation
+
+In each of these cases we can encode "do something" by changing the
+continuation stack, as we do with `.:@` to resolve symbols. Ultimately the only
+thing Canard does is call native functions (which is hard-coded into the
+interpreter, since it's just a single computed-goto).
+
+[.:: [[*d x] [*c0 [*c1]]        r] [[*d] [*c0 [*c1 x]]      r]]
+[.:$ [[*d x] [*c0 [*c1]]        r] [[*d] [*c0 [*c1 x]]      r]]
+[.:@ [[*d x] [*c0 [*c1] r] [*r r]] [[*d] [*c0 [*c1 x]] [*r r]]]
+
+Core primitives.
+In two groups: non-stack and stack-related. Canard needs to provide special
+operations for the following functions:
+
+| :: = cons
+  :^ = uncons, or mnemonically, "cons invert"
+  r< = data to resolver
+  r> = data from resolver
+  .  = schedule for evaluation, or "push continuation"
+  .< = data to continuations
+  .> = data from continuations
+
+[:: [[*d [*t h]]      c r] [[*d [*t] h]    c r]]
+[:^ [[*d [*t] h]      c r] [[*d [*t h]]    c r]]
+[r< [[*d       ]      c x] [[*d x     ]    c r]]
+[r> [[*d r     ]      c r] [[*d       ]    c r]]
+[.  [[*d       ] [*c x] r] [[*d x     ] [*c] r]]
+[.< [[*d       ]      x r] [[*d x     ]    c r]]
+[.> [[*d c     ]      c r] [[*d       ]    c r]]
+
+Now we have some core stack manipulators. I didn't put a whole lot of effort
+into minimizing these because it's not that important; most real-world (ha!)
+canard programs will most likely use a destructuring library.
+
+| s$ = swap
+  s, = drop
+  s: = dup
+  s^ = nip
+  sr = rotate 3 up
+  sR = rotate 3 down
+  s> = quote stack
+  s< = unquote stack
+
+It's worth mentioning that it doesn't matter how efficient these stack
+manipulators are because abstract-compiled code won't contain them. It's more
+important that there not be too many of them -- otherwise compilers will be
+more work to write.
+
+[s$ [[*d y x  ] c r] [[*d x y  ] c r]]
+[s, [[*d      ] c r] [[*d x    ] c r]]
+[s: [[*d x x  ] c r] [[*d x    ] c r]]
+[s^ [[*d x y x] c r] [[*d x y  ] c r]]
+[sr [[*d z x y] c r] [[*d x y z] c r]]
+[sR [[*d y z x] c r] [[*d x y z] c r]]
+[s> [[*d [*d] ] c r] [[*d      ] c r]]
+[s< [d          c r] [[*d d    ] c r]]
+
+C source.
+We need some boilerplate around the generated definitions (partially just to
+make those definitions more compact).
+
+  Interpreter state.
+  All interpreter state is memory-mapped so we can forward it across a JIT
+  cycle (thus requiring JIT to be closed under memory-layout specifics; i.e. no
+  distributed heap forwarding/sharing, not that I was especially tempted). Type
+  tags:
+
+  | (0 << 30) = fn   (immediate)
+    (1 << 30) = isym (immediate)
+    (2 << 30) = cons (reference)
+    (3 << 30) = string (reference)
+
+  Nil is always encoded as a fn at index 0; this enables it to function as
+  C-false, which improves execution efficiency a bit.
+
+[c {%%includes
+
+#define h(r)         (((cons*)(s->h + ((r) & 0x3fffffffl)))->h)
+#define t(r)         (((cons*)(s->h + ((r) & 0x3fffffffl)))->t)
+#define cons(tl, hd) (((cons*)(s->hp))->t = (tl), \
+                      ((cons*)(s->hp))->h = (hd), \
+                      (ref) ((s->hp += sizeof(cons)) - s->h) - sizeof(cons) \
+                        | 2l << 30)
+
+typedef unsigned long ref;
+typedef struct { ref h; ref t; } cons;
+typedef struct { ref d, c, r; unsigned char *h, *hp; } state;
+
+int main(int argc, char **argv)
+{
+  state *s;
+  ref n;
+  void const *const *const fns[]   = { %%fn-labels };
+  void const *const *const cases[] = { &&native, &&symbol, &&cons, &&string };
+
+  /* TODO: bootup continuation/resolver/etc */
+
+fetch_next:
+  while (s->c && !h(s->c)) s->c = t(s->c);
+  n = h(h(s->c));
+  s->c = cons(t(s->c), t(h(s->c)));
+  goto *cases[n >> 30];
+
+native:        goto *fns[n];
+symbol: %%.:@; goto fetch_next;
+cons:   %%.::; goto fetch_next;
+string: %%.:$; goto fetch_next;
+
+%%fns
+}}]
+
+POSIX shell wrapper.
+This is responsible for compiling and executing the above C code. Nothing too
+special; we just forward any command-line options. All canard-related state is
+baked into the C source.
+
+[sh {#!/bin/sh
+t=${TMPDIR:-/tmp}
+i=0
+until mkdir "$t/canard-$i" 2>&/dev/null; do
+  i=$((i + 1))
+done
+cat > "$t/canard-$i/canard.c" <<'EOF'
+%%c-source
+EOF
+c99 "$t/canard-$i/canard.c" -o "$t/canard-$i/canard" \
+  && exec "$t/canard-$i/canard" "$@"}]

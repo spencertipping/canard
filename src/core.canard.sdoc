@@ -1,0 +1,14 @@
+Core language definitions.
+This is everything above the builtins provided by the underlying C interpreter.
+There's quite a bit of stuff we need to build at this point, including the
+ability to write comments and modify the resolver to effect definition changes.
+
+Definition functions.
+We need to be able to define things, which involves modifying the resolver
+stack. Really this is just modifying the top entry, but it's actually quite
+involved for a couple of reasons.
+
+First, the resolver stack is inherently circular: if it contains any symbols
+then it will infinite-loop trying to resolve them. This means we need to use
+the builtin resolver to reduce any new resolver entries down to primitive
+functions.
