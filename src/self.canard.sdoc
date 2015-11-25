@@ -4,7 +4,7 @@ specify the structural properties of a canard executor. We also specify certain
 cases in the fetch/decode cycle, prefixed here with `.:`.
 
 | .:: = fetch/decode cons structure from top continuation
-  .:$ = fetch/decode string from top continuation
+  .:" = fetch/decode string from top continuation
   .:@ = fetch/decode symbol from top continuation
 
 In each of these cases we can encode "do something" by changing the
@@ -12,9 +12,13 @@ continuation stack, as we do with `.:@` to resolve symbols. Ultimately the only
 thing Canard does is call native functions (which is hard-coded into the
 interpreter, since it's just a single computed-goto).
 
-[.:: [[*d x] [*c0 [*c1]]        r] [[*d] [*c0 [*c1 x]]      r]]
-[.:$ [[*d x] [*c0 [*c1]]        r] [[*d] [*c0 [*c1 x]]      r]]
-[.:@ [[*d x] [*c0 [*c1] r] [*r r]] [[*d] [*c0 [*c1 x]] [*r r]]]
+[.:: [[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r]]
+[.:" [[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r]]
+[.:@ [[*d x] [*c0 [*c1] !. r] [*r r]] [[*d] [*c0 [*c1 x]] [*r r]]]
+
+The `!.` in the last equation means that we need a pre-resolved evaluator
+function; if we did anything else we'd either leave the symbol's resolved value
+on the data stack, or loop forever as we tried to resolve `.`.
 
 Core primitives.
 In two groups: non-stack and stack-related. Canard needs to provide special
@@ -38,7 +42,7 @@ operations for the following functions:
 
 Now we have some core stack manipulators. I didn't put a whole lot of effort
 into minimizing these because it's not that important; most real-world (ha!)
-canard programs will most likely use a destructuring library.
+canard programs will most likely use a destructuring macro library.
 
 | s$ = swap
   s, = drop
@@ -65,7 +69,8 @@ more work to write.
 
 C source.
 We need some boilerplate around the generated definitions (partially just to
-make those definitions more compact).
+make those definitions more compact). We also need compiling alternatives to
+certain low-level primitives so we can evaluate into a JIT context.
 
   Interpreter state.
   All interpreter state is memory-mapped so we can forward it across a JIT
@@ -81,55 +86,59 @@ make those definitions more compact).
   Nil is always encoded as a fn at index 0; this enables it to function as
   C-false, which improves execution efficiency a bit.
 
-[c {%%includes
+[c ""$"<<EOF
+$INCLUDES$
 
-#define h(r)         (((cons*)(s->h + ((r) & 0x3fffffffl)))->h)
-#define t(r)         (((cons*)(s->h + ((r) & 0x3fffffffl)))->t)
-#define cons(tl, hd) (((cons*)(s->hp))->t = (tl), \
-                      ((cons*)(s->hp))->h = (hd), \
-                      (ref) ((s->hp += sizeof(cons)) - s->h) - sizeof(cons) \
+#define type(v)      ((v) >> 30)
+#define val(v)       ((v) & 0x3fffffffl)
+#define h(v)         (((cons const*) (h + val(v)))->h)
+#define t(v)         (((cons const*) (h + val(v)))->t)
+#define cons(tl, hd) (((cons*) hp)->t = (tl), \
+                      ((cons*) hp)->h = (hd), \
+                      (ref) ((hp += sizeof(cons)) - h) - sizeof(cons) \
                         | 2l << 30)
 
 typedef unsigned long ref;
 typedef struct { ref h; ref t; } cons;
-typedef struct { ref d, c, r; unsigned char *h, *hp; } state;
 
 int main(int argc, char **argv)
 {
-  state *s;
-  ref n;
-  void const *const *const fns[]   = { %%fn-labels };
+  ref d, c, r;
+  unsigned char *h, *hp;
+  void const *const *const fns[]   = { $FN_LABELS$ };
   void const *const *const cases[] = { &&native, &&symbol, &&cons, &&string };
 
   /* TODO: bootup continuation/resolver/etc */
 
 fetch_next:
-  while (s->c && !h(s->c)) s->c = t(s->c);
-  n = h(h(s->c));
-  s->c = cons(t(s->c), t(h(s->c)));
-  goto *cases[n >> 30];
+  ref n = h(c);
+  c = t(c);
+  if (type(n) == 2) c = cons(c, t(n)), n = h(n);
+  goto *cases[type(n)];
 
 native:        goto *fns[n];
-symbol: %%.:@; goto fetch_next;
-cons:   %%.::; goto fetch_next;
-string: %%.:$; goto fetch_next;
-
-%%fns
-}}]
+symbol: $.:@$; goto fetch_next;
+cons:   $.::$; goto fetch_next;
+string: $.:"$; goto fetch_next;
+$FNS$
+}
+EOF]
 
 POSIX shell wrapper.
 This is responsible for compiling and executing the above C code. Nothing too
 special; we just forward any command-line options. All canard-related state is
 baked into the C source.
 
-[sh {#!/bin/sh
+[sh ""%"<<EOF
+#!/bin/sh
 t=${TMPDIR:-/tmp}
 i=0
 until mkdir "$t/canard-$i" 2>&/dev/null; do
   i=$((i + 1))
 done
-cat > "$t/canard-$i/canard.c" <<'EOF'
-%%c-source
-EOF
+cat > "$t/canard-$i/canard.c" <<'_'
+%C_SOURCE%
+_
 c99 "$t/canard-$i/canard.c" -o "$t/canard-$i/canard" \
-  && exec "$t/canard-$i/canard" "$@"}]
+  && exec "$t/canard-$i/canard" "$@"
+EOF]
