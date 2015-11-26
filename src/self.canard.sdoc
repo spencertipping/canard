@@ -86,7 +86,14 @@ certain low-level primitives so we can evaluate into a JIT context.
   Nil is always encoded as a fn at index 0; this enables it to function as
   C-false, which improves execution efficiency a bit.
 
-[c "#EOF
+[c frame "#EOF
+#define _POSIX_C_SOURCE 200112L
+#define _XOPEN_SOURCE   600
+#define _ISOC99_SOURCE
+#define _ISOC9X_SOURCE
+
+#include <sys/types.h>
+#include <string.h>
 INCLUDES
 
 #define type(v)      ((v) >> 30)
@@ -103,7 +110,7 @@ typedef struct { ref h; ref t; } cons;
 
 int main(int argc, char **argv)
 {
-  ref d, c, r;
+  ref d, c, r, n;
   unsigned char *h, *hp;
   void const *const *const fns[]   = { FN_LABELS };
   void const *const *const cases[] = { &&native, &&symbol, &&cons, &&string };
@@ -111,8 +118,7 @@ int main(int argc, char **argv)
   /* TODO: bootup continuation/resolver/etc */
 
 fetch_next:
-  ref n = h(c);
-  c = t(c);
+  for (n = 0; !n;) n = h(c), c = t(c);
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
 
@@ -123,6 +129,13 @@ string: .:"; goto fetch_next;
 FNS
 }
 EOF]
+
+  C primitive snippets.
+  We need enough operations to implement the destructuring/restructuring
+  language used to define the algebraic form of the language. It's fine to use
+  named arguments and local variables.
+
+  TODO
 
 POSIX shell wrapper.
 This is responsible for compiling and executing the above C code. Nothing too

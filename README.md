@@ -75,8 +75,13 @@ the interpreter works like this (JIT is done by adding new native functions):
 while (true)
 {
   // c = [a b c d] -> c = [a b c], command = d
-  command = h(c);
-  c = t(c);
+  // It's important to remove nils here because nil normally pushes itself onto
+  // the data stack. As a continuation it should be a nop.
+  for (command = 0; !command;)
+  {
+    command = h(c);
+    c = t(c);
+  }
 
   // The expected format of the continuation stack is a list of lists: then
   // it's just one cons operation to create a new call frame. But native
