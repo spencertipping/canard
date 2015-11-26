@@ -3,62 +3,63 @@ Canard is a concatenative, portable, JIT-compiled language modeled after an
 awkward mixture of Joy, FORTH, and, library-wise, APL. Its compilation strategy
 is evaluation-based and goes through the POSIX-specified `c99` compiler, which
 means most code should run at native speed on any architecture despite having
-zero runtime footprint. The downside is that won't run on Windows or other
+zero installation footprint. The downside is that won't run on Windows or other
 non-POSIX operating systems.
 
 ## Syntax and basic usage
 Canard is minimalistic in its syntax, with the exception that it gives you a
-ton of ways to write strings of various types (just because it's such a downer
-to work with languages that don't support this). Primitive syntactic elements
-are:
+lot of ways to write strings of various types (just because it's such a downer
+to work with languages that don't support the type of string you need).
+Primitive syntactic elements are:
 
-- lists, written with square brackets and consed right to left
-    - `[]` is nil
+- lists, written with square brackets and consed right-associatively
+    - `[]` is nil, which is the only false value
     - `[x y z]` is `[x y]` (the tail) consed with `z` (the head)
+    - lists are self-quoting, exactly as in Joy
 - symbols: `/[^]["\s][^][\s]*/`
-- strings, written several different ways:
-    - `"[...]` exactly like Perl's `q[...]` (and with any of Perl's allowed
-      string delimiters), but written with `"` instead of `q`
-    - `"<<EOF` starts a heredoc until `EOF`
-    - `""$"[x $foo$ bar]`: starts a string preindexed with occurrences of `$`
-    - `""foo"<<EOF`: starts a heredoc preindexed with occurrences of `foo`
+- strings, which are just mutable blocks of memory:
+    - `"X...X`: exactly equivalent to Perl's `qX...X` construct; all of the
+      same delimiters are supported
+    - `"#EOF`: equivalent to Perl's `<<'EOF'`, but syntax continues immediately
+      after the heredoc's end marker; you can't continue syntax on the same
+      line
+    - strings are self-quoting
 
-Strings don't (and won't) know anything about encoding. They're just bytes.
-
-There isn't a syntax for comments, but the standard library resolves `#x`
-symbols to null lists and `#` to a function that drops its argument. This
-allows you to structurally comment things under evaluation, and to write
-shebang lines:
-
-```
-#!/this/shebang/is/a/nop
-#this-will-disappear... [but this list will execute normally]
-f #[this list will disappear] x
-```
-
-### Symbols and strings
 Symbols and strings are interconvertible:
 
 - `@< "[foo]` -> `'foo`
 - `@> 'foo` -> `"[foo]`
 
-The core library resolves `'foo` to a function that pushes the symbol `foo`.
+### Library-provided syntax
+Libraries can provide syntax-like abstractions by implementing resolvers for
+groups of symbols. The core library has a few such resolvers:
 
-### Preindexed strings
-Interpolation is too high-level for canard to implement, but we can get most of
-the benefit by preindexing a string around occurrences of a pattern. The result
-is a string that can be efficiently used as a general-purpose template.
-Implementation-wise preindexing is simple; every string has the following
-primitive accessors:
+- unboxed 30-bit numbers, written in usual C notation
+    - **warning:** numbers on the continuation stack are interpreted as native
+      fn references and may cause segfaults or other undefined behavior
+- quoted symbols: `'foo` pushes `foo` onto the data stack
+- comments:
+    - `# [commented stuff]`
+    - `#a-commented-word [but this list is not commented]`
+    - `#!/usr/bin/canard`
+- named variables with destructuring: `[+ x y : [[x] y]]`
 
-- `n"`: string length in bytes
-- `b"`: byte at given offset
-- `n""`: number of index entries
-- `i""`: byte offset of given index entry
+### Macros
+Any function can modify its calling continuation, which enables you to write
+macros. `:` uses this strategy. For example:
 
-Preindexed strings don't actually contain the substring being indexed; as a
-result `""$"[foo $bar$ bif]` renders as `foo bar bif`, and the two indexed
-points are at byte offsets 4 and 7.
+```
+. [this is the continuation of f x y]
+```
+
+If you run the above, `f`'s topmost continuation will be the list `[this is the
+continuation of]`, and `f` is at liberty to quote, transform, and replace its
+continuation accordingly. Note that macros only work leftwards; syntax to the
+right will be forgotten by the time `f` is called.
+
+Macros may seem like they would slow things down, but the standard abstract
+evaluator/JIT will flatten them just like it does normal function calls.
+(**TODO:** convince myself that this is actually possible)
 
 ## Execution semantics
 Canard is a stack-based language whose state is encoded in three registers:
@@ -68,7 +69,7 @@ Canard is a stack-based language whose state is encoded in three registers:
 - `r`: a reference to the resolver stack cons
 
 Assuming the notation `h(cons)` and `t(cons)` for head and tail, respectively,
-the interpreter works like this:
+the interpreter works like this (JIT is done by adding new native functions):
 
 ```c
 while (true)
@@ -99,7 +100,7 @@ while (true)
       // A way to arbitrarily modify d, c, and r. This is the escape hatch for
       // basic stack functions and the set of primitives required to make the
       // language work. (See src/self.canard.sdoc for the full list)
-      *(native_functions[v])(&d, &c, &r);
+      (*native_functions[v])(&d, &c, &r);
       break;
 
     case SYMBOL:

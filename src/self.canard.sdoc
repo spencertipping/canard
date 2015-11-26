@@ -78,16 +78,16 @@ certain low-level primitives so we can evaluate into a JIT context.
   distributed heap forwarding/sharing, not that I was especially tempted). Type
   tags:
 
-  | (0 << 30) = fn   (immediate)
-    (1 << 30) = isym (immediate)
-    (2 << 30) = cons (reference)
+  | (0 << 30) = fn     (immediate)
+    (1 << 30) = isym   (immediate)
+    (2 << 30) = cons   (reference)
     (3 << 30) = string (reference)
 
   Nil is always encoded as a fn at index 0; this enables it to function as
   C-false, which improves execution efficiency a bit.
 
-[c ""$"<<EOF
-$INCLUDES$
+[c "#EOF
+INCLUDES
 
 #define type(v)      ((v) >> 30)
 #define val(v)       ((v) & 0x3fffffffl)
@@ -105,7 +105,7 @@ int main(int argc, char **argv)
 {
   ref d, c, r;
   unsigned char *h, *hp;
-  void const *const *const fns[]   = { $FN_LABELS$ };
+  void const *const *const fns[]   = { FN_LABELS };
   void const *const *const cases[] = { &&native, &&symbol, &&cons, &&string };
 
   /* TODO: bootup continuation/resolver/etc */
@@ -116,11 +116,11 @@ fetch_next:
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
 
-native:        goto *fns[n];
-symbol: $.:@$; goto fetch_next;
-cons:   $.::$; goto fetch_next;
-string: $.:"$; goto fetch_next;
-$FNS$
+native:      goto *fns[n];
+symbol: .:@; goto fetch_next;
+cons:   .::; goto fetch_next;
+string: .:"; goto fetch_next;
+FNS
 }
 EOF]
 
@@ -129,7 +129,7 @@ This is responsible for compiling and executing the above C code. Nothing too
 special; we just forward any command-line options. All canard-related state is
 baked into the C source.
 
-[sh ""%"<<EOF
+[sh "#EOF
 #!/bin/sh
 t=${TMPDIR:-/tmp}
 i=0
@@ -137,7 +137,7 @@ until mkdir "$t/canard-$i" 2>&/dev/null; do
   i=$((i + 1))
 done
 cat > "$t/canard-$i/canard.c" <<'_'
-%C_SOURCE%
+C_SOURCE
 _
 c99 "$t/canard-$i/canard.c" -o "$t/canard-$i/canard" \
   && exec "$t/canard-$i/canard" "$@"
