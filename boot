@@ -7,8 +7,8 @@ open my $fh, '< src/self.canard.sdoc';
 my $self = join "\n", grep /^\s*[^\s|A-Z]/, split /\n\n/, join '', <$fh>;
 close $fh;
 
-our %native_offsets = ('' => 0, '=' => 1);
-our @native_names   = ('', '=');
+our %native_offsets = ('' => 0, '.' => 1, '=' => 2);
+our @native_names   = ('', '.', '=');
 our @parsed = (our $nil = 0);
 our @heap;
 
@@ -28,7 +28,8 @@ sub strp  {$_[0] >> 30 == 3}
 sub h {$heap[val $_[0]][1]}
 sub t {$heap[val $_[0]][0]}
 
-sub sname {pack('l', $v) =~ s/\0*$//r}
+sub sname {pack('l', val $_[0]) =~ s/\0*$//r}
+sub cname {lc sprintf '_%x', val $_[0]}
 
 sub str;
 sub str {
@@ -71,13 +72,53 @@ die "mismatched brackets: " . scalar @parsed unless @parsed == 1;
 
 my %specials;
 my %defs;
-++$specials{$_} for qw/ .:: .:" .:@ c sh /;
+++$specials{$_} for qw/ c mc sh /;
 
 for (my $cons = shift @parsed; $cons; $cons = t $cons) {
   my $l    = h $cons;
   my $name = sname h $l;
-  $specials{$name} ? $specials{$name} = t $l
-                   : $defs{$name}     = t $l;
+  $specials{$name} ? $specials{$name}  = t $l
+                   : $defs{cname h $l} = t $l;
 }
 
-# TODO
+my %visited;
+my @natives     = ('_5d5b');
+my @native_defs = ('_5d5b: goto fetch_next');
+
+for ('_2e', sort keys %defs) {
+  unless ($visited{$_}) {
+    ++$visited{$_};
+    my @xs;
+    for (my $cons = $defs{$_}; $cons; $cons = t $cons) {
+      unshift @xs, cname h $cons;
+    }
+    push @natives,     $_;
+    push @native_defs, "$_: " . ('ev(' x @xs) .
+                                'mc(' . join(' ', @xs) . ')'
+                              . (')' x @xs);
+  }
+}
+
+my $mc_defs   = $heap[val h $specials{mc}];
+my $fn_labels = join ',', map "&&$_", @natives;
+my $fns       = join "\n", map "$_;", @native_defs;
+
+my $c = $heap[val h $specials{c}] =~ s/INCLUDES//r
+                                  =~ s/MC_DEFS/$mc_defs/r
+                                  =~ s/FN_LABELS/$fn_labels/r
+                                  =~ s/FNS/$fns/r;
+
+system 'rm -r gen' if -d 'gen';
+mkdir 'gen';
+
+open my $fh, '> gen/canard.c';
+print $fh $c;
+close $fh;
+
+my $sh = $heap[val h $specials{sh}] =~ s/C_SOURCE/$c/r, "\n";
+
+open my $fh, '> gen/canard';
+print $fh $sh;
+close $fh;
+
+chmod 0755, 'gen/canard';

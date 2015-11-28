@@ -93,7 +93,7 @@ Equations:
 #define hd(x) paste(hd_, x)
 #define tl(x) paste(tl_, x)
 
-#define _3a3a(h, t, ...)    (cons(t, l), __VA_ARGS__)
+#define _3a3a(h, t, ...)    (cons(t, h), __VA_ARGS__)
 #define _5e3a(x, ...)       (h(x), t(x), __VA_ARGS__)
 #define _2473(x, y, ...)    (y, x, __VA_ARGS__)
 #define _2c73(x, ...)       (__VA_ARGS__)
@@ -103,19 +103,20 @@ Equations:
 
 #define _2e2127(...) (1, __VA_ARGS__)
 
-#define commit(d, c, r) \
+#define commit(dn, cn, rn, ...) \
   do { \
-    ref const _d = (d); \
-    ref const _c = (c); \
-    ref const _r = (r); \
+    ref const _d = (dn); \
+    ref const _c = (cn); \
+    ref const _r = (rn); \
     d = _d; \
     c = _c; \
     r = _r; \
+    goto fetch_next; \
   } while (0)
 
 #define mc(f) commit f(d, c, r)
 #define ev(x) x
-EOF]
+EOF mc]
 
 Core primitives.
 In two groups: non-stack and stack-related. Canard needs to provide special
@@ -171,50 +172,43 @@ certain low-level primitives so we can evaluate into a JIT context.
 #define _XOPEN_SOURCE   600
 #define _ISOC99_SOURCE
 #define _ISOC9X_SOURCE
-
-#include <sys/types.h>
-#include <string.h>
 INCLUDES
 
 typedef unsigned long ref;
-typedef struct { ref h; ref t; } cons;
+struct cons { ref h; ref t; };
 
 static ref d, c, r;
-static unsigned char *h, *hp;
+static unsigned char *h0, *hp;
 
 #define type(v) ((v) >> 30)
 #define val(v)  ((v) & 0x3fffffffl)
 MC_DEFS
 
-static inline ref h(ref const c) {return ((const const*) (h + val(c)))->h;}
-static inline ref t(ref const c) {return ((const const*) (h + val(c)))->t;}
+static inline ref h(ref const c) {return ((struct cons*)(h0 + val(c)))->h;}
+static inline ref t(ref const c) {return ((struct cons*)(h0 + val(c)))->t;}
 
 static inline ref cons(ref const tl, ref const hd)
 {
-  cons *r = hp;
-  hp += sizeof(cons);
+  struct cons *r = (struct cons*) hp;
+  hp += sizeof(struct cons);
   r->t = tl;
   r->h = hd;
-  return r - h | 2l << 30;
+  return (unsigned char*) r - h0 | 2l << 30;
 }
 
 int main(int argc, char **argv)
 {
+  ref n;
   void *const *const fns[]   = { FN_LABELS };
   void *const *const cases[] = { &&_213a2e, &&_403a2e, &&_3a3a2e, &&_223a2e };
 
   /* TODO: bootup continuation/resolver/etc */
 
 fetch_next:
-  ref n;
   for (n = 0; !n;) n = h(c), c = t(c);
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
-
 _213a2e: goto *fns[n];
-_403a2e: EVAL_SYMBOL;
-_3a3a2e: EVAL_CONS;
-_223a2e: EVAL_STRING;
 FNS
 }
 EOF c]
