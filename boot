@@ -34,8 +34,8 @@ sub str;
 sub str {
   my ($v) = @_;
   return "!$native_names{val $v}" if fnp $v;
-  return sname $v                 if symp $v
-  return $heap[val $v]            if strp $v
+  return sname $v                 if symp $v;
+  return $heap[val $v]            if strp $v;
 
   my @xs;
   while (consp $v) {
