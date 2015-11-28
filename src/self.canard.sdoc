@@ -14,7 +14,7 @@ interpreter, since it's just a single computed-goto).
 
 As you might expect, all of these are specified in concatenative form against a
 stack of quoted `d c r` values. All of the primitives at this level are
-implemented with preprocessor macros when bootstrapping.
+implemented in micro-canard.
 
 | .:: (evaluate cons)
   .:: [*d] [*c0 [*c1 x]] r         = [*d x] [*c0 [*c1]] r
@@ -33,59 +33,108 @@ implemented with preprocessor macros when bootstrapping.
 [sr :: s$ sR :^ s$ sR :: sr :: '!. :: sr :^ :^ s$ .:@]
 
 The `'!.` in the last equation means that we need a pre-resolved evaluator
-function; if we did anything else we'd either leave the symbol's resolved value
-on the data stack, or loop forever as we tried to resolve `.`.
+native ref; if we did anything else we'd either leave the symbol's resolved
+value on the data stack, or loop forever as we tried to resolve `.`.
+
+Micro-canard.
+Micro-canard is a subset of canard that provides everything required to write
+programs that describe canard's semantics using term rewriting. It can also be
+implemented using preprocessor macros, which means it can be abstractly
+interpreted with zero runtime overhead.
+
+The reason we can write a self-describing language is that canard's stacks are
+themselves lists, which means we can have these primitives operate on quoted
+forms of the interpreter state.
+
+| :: = cons
+  :^ = uncons, or mnemonically, "cons invert"
+  s$ = swap
+  s, = drop
+  s: = dup
+  sr = rotate 3 up
+  sR = rotate 3 down
+
+| :: :: sR :^ s$ :^ [*d [*t] h] c r = [*d [*t h]] c r   # ::
+  :: s$ :: sr :^ :^ [*d [*t h]] c r = [*d [*t] h] c r   # :^
+
+| [[[*d y x  ] c r] [[*d x y  ] c r] s$]
+  [[[*d      ] c r] [[*d x    ] c r] s,]
+  [[[*d x x  ] c r] [[*d x    ] c r] s:]
+  [[[*d z x y] c r] [[*d x y z] c r] sr]
+  [[[*d y z x] c r] [[*d x y z] c r] sR]
+
+| :: s$ :: sr s$ sR :^ s$ :^          [*d y x]   c r = [*d x y] c r
+  s, :^                               [*d x]     c r = [*d] c r
+  :: s$ :: sr s: :^                   [*d x]     c r = [*d x x] c r
+  :: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ [*d x y z] c r = [*d z x y] c r
+  :: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ [*d x y z] c r = [*d y z x] c r
+
+[:: :: sR :^ s$ :^                   ::]
+[:: s$ :: sr :^ :^                   :^]
+[:: s$ :: sr s$ sR :^ s$ :^          s$]
+[s, :^                               s,]
+[:: s$ :: sr s: :^                   s:]
+[:: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ sr]
+[:: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ sR]
+
+  Preprocessor micro-canard abstract evaluator.
+  No implementation of cons here, since there's a possibility that expressions
+  here will involve real heap conses. Note that we don't remove intermediate
+  conses because there's no reason to create them. All we need to do is convert
+  concatenative to applicative.
+
+  The macro names here are based on canard's packed-symbol encoding and aren't
+  meant to be human-readable. This is a recurring theme in canard.
+
+  Note that _2E2127 is a bit of a hack to enable micro-canard programs to
+  insert references to the native evaluator function. Otherwise we'd be unable
+  to write the symbol resolver using micro-canard, at which point the language
+  would be little more than a misguided joke.
+
+["#EOF
+#define _5E3A(x, ...)       (h(x), t(x), __VA_ARGS__)
+#define _2473(x, y, ...)    (y, x, __VA_ARGS__)
+#define _2C73(x, ...)       (__VA_ARGS__)
+#define _3A73(x, ...)       (x, x, __VA_ARGS__)
+#define _7273(x, y, z, ...) (y, z, x, __VA_ARGS__)
+#define _5273(x, y, z, ...) (z, x, y, __VA_ARGS__)
+
+#define _2E2127(...) (1, __VA_ARGS__)
+
+#define mcu(d, c, r) \
+  do { \
+    ref const _d = (d); \
+    ref const _c = (c); \
+    ref const _r = (r); \
+    d = _d; \
+    c = _c; \
+    r = _r; \
+  } while (0)
+
+#define mc(f) mcu f(d, c, r)
+EOF]
 
 Core primitives.
 In two groups: non-stack and stack-related. Canard needs to provide special
 operations for the following functions:
 
-| :: = cons
-  :^ = uncons, or mnemonically, "cons invert"
+| .  = schedule for evaluation, or "push continuation"
   r< = data to resolver
   r> = data from resolver
-  .  = schedule for evaluation, or "push continuation"
   .< = data to continuations
   .> = data from continuations
+  s< = unquote data stack
+  s> = quote data stack
 
-| :: :: sR :^ s$ :^ [*d [*t] h] c r = [*d [*t h]] c r   # ::
-  :: s$ :: sr :^ :^ [*d [*t h]] c r = [*d [*t] h] c r   # :^
+TODO: convert these to micro-canard programs
 
-[:: :: sR :^ s$ :^ ::]
-[:: s$ :: sr :^ :^ :^]
-
+[[[*d       ] [*c x] r] [[*d x     ] [*c] r]  .]
 [[[*d       ]      c x] [[*d x     ]    c r] r<]
 [[[*d r     ]      c r] [[*d       ]    c r] r>]
-[[[*d       ] [*c x] r] [[*d x     ] [*c] r]  .]
 [[[*d       ]      x r] [[*d x     ]    c r] .<]
 [[[*d c     ]      c r] [[*d       ]    c r] .>]
-
-Now we have some core stack manipulators. I didn't put a whole lot of effort
-into minimizing these because it's not that important; most real-world (ha!)
-canard programs will most likely use a destructuring macro library.
-
-| s$ = swap
-  s, = drop
-  s: = dup
-  s^ = nip
-  sr = rotate 3 up
-  sR = rotate 3 down
-  s> = quote stack
-  s< = unquote stack
-
-It's worth mentioning that it doesn't matter how efficient these stack
-manipulators are because abstract-compiled code won't contain them. It's more
-important that there not be too many of them -- otherwise compilers will be
-more work to write.
-
-[[[*d y x  ] c r] [[*d x y  ] c r] s$]
-[[[*d      ] c r] [[*d x    ] c r] s,]
-[[[*d x x  ] c r] [[*d x    ] c r] s:]
-[[[*d x y x] c r] [[*d x y  ] c r] s^]
-[[[*d z x y] c r] [[*d x y z] c r] sr]
-[[[*d y z x] c r] [[*d x y z] c r] sR]
-[[[*d [*d] ] c r] [[*d      ] c r] s>]
-[[d          c r] [[*d d    ] c r] s<]
+[[[*d [*d]  ]      c r] [[*d       ]    c r] s>]
+[[d                c r] [[*d d     ]    c r] s<]
 
 C source.
 We need some boilerplate around the generated definitions (partially just to
@@ -116,6 +165,12 @@ certain low-level primitives so we can evaluate into a JIT context.
 #include <string.h>
 INCLUDES
 
+typedef unsigned long ref;
+typedef struct { ref h; ref t; } cons;
+
+static ref d, c, r;
+static unsigned char *h, *hp;
+
 #define type(v)      ((v) >> 30)
 #define val(v)       ((v) & 0x3fffffffl)
 #define h(v)         (((cons const*) (h + val(v)))->h)
@@ -124,20 +179,17 @@ INCLUDES
                       ((cons*) hp)->h = (hd), \
                       (ref) ((hp += sizeof(cons)) - h) - sizeof(cons) \
                         | 2l << 30)
-
-typedef unsigned long ref;
-typedef struct { ref h; ref t; } cons;
+MC_DEFS
 
 int main(int argc, char **argv)
 {
-  ref d, c, r, n;
-  unsigned char *h, *hp;
   void const *const *const fns[]   = { FN_LABELS };
   void const *const *const cases[] = { &&native, &&symbol, &&cons, &&string };
 
   /* TODO: bootup continuation/resolver/etc */
 
 fetch_next:
+  ref n;
   for (n = 0; !n;) n = h(c), c = t(c);
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
