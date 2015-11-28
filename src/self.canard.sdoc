@@ -12,13 +12,31 @@ continuation stack, as we do with `.:@` to resolve symbols. Ultimately the only
 thing Canard does is call native functions (which is hard-coded into the
 interpreter, since it's just a single computed-goto).
 
-[.:: [[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r]]
-[.:" [[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r]]
-[.:@ [[*d x] [*c0 [*c1] !. r] [*r r]] [[*d] [*c0 [*c1 x]] [*r r]]]
+[[[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r] .::]
+[[[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r] .:"]
+[[[*d x] [*c0 [*c1] !. r] [*r r]] [[*d] [*c0 [*c1 x]] [*r r]] .:@]
 
 The `!.` in the last equation means that we need a pre-resolved evaluator
 function; if we did anything else we'd either leave the symbol's resolved value
 on the data stack, or loop forever as we tried to resolve `.`.
+
+  What happens with these lists.
+  It depends. Initially, the `../boot` perl script reads the lists and
+  generates fairly mediocre C source that captures their semantics. For
+  example, here's a translation of `.::` (in practice the variable names will
+  be incomprehensible numbers):
+
+  | {
+      ref _star_d = d;
+      ref _star_c0 = t(c);
+      ref _star_c1 = t(h(c));
+      ref _x = h(h(c));
+      ref _r = r;
+      d = cons(_star_d, _x);
+      c = cons(_star_c0, _star_c1);
+      r = _r;
+    }
+    goto fetch_next;
 
 Core primitives.
 In two groups: non-stack and stack-related. Canard needs to provide special
@@ -32,13 +50,13 @@ operations for the following functions:
   .< = data to continuations
   .> = data from continuations
 
-[:: [[*d [*t h]]      c r] [[*d [*t] h]    c r]]
-[:^ [[*d [*t] h]      c r] [[*d [*t h]]    c r]]
-[r< [[*d       ]      c x] [[*d x     ]    c r]]
-[r> [[*d r     ]      c r] [[*d       ]    c r]]
-[.  [[*d       ] [*c x] r] [[*d x     ] [*c] r]]
-[.< [[*d       ]      x r] [[*d x     ]    c r]]
-[.> [[*d c     ]      c r] [[*d       ]    c r]]
+[[[*d [*t h]]      c r] [[*d [*t] h]    c r] ::]
+[[[*d [*t] h]      c r] [[*d [*t h]]    c r] :^]
+[[[*d       ]      c x] [[*d x     ]    c r] r<]
+[[[*d r     ]      c r] [[*d       ]    c r] r>]
+[[[*d       ] [*c x] r] [[*d x     ] [*c] r]  .]
+[[[*d       ]      x r] [[*d x     ]    c r] .<]
+[[[*d c     ]      c r] [[*d       ]    c r] .>]
 
 Now we have some core stack manipulators. I didn't put a whole lot of effort
 into minimizing these because it's not that important; most real-world (ha!)
@@ -58,14 +76,14 @@ manipulators are because abstract-compiled code won't contain them. It's more
 important that there not be too many of them -- otherwise compilers will be
 more work to write.
 
-[s$ [[*d y x  ] c r] [[*d x y  ] c r]]
-[s, [[*d      ] c r] [[*d x    ] c r]]
-[s: [[*d x x  ] c r] [[*d x    ] c r]]
-[s^ [[*d x y x] c r] [[*d x y  ] c r]]
-[sr [[*d z x y] c r] [[*d x y z] c r]]
-[sR [[*d y z x] c r] [[*d x y z] c r]]
-[s> [[*d [*d] ] c r] [[*d      ] c r]]
-[s< [d          c r] [[*d d    ] c r]]
+[[[*d y x  ] c r] [[*d x y  ] c r] s$]
+[[[*d      ] c r] [[*d x    ] c r] s,]
+[[[*d x x  ] c r] [[*d x    ] c r] s:]
+[[[*d x y x] c r] [[*d x y  ] c r] s^]
+[[[*d z x y] c r] [[*d x y z] c r] sr]
+[[[*d y z x] c r] [[*d x y z] c r] sR]
+[[[*d [*d] ] c r] [[*d      ] c r] s>]
+[[d          c r] [[*d d    ] c r] s<]
 
 C source.
 We need some boilerplate around the generated definitions (partially just to
@@ -86,7 +104,7 @@ certain low-level primitives so we can evaluate into a JIT context.
   Nil is always encoded as a fn at index 0; this enables it to function as
   C-false, which improves execution efficiency a bit.
 
-[c frame "#EOF
+["#EOF
 #define _POSIX_C_SOURCE 200112L
 #define _XOPEN_SOURCE   600
 #define _ISOC99_SOURCE
@@ -122,27 +140,20 @@ fetch_next:
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
 
-native:      goto *fns[n];
-symbol: .:@; goto fetch_next;
-cons:   .::; goto fetch_next;
-string: .:"; goto fetch_next;
+native: goto *fns[n];
+symbol: EVAL_SYMBOL;
+cons:   EVAL_CONS;
+string: EVAL_STRING;
 FNS
 }
-EOF]
-
-  C primitive snippets.
-  We need enough operations to implement the destructuring/restructuring
-  language used to define the algebraic form of the language. It's fine to use
-  named arguments and local variables.
-
-  TODO
+EOF c]
 
 POSIX shell wrapper.
 This is responsible for compiling and executing the above C code. Nothing too
 special; we just forward any command-line options. All canard-related state is
 baked into the C source.
 
-[sh "#EOF
+["#EOF
 #!/bin/sh
 t=${TMPDIR:-/tmp}
 i=0
@@ -152,6 +163,6 @@ done
 cat > "$t/canard-$i/canard.c" <<'_'
 C_SOURCE
 _
-c99 "$t/canard-$i/canard.c" -o "$t/canard-$i/canard" \
+c99 "$t/canard-$i/canard.c" $CANARD_C99_OPTS -o "$t/canard-$i/canard" \
   && exec "$t/canard-$i/canard" "$@"
-EOF]
+EOF sh]
