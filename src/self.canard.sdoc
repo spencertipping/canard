@@ -16,7 +16,7 @@ As you might expect, all of these are specified in concatenative form against a
 stack of quoted `d c r` values. All of the primitives at this level are
 implemented in micro-canard.
 
-| .:: (evaluate cons)
+| .:: (evaluate cons/string)
   .:: [*d] [*c0 [*c1 x]] r         = [*d x] [*c0 [*c1]] r
   :^ :^ s$ [*d] [*c0 [*c1 x]] r    = x [*c1] [*c0] [*d] r
   :: sr :: sr x [*c1] [*c0] [*d] r = [*d x] [*c0 [*c1]] r
@@ -28,8 +28,8 @@ implemented in micro-canard.
   :^ s$ sR :: sr [*c0 [*c1] !.] x [*d] [*r r] = r [*r] [*c0 [*c1] !.] [*d x]
   sr :: s$ sR r [*r] [*c0 [*c1] !.] [*d x]    = [*d x] [*c0 [*c1] !. r] [*r]
 
-[:: sr :: sr :^ :^ s$ .::]
-[:: sr :: sr :^ :^ s$ .:"]
+[:: sr :: sr :^ :^ s$                             .::]
+[:: sr :: sr :^ :^ s$                             .:"]
 [sr :: s$ sR :^ s$ sR :: sr :: '!. :: sr :^ :^ s$ .:@]
 
 The `'!.` in the last equation means that we need a pre-resolved evaluator
@@ -51,23 +51,18 @@ forms of the interpreter state.
   s$ = swap
   s, = drop
   s: = dup
-  sr = rotate 3 up
-  sR = rotate 3 down
+  sr = rotate 3 left  (i.e. sr 1 2 3 = 2 3 1)
+  sR = rotate 3 right (i.e. sR 1 2 3 = 3 1 2)
 
-| :: :: sR :^ s$ :^ [*d [*t] h] c r = [*d [*t h]] c r   # ::
-  :: s$ :: sr :^ :^ [*d [*t h]] c r = [*d [*t] h] c r   # :^
+Equations:
 
-| [[[*d y x  ] c r] [[*d x y  ] c r] s$]
-  [[[*d      ] c r] [[*d x    ] c r] s,]
-  [[[*d x x  ] c r] [[*d x    ] c r] s:]
-  [[[*d z x y] c r] [[*d x y z] c r] sr]
-  [[[*d y z x] c r] [[*d x y z] c r] sR]
-
-| :: s$ :: sr s$ sR :^ s$ :^          [*d y x]   c r = [*d x y] c r
-  s, :^                               [*d x]     c r = [*d] c r
-  :: s$ :: sr s: :^                   [*d x]     c r = [*d x x] c r
-  :: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ [*d x y z] c r = [*d z x y] c r
-  :: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ [*d x y z] c r = [*d y z x] c r
+| :: :: sR :^ s$ :^                   [*d [*t] h] c r = [*d [*t h]] c r
+  :: s$ :: sr :^ :^                   [*d [*t h]] c r = [*d [*t] h] c r
+  :: s$ :: sr s$ sR :^ s$ :^          [*d y x]    c r = [*d x y] c r
+  s, :^                               [*d x]      c r = [*d] c r
+  :: s$ :: sr s: :^                   [*d x]      c r = [*d x x] c r
+  :: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ [*d x y z]  c r = [*d z x y] c r
+  :: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ [*d x y z]  c r = [*d y z x] c r
 
 [:: :: sR :^ s$ :^                   ::]
 [:: s$ :: sr :^ :^                   :^]
@@ -78,30 +73,37 @@ forms of the interpreter state.
 [:: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ sR]
 
   Preprocessor micro-canard abstract evaluator.
-  No implementation of cons here, since there's a possibility that expressions
-  here will involve real heap conses. Note that we don't remove intermediate
-  conses because there's no reason to create them. All we need to do is convert
-  concatenative to applicative.
+  The evaluator contains some logic to avoid intermediate cons cell allocation;
+  this ends up being useful for JIT, where we want to minimize garbage. `cons`,
+  `h`, and `t` must not be preprocessor macros for this to work.
 
   The macro names here are based on canard's packed-symbol encoding and aren't
   meant to be human-readable. This is a recurring theme in canard.
 
-  Note that _2E2127 is a bit of a hack to enable micro-canard programs to
+  Note that _2e2127 is a bit of a hack to enable micro-canard programs to
   insert references to the native evaluator function. Otherwise we'd be unable
   to write the symbol resolver using micro-canard, at which point the language
   would be little more than a misguided joke.
 
 ["#EOF
-#define _5E3A(x, ...)       (h(x), t(x), __VA_ARGS__)
+#define paste(x, y) x##y
+
+#define hd_cons(t, h) h
+#define tl_cons(t, h) t
+#define hd(x) paste(hd_, x)
+#define tl(x) paste(tl_, x)
+
+#define _3a3a(h, t, ...)    (cons(t, l), __VA_ARGS__)
+#define _5e3a(x, ...)       (h(x), t(x), __VA_ARGS__)
 #define _2473(x, y, ...)    (y, x, __VA_ARGS__)
-#define _2C73(x, ...)       (__VA_ARGS__)
-#define _3A73(x, ...)       (x, x, __VA_ARGS__)
+#define _2c73(x, ...)       (__VA_ARGS__)
+#define _3a73(x, ...)       (x, x, __VA_ARGS__)
 #define _7273(x, y, z, ...) (y, z, x, __VA_ARGS__)
 #define _5273(x, y, z, ...) (z, x, y, __VA_ARGS__)
 
-#define _2E2127(...) (1, __VA_ARGS__)
+#define _2e2127(...) (1, __VA_ARGS__)
 
-#define mcu(d, c, r) \
+#define commit(d, c, r) \
   do { \
     ref const _d = (d); \
     ref const _c = (c); \
@@ -111,7 +113,8 @@ forms of the interpreter state.
     r = _r; \
   } while (0)
 
-#define mc(f) mcu f(d, c, r)
+#define mc(f) commit f(d, c, r)
+#define ev(x) x
 EOF]
 
 Core primitives.
@@ -126,15 +129,23 @@ operations for the following functions:
   s< = unquote data stack
   s> = quote data stack
 
-TODO: convert these to micro-canard programs
+Equations:
 
-[[[*d       ] [*c x] r] [[*d x     ] [*c] r]  .]
-[[[*d       ]      c x] [[*d x     ]    c r] r<]
-[[[*d r     ]      c r] [[*d       ]    c r] r>]
-[[[*d       ]      x r] [[*d x     ]    c r] .<]
-[[[*d c     ]      c r] [[*d       ]    c r] .>]
-[[[*d [*d]  ]      c r] [[*d       ]    c r] s>]
-[[d                c r] [[*d d     ]    c r] s<]
+| s$ :: s$ sR :^       [*d x] [*c] r = [*d] [*c x] r
+  sr :^ s, sR          [*d x]    c r = [*d] c x
+  sR s$ sr :: sr s: sR [*d]      c r = [*d r] c r
+  s$ s, sR :^          [*d x]    c r = [*d] x r
+  :: sr s: s$          [*d]      c r = [*d c] c r
+  :: s:                [*d]      c r = [*d [*d]] c r
+  s, s$ :^             [*d d]    c r = d c r
+
+[s$ :: s$ sR :^        .]
+[sr :^ s, sR          r<]
+[sR s$ sr :: sr s: sR r>]
+[s$ s, sR :^          .<]
+[:: sr s: s$          .>]
+[:: s:                s>]
+[s, s$ :^             s<]
 
 C source.
 We need some boilerplate around the generated definitions (partially just to
@@ -171,20 +182,26 @@ typedef struct { ref h; ref t; } cons;
 static ref d, c, r;
 static unsigned char *h, *hp;
 
-#define type(v)      ((v) >> 30)
-#define val(v)       ((v) & 0x3fffffffl)
-#define h(v)         (((cons const*) (h + val(v)))->h)
-#define t(v)         (((cons const*) (h + val(v)))->t)
-#define cons(tl, hd) (((cons*) hp)->t = (tl), \
-                      ((cons*) hp)->h = (hd), \
-                      (ref) ((hp += sizeof(cons)) - h) - sizeof(cons) \
-                        | 2l << 30)
+#define type(v) ((v) >> 30)
+#define val(v)  ((v) & 0x3fffffffl)
 MC_DEFS
+
+static inline ref h(ref const c) {return ((const const*) (h + val(c)))->h;}
+static inline ref t(ref const c) {return ((const const*) (h + val(c)))->t;}
+
+static inline ref cons(ref const tl, ref const hd)
+{
+  cons *r = hp;
+  hp += sizeof(cons);
+  r->t = tl;
+  r->h = hd;
+  return r - h | 2l << 30;
+}
 
 int main(int argc, char **argv)
 {
-  void const *const *const fns[]   = { FN_LABELS };
-  void const *const *const cases[] = { &&native, &&symbol, &&cons, &&string };
+  void *const *const fns[]   = { FN_LABELS };
+  void *const *const cases[] = { &&_213a2e, &&_403a2e, &&_3a3a2e, &&_223a2e };
 
   /* TODO: bootup continuation/resolver/etc */
 
@@ -194,10 +211,10 @@ fetch_next:
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
 
-native: goto *fns[n];
-symbol: EVAL_SYMBOL;
-cons:   EVAL_CONS;
-string: EVAL_STRING;
+_213a2e: goto *fns[n];
+_403a2e: EVAL_SYMBOL;
+_3a3a2e: EVAL_CONS;
+_223a2e: EVAL_STRING;
 FNS
 }
 EOF c]
