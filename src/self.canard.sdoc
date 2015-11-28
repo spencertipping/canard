@@ -12,31 +12,29 @@ continuation stack, as we do with `.:@` to resolve symbols. Ultimately the only
 thing Canard does is call native functions (which is hard-coded into the
 interpreter, since it's just a single computed-goto).
 
-[[[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r] .::]
-[[[*d x] [*c0 [*c1]]           r] [[*d] [*c0 [*c1 x]]      r] .:"]
-[[[*d x] [*c0 [*c1] !. r] [*r r]] [[*d] [*c0 [*c1 x]] [*r r]] .:@]
+As you might expect, all of these are specified in concatenative form against a
+stack of quoted `d c r` values. All of the primitives at this level are
+implemented with preprocessor macros when bootstrapping.
 
-The `!.` in the last equation means that we need a pre-resolved evaluator
+| .:: (evaluate cons)
+  .:: [*d] [*c0 [*c1 x]] r         = [*d x] [*c0 [*c1]] r
+  :^ :^ s$ [*d] [*c0 [*c1 x]] r    = x [*c1] [*c0] [*d] r
+  :: sr :: sr x [*c1] [*c0] [*d] r = [*d x] [*c0 [*c1]] r
+
+| .:@ (evaluate symbol)
+  .:@ [*d] [*c0 [*c1 x]] [*r r]               = [*d x] [*c0 [*c1] !. r] [r* r]
+  :^ :^ s$ [*d] [*c0 [*c1 x]] [*r r]          = x [*c1] [*c0] [*d] [*r r]
+  :: !. :: sr x [*c1] [*c0] [*d] [*r r]       = [*c0 [*c1] !.] x [*d] [*r r]
+  :^ s$ sR :: sr [*c0 [*c1] !.] x [*d] [*r r] = r [*r] [*c0 [*c1] !.] [*d x]
+  sr :: s$ sR r [*r] [*c0 [*c1] !.] [*d x]    = [*d x] [*c0 [*c1] !. r] [*r]
+
+[:: sr :: sr :^ :^ s$ .::]
+[:: sr :: sr :^ :^ s$ .:"]
+[sr :: s$ sR :^ s$ sR :: sr :: '!. :: sr :^ :^ s$ .:@]
+
+The `'!.` in the last equation means that we need a pre-resolved evaluator
 function; if we did anything else we'd either leave the symbol's resolved value
 on the data stack, or loop forever as we tried to resolve `.`.
-
-  What happens with these lists.
-  It depends. Initially, the `../boot` perl script reads the lists and
-  generates fairly mediocre C source that captures their semantics. For
-  example, here's a translation of `.::` (in practice the variable names will
-  be incomprehensible numbers):
-
-  | {
-      ref _star_d = d;
-      ref _star_c0 = t(c);
-      ref _star_c1 = t(h(c));
-      ref _x = h(h(c));
-      ref _r = r;
-      d = cons(_star_d, _x);
-      c = cons(_star_c0, _star_c1);
-      r = _r;
-    }
-    goto fetch_next;
 
 Core primitives.
 In two groups: non-stack and stack-related. Canard needs to provide special
@@ -50,8 +48,12 @@ operations for the following functions:
   .< = data to continuations
   .> = data from continuations
 
-[[[*d [*t h]]      c r] [[*d [*t] h]    c r] ::]
-[[[*d [*t] h]      c r] [[*d [*t h]]    c r] :^]
+| :: :: sR :^ s$ :^ [*d [*t] h] c r = [*d [*t h]] c r   # ::
+  :: s$ :: sr :^ :^ [*d [*t h]] c r = [*d [*t] h] c r   # :^
+
+[:: :: sR :^ s$ :^ ::]
+[:: s$ :: sr :^ :^ :^]
+
 [[[*d       ]      c x] [[*d x     ]    c r] r<]
 [[[*d r     ]      c r] [[*d       ]    c r] r>]
 [[[*d       ] [*c x] r] [[*d x     ] [*c] r]  .]
