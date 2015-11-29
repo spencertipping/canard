@@ -7,8 +7,6 @@ open my $fh, '< src/self.canard.sdoc';
 my $self = join "\n", grep /^\s*[^\s|A-Z]/, split /\n\n/, join '', <$fh>;
 close $fh;
 
-our %native_offsets = ('' => 0, '.' => 1, '=' => 2);
-our @native_names   = ('', '.', '=');
 our @parsed = (our $nil = 0);
 our @heap;
 
@@ -57,10 +55,6 @@ while ($self =~ /\G\s*(\[|\]|"#(\S+)\n([\s\S]*?)\n\2|[^]["\s][^][\s]*)/g) {
     my $h = @heap;
     push @heap, $s, (0) x (3 + length $s);
     $parsed[-1] = cons $parsed[-1], $h | 3 << 30;
-  } elsif ($v =~ /^!(.*)/) {
-    $parsed[-1] = cons $parsed[-1],
-                       $native_offsets{$1} = keys %native_offsets;
-    $native_names{$native_offsets{$1}} = $1;
   } else {
     # Packed-immediate symbol encoding
     $parsed[-1] = cons $parsed[-1],
@@ -81,22 +75,18 @@ for (my $cons = shift @parsed; $cons; $cons = t $cons) {
                    : $defs{cname h $l} = t $l;
 }
 
-my %visited;
-my @natives     = ('_5d5b');
-my @native_defs = ('_5d5b: goto fetch_next');
+my @natives;
+my @native_defs;
 
-for ('_2e', sort keys %defs) {
-  unless ($visited{$_}) {
-    ++$visited{$_};
-    my @xs;
-    for (my $cons = $defs{$_}; $cons; $cons = t $cons) {
-      unshift @xs, cname h $cons;
-    }
-    push @natives,     $_;
-    push @native_defs, "$_: " . ('ev(' x @xs) .
-                                'mc(' . join(' ', @xs) . ')'
-                              . (')' x @xs);
+for (sort keys %defs) {
+  my @xs;
+  for (my $cons = $defs{$_}; $cons; $cons = t $cons) {
+    unshift @xs, cname h $cons;
   }
+  push @natives,     $_;
+  push @native_defs, "$_: " . ('ev(' x @xs) .
+                              'mc(' . join(' ', @xs) . ')'
+                            . (')' x @xs);
 }
 
 my $mc_defs   = $heap[val h $specials{mc}];

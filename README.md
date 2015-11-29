@@ -98,6 +98,11 @@ while (true)
   }
 
   // Execute the command
+  // The implementations of all but the NUMBER branch below are compiled from
+  // micro-canard definitions in src/self.canard.sdoc. There's also no switch()
+  // statement because computed goto is probably faster. Come to think of it,
+  // the actual code implementing the below logic will be completely
+  // unrecognizable.
   v = value(command);
   switch (type(command))
   {

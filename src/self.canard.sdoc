@@ -46,7 +46,8 @@ The reason we can write a self-describing language is that canard's stacks are
 themselves lists, which means we can have these primitives operate on quoted
 forms of the interpreter state.
 
-| :: = cons
+| ,  = nop (not implemented below because it must be native index 0)
+  :: = cons
   :^ = uncons, or mnemonically, "cons invert"
   s$ = swap
   s, = drop
@@ -90,18 +91,32 @@ Equations:
 
 #define hd_cons(t, h) h
 #define tl_cons(t, h) t
+
+#define hd_d h(d)
+#define tl_d t(d)
+#define hd_c h(c)
+#define tl_c t(c)
+#define hd_r h(r)
+#define tl_r t(r)
+
+#define hd_h(x) h(h(x))
+#define tl_h(x) t(h(x))
+#define hd_t(x) h(t(x))
+#define tl_t(x) t(t(x))
+
 #define hd(x) paste(hd_, x)
 #define tl(x) paste(tl_, x)
 
+#define _2c(...)            (__VA_ARGS__)
 #define _3a3a(h, t, ...)    (cons(t, h), __VA_ARGS__)
-#define _5e3a(x, ...)       (h(x), t(x), __VA_ARGS__)
+#define _5e3a(x, ...)       (hd(x), tl(x), __VA_ARGS__)
 #define _2473(x, y, ...)    (y, x, __VA_ARGS__)
 #define _2c73(x, ...)       (__VA_ARGS__)
 #define _3a73(x, ...)       (x, x, __VA_ARGS__)
 #define _7273(x, y, z, ...) (y, z, x, __VA_ARGS__)
 #define _5273(x, y, z, ...) (z, x, y, __VA_ARGS__)
 
-#define _2e2127(...) (1, __VA_ARGS__)
+#define _2e2127(...) (_eval_i, __VA_ARGS__)
 
 #define commit(dn, cn, rn, ...) \
   do { \
@@ -114,7 +129,7 @@ Equations:
     goto fetch_next; \
   } while (0)
 
-#define mc(f) commit f(d, c, r)
+#define mc(f) commit f(d, c, r, STACK_END)
 #define ev(x) x
 EOF mc]
 
@@ -164,8 +179,8 @@ certain low-level primitives so we can evaluate into a JIT context.
     (2 << 30) = cons   (reference)
     (3 << 30) = string (reference)
 
-  Nil is always encoded as a fn at index 0; this enables it to function as
-  C-false, which improves execution efficiency a bit.
+  Nil (`_2c`) is always encoded as a fn at index 0; this enables it to function
+  as C-false, which improves execution efficiency a bit.
 
 ["#EOF
 #define _POSIX_C_SOURCE 200112L
@@ -199,8 +214,11 @@ static inline ref cons(ref const tl, ref const hd)
 int main(int argc, char **argv)
 {
   ref n;
-  void *const *const fns[]   = { FN_LABELS };
+  void *const *const fns[]   = { &&_2c, FN_LABELS };
   void *const *const cases[] = { &&_213a2e, &&_403a2e, &&_3a3a2e, &&_223a2e };
+
+  ref _eval_i = 0;
+  for (; fns[_eval_i] != &&_2e; ++_eval_i);
 
   /* TODO: bootup continuation/resolver/etc */
 
@@ -209,6 +227,7 @@ fetch_next:
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
 _213a2e: goto *fns[n];
+_2c: goto fetch_next;
 FNS
 }
 EOF c]
@@ -222,7 +241,7 @@ baked into the C source.
 #!/bin/sh
 t=${TMPDIR:-/tmp}
 i=0
-until mkdir "$t/canard-$i" 2>&/dev/null; do
+until mkdir "$t/canard-$i" 2>/dev/null; do
   i=$((i + 1))
 done
 cat > "$t/canard-$i/canard.c" <<'_'

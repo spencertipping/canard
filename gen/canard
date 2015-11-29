@@ -1,7 +1,7 @@
 #!/bin/sh
 t=${TMPDIR:-/tmp}
 i=0
-until mkdir "$t/canard-$i" 2>&/dev/null; do
+until mkdir "$t/canard-$i" 2>/dev/null; do
   i=$((i + 1))
 done
 cat > "$t/canard-$i/canard.c" <<'_'
@@ -19,16 +19,27 @@ static unsigned char *h0, *hp;
 #define paste(x, y) x##y
 #define hd_cons(t, h) h
 #define tl_cons(t, h) t
+#define hd_d h(d)
+#define tl_d t(d)
+#define hd_c h(c)
+#define tl_c t(c)
+#define hd_r h(r)
+#define tl_r t(r)
+#define hd_h(x) h(h(x))
+#define tl_h(x) t(h(x))
+#define hd_t(x) h(t(x))
+#define tl_t(x) t(t(x))
 #define hd(x) paste(hd_, x)
 #define tl(x) paste(tl_, x)
+#define _2c(...)            (__VA_ARGS__)
 #define _3a3a(h, t, ...)    (cons(t, h), __VA_ARGS__)
-#define _5e3a(x, ...)       (h(x), t(x), __VA_ARGS__)
+#define _5e3a(x, ...)       (hd(x), tl(x), __VA_ARGS__)
 #define _2473(x, y, ...)    (y, x, __VA_ARGS__)
 #define _2c73(x, ...)       (__VA_ARGS__)
 #define _3a73(x, ...)       (x, x, __VA_ARGS__)
 #define _7273(x, y, z, ...) (y, z, x, __VA_ARGS__)
 #define _5273(x, y, z, ...) (z, x, y, __VA_ARGS__)
-#define _2e2127(...) (1, __VA_ARGS__)
+#define _2e2127(...) (_eval_i, __VA_ARGS__)
 #define commit(dn, cn, rn, ...) \
   do { \
     ref const _d = (dn); \
@@ -39,7 +50,7 @@ static unsigned char *h0, *hp;
     r = _r; \
     goto fetch_next; \
   } while (0)
-#define mc(f) commit f(d, c, r)
+#define mc(f) commit f(d, c, r, STACK_END)
 #define ev(x) x
 static inline ref h(ref const c) {return ((struct cons*)(h0 + val(c)))->h;}
 static inline ref t(ref const c) {return ((struct cons*)(h0 + val(c)))->t;}
@@ -54,19 +65,21 @@ static inline ref cons(ref const tl, ref const hd)
 int main(int argc, char **argv)
 {
   ref n;
-  void *const *const fns[]   = { &&_5d5b,&&_2e,&&_223a2e,&&_2473,&&_2c73,&&_3a3a,&&_3a3a2e,&&_3a73,&&_3c2e,&&_3c72,&&_3c73,&&_3e2e,&&_3e72,&&_3e73,&&_403a2e,&&_5273,&&_5e3a,&&_7273 };
+  void *const *const fns[]   = { &&_2c, &&_223a2e,&&_2473,&&_2c73,&&_2e,&&_3a3a,&&_3a3a2e,&&_3a73,&&_3c2e,&&_3c72,&&_3c73,&&_3e2e,&&_3e72,&&_3e73,&&_403a2e,&&_5273,&&_5e3a,&&_7273 };
   void *const *const cases[] = { &&_213a2e, &&_403a2e, &&_3a3a2e, &&_223a2e };
+  ref _eval_i = 0;
+  for (; fns[_eval_i] != &&_2e; ++_eval_i);
   /* TODO: bootup continuation/resolver/etc */
 fetch_next:
   for (n = 0; !n;) n = h(c), c = t(c);
   if (type(n) == 2) c = cons(c, t(n)), n = h(n);
   goto *cases[type(n)];
 _213a2e: goto *fns[n];
-_5d5b: goto fetch_next;
-_2e: ev(ev(ev(ev(ev(mc(_2473 _3a3a _2473 _5273 _5e3a))))));
+_2c: goto fetch_next;
 _223a2e: ev(ev(ev(ev(ev(ev(ev(mc(_3a3a _7273 _3a3a _7273 _5e3a _5e3a _2473))))))));
 _2473: ev(ev(ev(ev(ev(ev(ev(ev(ev(mc(_3a3a _2473 _3a3a _7273 _2473 _5273 _5e3a _2473 _5e3a))))))))));
 _2c73: ev(ev(mc(_2c73 _5e3a)));
+_2e: ev(ev(ev(ev(ev(mc(_2473 _3a3a _2473 _5273 _5e3a))))));
 _3a3a: ev(ev(ev(ev(ev(ev(mc(_3a3a _3a3a _5273 _5e3a _2473 _5e3a)))))));
 _3a3a2e: ev(ev(ev(ev(ev(ev(ev(mc(_3a3a _7273 _3a3a _7273 _5e3a _5e3a _2473))))))));
 _3a73: ev(ev(ev(ev(ev(ev(mc(_3a3a _2473 _3a3a _7273 _3a73 _5e3a)))))));
