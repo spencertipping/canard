@@ -25,6 +25,8 @@ static unsigned char *h0, *hp;
 #define hd(x) paste(hd_, x)
 #define tl(x) paste(tl_, x)
 #define _2c(...)            (__VA_ARGS__)
+#define _2c27(...)          (0, __VA_ARGS__)
+#define _2e2127(...)        (_eval_i, __VA_ARGS__)
 #define _3a3a(h, t, ...)    (cons(t, h), __VA_ARGS__)
 #define _5e3a(x, ...)       (hd(x), tl(x), __VA_ARGS__)
 #define _2473(x, y, ...)    (y, x, __VA_ARGS__)
@@ -32,7 +34,6 @@ static unsigned char *h0, *hp;
 #define _3a73(x, ...)       (x, x, __VA_ARGS__)
 #define _7273(x, y, z, ...) (y, z, x, __VA_ARGS__)
 #define _5273(x, y, z, ...) (z, x, y, __VA_ARGS__)
-#define _2e2127(...) (_eval_i, __VA_ARGS__)
 #define commit(dn, cn, rn, ...) \
   do { \
     ref const _d = (dn); \

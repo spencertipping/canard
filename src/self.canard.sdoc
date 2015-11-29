@@ -36,42 +36,77 @@ The `'!.` in the last equation means that we need a pre-resolved evaluator
 native ref; if we did anything else we'd either leave the symbol's resolved
 value on the data stack, or loop forever as we tried to resolve `.`.
 
-Micro-canard.
-Micro-canard is a subset of canard that provides everything required to write
-programs that describe canard's semantics using term rewriting. It can also be
-implemented using preprocessor macros, which means it can be abstractly
-interpreted with zero runtime overhead.
+  Metaprogramming primitives.
+  In two groups: non-stack and stack-related. Canard needs to provide special
+  operations for the following functions:
 
-The reason we can write a self-describing language is that canard's stacks are
-themselves lists, which means we can have these primitives operate on quoted
-forms of the interpreter state.
+  | .  = schedule for evaluation, or "push continuation"
+    r< = data to resolver
+    r> = data from resolver
+    .< = data to continuations
+    .> = data from continuations
+    s< = unquote data stack
+    s> = quote data stack
 
-| ,  = nop (not implemented below because it must be native index 0)
-  :: = cons
-  :^ = uncons, or mnemonically, "cons invert"
-  s$ = swap
-  s, = drop
-  s: = dup
-  sr = rotate 3 left  (i.e. sr 1 2 3 = 2 3 1)
-  sR = rotate 3 right (i.e. sR 1 2 3 = 3 1 2)
+  Equations:
 
-Equations:
+  | s$ :: s$ sR :^       [*d x] [*c] r = [*d] [*c x] r
+    sr :^ s, sR          [*d x]    c r = [*d] c x
+    sR s$ sr :: sr s: sR [*d]      c r = [*d r] c r
+    s$ s, sR :^          [*d x]    c r = [*d] x r
+    :: sr s: s$          [*d]      c r = [*d c] c r
+    :: s:                [*d]      c r = [*d [*d]] c r
+    s, s$ :^             [*d d]    c r = d c r
 
-| :: :: sR :^ s$ :^                   [*d [*t] h] c r = [*d [*t h]] c r
-  :: s$ :: sr :^ :^                   [*d [*t h]] c r = [*d [*t] h] c r
-  :: s$ :: sr s$ sR :^ s$ :^          [*d y x]    c r = [*d x y] c r
-  s, :^                               [*d x]      c r = [*d] c r
-  :: s$ :: sr s: :^                   [*d x]      c r = [*d x x] c r
-  :: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ [*d x y z]  c r = [*d z x y] c r
-  :: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ [*d x y z]  c r = [*d y z x] c r
+  [s$ :: s$ sR :^        .]
+  [sr :^ s, sR          r<]
+  [sR s$ sr :: sr s: sR r>]
+  [s$ s, sR :^          .<]
+  [:: sr s: s$          .>]
+  [:: s:                s>]
+  [s, s$ :^             s<]
 
-[:: :: sR :^ s$ :^                   ::]
-[:: s$ :: sr :^ :^                   :^]
-[:: s$ :: sr s$ sR :^ s$ :^          s$]
-[s, :^                               s,]
-[:: s$ :: sr s: :^                   s:]
-[:: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ sr]
-[:: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ sR]
+  Micro-canard.
+  Micro-canard is a subset of canard that provides everything required to write
+  programs that describe canard's semantics using term rewriting. It can also
+  be implemented using preprocessor macros, which means it can be abstractly
+  interpreted with zero runtime overhead.
+
+  The reason we can write a self-describing language is that canard's stacks
+  are themselves lists, which means we can have these primitives operate on
+  quoted forms of the interpreter state.
+
+  | ',  = pre-resolved native nil (not implemented below)
+    '!. = pre-resolved native eval (not implemented below)
+    ::  = cons
+    :^  = uncons, or mnemonically, "cons invert"
+    s$  = swap
+    s,  = drop
+    s:  = dup
+    sr  = rotate 3 left  (i.e. sr 1 2 3 = 2 3 1)
+    sR  = rotate 3 right (i.e. sR 1 2 3 = 3 1 2)
+
+  Equations:
+
+  | :: :: sR :^ s$ :^                   [*d [*t] h] c r = [*d [*t h]] c r
+    :: s$ :: sr :^ :^                   [*d [*t h]] c r = [*d [*t] h] c r
+    :: s$ :: sr s$ sR :^ s$ :^          [*d y x]    c r = [*d x y] c r
+    s, :^                               [*d x]      c r = [*d] c r
+    :: s$ :: sr s: :^                   [*d x]      c r = [*d x x] c r
+    :: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ [*d x y z]  c r = [*d z x y] c r
+    :: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ [*d x y z]  c r = [*d y z x] c r
+
+  [:: :: sR :^ s$ :^                   ::]
+  [:: s$ :: sr :^ :^                   :^]
+  [:: s$ :: sr s$ sR :^ s$ :^          s$]
+  [s, :^                               s,]
+  [:: s$ :: sr s: :^                   s:]
+  [:: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ sr]
+  [:: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ sR]
+
+  TODO: incorporate heap-manipulation primitives into micro-canard
+  TODO: heap->string quoting
+  TODO: arithmetic and comparison primitives
 
   Preprocessor micro-canard abstract evaluator.
   The evaluator contains some logic to avoid intermediate cons cell allocation;
@@ -81,10 +116,15 @@ Equations:
   The macro names here are based on canard's packed-symbol encoding and aren't
   meant to be human-readable. This is a recurring theme in canard.
 
-  Note that _2e2127 is a bit of a hack to enable micro-canard programs to
+  Note that `_2e2127` is a bit of a hack to enable micro-canard programs to
   insert references to the native evaluator function. Otherwise we'd be unable
   to write the symbol resolver using micro-canard, at which point the language
-  would be little more than a misguided joke.
+  would be little more than a bizarre joke.
+
+  Also note that compilers will need to add wrapping `ev()` calls, one for each
+  micro-canard primitive command. The alternative is to use a preprocessor
+  multiplier to get a bunch of them, but this will slow down JIT cycles since
+  we'll be making the preprocessor do a bunch of extra work.
 
 ["#EOF
 #define paste(x, y) x##y
@@ -108,6 +148,8 @@ Equations:
 #define tl(x) paste(tl_, x)
 
 #define _2c(...)            (__VA_ARGS__)
+#define _2c27(...)          (0, __VA_ARGS__)
+#define _2e2127(...)        (_eval_i, __VA_ARGS__)
 #define _3a3a(h, t, ...)    (cons(t, h), __VA_ARGS__)
 #define _5e3a(x, ...)       (hd(x), tl(x), __VA_ARGS__)
 #define _2473(x, y, ...)    (y, x, __VA_ARGS__)
@@ -115,8 +157,6 @@ Equations:
 #define _3a73(x, ...)       (x, x, __VA_ARGS__)
 #define _7273(x, y, z, ...) (y, z, x, __VA_ARGS__)
 #define _5273(x, y, z, ...) (z, x, y, __VA_ARGS__)
-
-#define _2e2127(...) (_eval_i, __VA_ARGS__)
 
 #define commit(dn, cn, rn, ...) \
   do { \
@@ -132,36 +172,6 @@ Equations:
 #define mc(f) commit f(d, c, r, STACK_END)
 #define ev(x) x
 EOF mc]
-
-Core primitives.
-In two groups: non-stack and stack-related. Canard needs to provide special
-operations for the following functions:
-
-| .  = schedule for evaluation, or "push continuation"
-  r< = data to resolver
-  r> = data from resolver
-  .< = data to continuations
-  .> = data from continuations
-  s< = unquote data stack
-  s> = quote data stack
-
-Equations:
-
-| s$ :: s$ sR :^       [*d x] [*c] r = [*d] [*c x] r
-  sr :^ s, sR          [*d x]    c r = [*d] c x
-  sR s$ sr :: sr s: sR [*d]      c r = [*d r] c r
-  s$ s, sR :^          [*d x]    c r = [*d] x r
-  :: sr s: s$          [*d]      c r = [*d c] c r
-  :: s:                [*d]      c r = [*d [*d]] c r
-  s, s$ :^             [*d d]    c r = d c r
-
-[s$ :: s$ sR :^        .]
-[sr :^ s, sR          r<]
-[sR s$ sr :: sr s: sR r>]
-[s$ s, sR :^          .<]
-[:: sr s: s$          .>]
-[:: s:                s>]
-[s, s$ :^             s<]
 
 C source.
 We need some boilerplate around the generated definitions (partially just to
