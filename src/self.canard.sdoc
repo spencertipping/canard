@@ -14,7 +14,8 @@ interpreter, since it's just a single computed-goto).
 
 As you might expect, all of these are specified in concatenative form against a
 stack of quoted `d c r` values. All of the primitives at this level are
-implemented in micro-canard.
+implemented in micro-canard, a subset of canard that contains enough functions
+to describe how to transform its quoted state.
 
 | .:: (evaluate cons/string)
   .:: [*d] [*c0 [*c1 x]] r h         = [*d x] [*c0 [*c1]] r h
@@ -49,13 +50,13 @@ value on the data stack, or loop forever as we tried to resolve `.`.
 
   Equations:
 
-  | s$ :: s$ sR :^       [*d x] [*c] r h = [*d] [*c x] r h
-    sr :^ s, sR          [*d x]    c r h = [*d]      c x h
-    sR s$ sr :: sr s: sR [*d]      c r h = [*d r]    c r h
-    s$ s, sR :^          [*d x]    c r h = [*d]      x r h
-    :: sr s: s$          [*d]      c r h = [*d c]    c r h
-    :: s:                [*d]      c r h = [*d [*d]] c r h
-    s, s$ :^             [*d d]    c r h = d         c r h
+  | s$ :: s$ sR :^       [*d x] [*c] r = [*d] [*c x] r
+    sr :^ s, sR          [*d x]    c r = [*d]      c x
+    sR s$ sr :: sr s: sR [*d]      c r = [*d r]    c r
+    s$ s, sR :^          [*d x]    c r = [*d]      x r
+    :: sr s: s$          [*d]      c r = [*d c]    c r
+    :: s:                [*d]      c r = [*d [*d]] c r
+    s, s$ :^             [*d d]    c r = d         c r
 
   [s$ :: s$ sR :^        .]
   [sr :^ s, sR          r<]
@@ -67,9 +68,10 @@ value on the data stack, or loop forever as we tried to resolve `.`.
 
   Micro-canard.
   Micro-canard is a subset of canard that provides everything required to write
-  programs that describe canard's semantics using term rewriting. It can also
+  programs that describe canard's semantics using list rewriting. It can also
   be implemented using preprocessor macros, which means it can be abstractly
-  interpreted with zero runtime overhead.
+  interpreted with zero runtime overhead. (Note, however, that we rely on the C
+  compiler to optimize common subexpressions.)
 
   The reason we can write a self-describing language is that canard's stacks
   are themselves lists, which means we can have these primitives operate on
@@ -87,13 +89,13 @@ value on the data stack, or loop forever as we tried to resolve `.`.
 
   Equations:
 
-  | :: :: sR :^ s$ :^                   [*d [*t] h] c r h = [*d [*t h]] c r h
-    :: s$ :: sr :^ :^                   [*d [*t h]] c r h = [*d [*t] h] c r h
-    :: s$ :: sr s$ sR :^ s$ :^          [*d y x]    c r h = [*d x y]    c r h
-    s, :^                               [*d x]      c r h = [*d]        c r h
-    :: s$ :: sr s: :^                   [*d x]      c r h = [*d x x]    c r h
-    :: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ [*d x y z]  c r h = [*d z x y]  c r h
-    :: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ [*d x y z]  c r h = [*d y z x]  c r h
+  | :: :: sR :^ s$ :^                   [*d [*t] h] c r = [*d [*t h]] c r
+    :: s$ :: sr :^ :^                   [*d [*t h]] c r = [*d [*t] h] c r
+    :: s$ :: sr s$ sR :^ s$ :^          [*d y x]    c r = [*d x y]    c r
+    s, :^                               [*d x]      c r = [*d]        c r
+    :: s$ :: sr s: :^                   [*d x]      c r = [*d x x]    c r
+    :: s$ :: s$ :: s$ sr :^ sr :^ s$ :^ [*d x y z]  c r = [*d z x y]  c r
+    :: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ [*d x y z]  c r = [*d y z x]  c r
 
   [:: :: sR :^ s$ :^                   ::]
   [:: s$ :: sr :^ :^                   :^]
@@ -104,6 +106,13 @@ value on the data stack, or loop forever as we tried to resolve `.`.
   [:: s$ :: sR :: sR s$ :^ s$ :^ s$ :^ sR]
 
   Strings and the heap.
+  **NOTE:** The problem here is that heap quoting (in particular, a heap that
+  refers to itself) introduces a dependency on pointer values. If we aren't
+  careful, we'll end up with real pointers in the heap, which will break JIT
+  compilation since the address space might not be the same. Relative pointers
+  might work. This gets to be tricky considering that the stacks all rely on
+  the heap in order to work correctly.
+
   Canard has an abstraction for mutable strings, which are reference types and
   behave like aliasable `unsigned char*` pointers in C. Unlike in C, each
   string has an immutable length assigned when it's created.
@@ -131,7 +140,9 @@ value on the data stack, or loop forever as we tried to resolve `.`.
   `h`, and `t` must not be preprocessor macros for this to work.
 
   The macro names here are based on canard's packed-symbol encoding and aren't
-  meant to be human-readable. This is a recurring theme in canard.
+  meant to be human-readable. This is a recurring theme in canard. Basically,
+  what's happening here is that we're using the C preprocessor macro namespace
+  as a resolver for micro-canard commands.
 
   Note that `_2e2127` is a bit of a hack to enable micro-canard programs to
   insert references to the native evaluator function. Otherwise we'd be unable

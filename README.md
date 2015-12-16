@@ -18,12 +18,12 @@ Primitive syntactic elements are:
     - lists are self-quoting, exactly as in Joy
 - symbols: `/[^]["\s][^][\s]*/`
 - strings, which are just mutable blocks of memory:
-    - `"X...X`: exactly equivalent to Perl's `qX...X` construct; all of the
-      same delimiters are supported
-    - `"#EOF`: equivalent to Perl's `<<'EOF'`, but syntax continues immediately
-      after the heredoc's end marker; you can't continue syntax on the same
-      line
-    - strings are self-quoting
+    - `"X...X`: exactly equivalent to Perl's non-interpolating `qX...X`
+      construct; all of the same delimiters are supported
+    - `"#EOF`: equivalent to Perl's non-interpolating `<<'EOF'`, but syntax
+      continues immediately after the heredoc's end marker; you can't continue
+      syntax on the same line
+    - strings are self-quoting reference types, like conses
 
 Symbols and strings are interconvertible:
 
@@ -75,8 +75,8 @@ the interpreter works like this (JIT is done by adding new native functions):
 while (true)
 {
   // c = [a b c d] -> c = [a b c], command = d
-  // It's important to remove nils here because nil normally pushes itself onto
-  // the data stack. As a continuation it should be a nop.
+  // Remove nils, since they're just parent call frames that weren't tail-call
+  // optimized.
   for (command = 0; !command;)
   {
     command = h(c);
@@ -88,7 +88,7 @@ while (true)
   // functions can atomically cons multiple items, as in the case of symbol
   // resolution below. Because of this, we support both unwrapped things
   // (symbols and numbers) and conses. If it's a cons, we automatically go
-  // through its entries. The nil is native fn 0, which does nothing.
+  // through its entries. Nil is native fn 0, which does nothing.
   //
   // c = [a b c], command = [d e] -> c = [a b c [d]], command = e
   if (type(command) == CONS)
@@ -112,6 +112,9 @@ while (true)
       // language work. (See src/self.canard.sdoc for the full list)
       (*native_functions[v])(&d, &c, &r);
       break;
+
+    // The three cases below are written in micro-canard and operate on quoted
+    // stacks of [d c r]. See src/self.canard.sdoc for implementations.
 
     case SYMBOL:
       // Push the symbol and schedule the resolver to be executed on the next
