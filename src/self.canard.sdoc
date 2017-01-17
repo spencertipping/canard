@@ -278,12 +278,13 @@ baked into the C source.
 #!/bin/sh
 t=${TMPDIR:-/tmp}
 i=0
-until mkdir "$t/canard-$i" 2>/dev/null; do
+until mkdir "$t/canard-$$-$i" 2>/dev/null; do
   i=$((i + 1))
 done
-cat > "$t/canard-$i/canard.c" <<'_'
+d="$t/canard-$$-$i"
+cat > "$d/canard.c" <<'_'
 C_SOURCE
 _
-c99 "$t/canard-$i/canard.c" $CANARD_C99_OPTS -o "$t/canard-$i/canard" \
-  && exec "$t/canard-$i/canard" "$@"
+c99 "$d/canard.c" $CANARD_C99_OPTS -o "$d/canard" \
+  && exec "$d/canard" "$@"
 EOF sh]
